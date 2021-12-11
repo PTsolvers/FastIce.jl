@@ -53,25 +53,17 @@ end
 @parallel_indices (ix,iy) function init_ϕ!(ϕ,ϕv,ϕx,ϕy,gl,dx,dy,lx,ly)
     xc,yc = dx*ix-dx/2-lx/2, dy*iy-dy/2
     xv,yv = dx*ix     -lx/2, dy*iy
-    if ix <= size(ϕ,1) && iy <= size(ϕ,2)
-        if abs(xc) < gl/2 && yc < gl
-            ϕ[ix,iy] = 1.0
-        end
+    if checkbounds(Bool,ϕ,ix,iy) && (abs(xc) < gl/2 && yc < gl)
+        ϕ[ix,iy] = 1.0
     end
-    if ix <= size(ϕv,1) && iy <= size(ϕv,2)
-        if abs(xv) < gl/2 && yv < gl
-            ϕv[ix,iy] = 1.0
-        end
+    if checkbounds(Bool,ϕv,ix,iy) && (abs(xv) < gl/2 && yv < gl)
+        ϕv[ix,iy] = 1.0
     end
-    if ix <= size(ϕx,1) && iy < size(ϕx,2)
-        if abs(xv) < gl/2 && yc+dx < gl
-            ϕx[ix,iy] = 1.0
-        end
+    if checkbounds(Bool,ϕx,ix,iy) && (abs(xv) < gl/2 && yc+dx < gl)
+        ϕx[ix,iy] = 1.0
     end
-    if ix <= size(ϕy,1) && iy < size(ϕy,2)
-        if abs(xc+dx) < gl/2 && yv < gl
-            ϕy[ix,iy] = 1.0
-        end
+    if checkbounds(Bool,ϕy,ix,iy) && (abs(xc+dx) < gl/2 && yv < gl)
+        ϕy[ix,iy] = 1.0
     end
     return
 end
