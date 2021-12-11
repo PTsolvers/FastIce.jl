@@ -73,19 +73,14 @@ end
     xv,yv = dx*ix     -lx/2, dy*iy
     fc    = amp*sin(ω*xc/lx) + tanβ*xc + el
     fv    = amp*sin(ω*xv/lx) + tanβ*xv + el
-    if ix <= size(θx,1) && iy <= size(θx,2)
-        if yc - fc < 0.0
-            θx[ix,iy] = 1.0
-        end
+    if checkbounds(Bool,θx,ix,iy) && (yc - fc < 0.0)
+        θx[ix,iy] = 1.0
     end
-    if ix <= size(θy,1) && iy <= size(θy,2)
-        if yv - fv < 0.0
-            θy[ix,iy] = 1.0
-        end
+    if checkbounds(Bool,θy,ix,iy) && (yv - fv < 0.0)
+        θy[ix,iy] = 1.0
     end
     return
 end
-
 
 @views function Stokes2D()
     # physics
@@ -153,7 +148,7 @@ end
     θy        = @zeros(nx-2,ny-1)
     @parallel init_ϕ!(ϕ,ϕv,ϕx,ϕy,gl,dx,dy,lx,ly)
     @parallel init_θ!(θx,θy,el,tanβ,ω,amp,dx,dy,lx,ly)
-    # Iteraion loop
+    # iteration loop
     err_V=2*ε_V; err_∇V=2*ε_∇V; iter=0; err_evo1=[]; err_evo2=[]
     while !((err_V <= ε_V) && (err_∇V <= ε_∇V)) && (iter <= maxiter)
         @parallel compute_P!(∇V, Pt, Vx, Vy, ϕ, Gdτ, r, dx, dy)
@@ -167,7 +162,7 @@ end
             norm_∇V = norm(ϕ.*∇V)/vsc*lx/sqrt(length(∇V))
             err_V   = maximum([norm_Rx, norm_Ry])
             err_∇V  = norm_∇V
-            push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/max(nx,ny))
+            push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/ny)
             @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e], err_∇V = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, err_∇V)
         end
         if iter % nviz == 0
