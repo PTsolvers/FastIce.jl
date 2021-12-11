@@ -53,16 +53,16 @@ end
 @parallel_indices (ix,iy) function init_ϕ!(ϕ,ϕv,ϕx,ϕy,gl,dx,dy,lx,ly)
     xc,yc = dx*ix-dx/2-lx/2, dy*iy-dy/2
     xv,yv = dx*ix     -lx/2, dy*iy
-    if checkbounds(Bool,ϕ,ix,iy) && (abs(xc) < gl/2 && yc < gl)
+    if checkbounds(Bool,ϕ,ix,iy) && (xc^2 + yc^2 < gl^2)
         ϕ[ix,iy] = 1.0
     end
-    if checkbounds(Bool,ϕv,ix,iy) && (abs(xv) < gl/2 && yv < gl)
+    if checkbounds(Bool,ϕv,ix,iy) && (xv^2 + yv^2 < gl^2)
         ϕv[ix,iy] = 1.0
     end
-    if checkbounds(Bool,ϕx,ix,iy) && (abs(xv) < gl/2 && yc+dx < gl)
+    if checkbounds(Bool,ϕx,ix,iy) && (xv^2 + (yc+dx)^2 < gl^2)
         ϕx[ix,iy] = 1.0
     end
-    if checkbounds(Bool,ϕy,ix,iy) && (abs(xc+dx) < gl/2 && yv < gl)
+    if checkbounds(Bool,ϕy,ix,iy) &&((xc+dx)^2 + yv^2 < gl^2)
         ϕy[ix,iy] = 1.0
     end
     return
@@ -94,7 +94,7 @@ end
     vsc       = ly/tsc
     ## nondimensional parameters
     lx_ly     = 1.0
-    gl_ly     = 1/2
+    gl_ly     = 0.4
     el_ly     = 0.15
     amp_ly    = 1/25
     α         = -0π
@@ -121,7 +121,7 @@ end
     r         = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
     # preprocessing
     dx, dy    = lx/nx, ly/ny # cell sizes
-    max_lxy   = 0.6gl
+    max_lxy   = 0.5gl
     Vpdτ      = min(dx,dy)*CFL
     dτ_ρ      = Vpdτ*max_lxy/Re/μs0
     Gdτ       = Vpdτ^2/dτ_ρ/(r+2.0)
