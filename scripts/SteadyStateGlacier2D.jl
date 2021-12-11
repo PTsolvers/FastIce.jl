@@ -11,30 +11,30 @@ else
 end
 using Plots, Printf, Statistics, LinearAlgebra, MAT, Random
 
-@parallel function compute_P!(∇V::Data.Array, Pt::Data.Array, Vx::Data.Array, Vy::Data.Array, ϕ::Data.Array, Gdτ::Data.Number, r::Data.Number, dx::Data.Number, dy::Data.Number)
-    @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy
-    @all(Pt)  = @all(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))
-    return
-end
+# @parallel function compute_P!(∇V::Data.Array, Pt::Data.Array, Vx::Data.Array, Vy::Data.Array, ϕ::Data.Array, Gdτ::Data.Number, r::Data.Number, dx::Data.Number, dy::Data.Number)
+#     @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy
+#     @all(Pt)  = @all(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))
+#     return
+# end
 
-@parallel function compute_τ!(τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, Vx::Data.Array, Vy::Data.Array, ϕ::Data.Array, ϕv::Data.Array, μ_veτ::Data.Number, Gdτ::Data.Number, dx::Data.Number, dy::Data.Number)
+@parallel function compute_P_τ!(∇V::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, Vx::Data.Array, Vy::Data.Array, ϕ::Data.Array, ϕv::Data.Array, r::Data.Number, μ_veτ::Data.Number, Gdτ::Data.Number, dx::Data.Number, dy::Data.Number)
+    @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy
+    @all(Pt)  = @all(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))    
     @all(τxx) = @all(ϕ) *2.0*μ_veτ*(@d_xa(Vx)/dx + @all(τxx)/Gdτ/2.0)
     @all(τyy) = @all(ϕ) *2.0*μ_veτ*(@d_ya(Vy)/dy + @all(τyy)/Gdτ/2.0)
     @all(τxy) = @all(ϕv)*2.0*μ_veτ*(0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) + @all(τxy)/Gdτ/2.0)
     return
 end
 
-@parallel function compute_dV!(Rx::Data.Array, Ry::Data.Array, dVx::Data.Array, dVy::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, ϕx::Data.Array, ϕy::Data.Array, ρgx::Data.Number, ρgy::Data.Number, dτ_ρ::Data.Number, dx::Data.Number, dy::Data.Number)
-    @all(Rx)  = @d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @all(ϕx)*ρgx
-    @all(Ry)  = @d_yi(τyy)/dy + @d_xa(τxy)/dx - @d_yi(Pt)/dy - @all(ϕy)*ρgy
-    @all(dVx) = dτ_ρ*@all(Rx)
-    @all(dVy) = dτ_ρ*@all(Ry)
+@parallel function compute_V!(Vx::Data.Array, Vy::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, ϕx::Data.Array, ϕy::Data.Array, θx::Data.Array, θy::Data.Array, ρgx::Data.Number, ρgy::Data.Number, dτ_ρ::Data.Number, dx::Data.Number, dy::Data.Number)
+    @inn(Vx) = (1.0-@all(θx))*( @inn(Vx) + dτ_ρ*(@d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @all(ϕx)*ρgx) )
+    @inn(Vy) = (1.0-@all(θy))*( @inn(Vy) + dτ_ρ*(@d_yi(τyy)/dy + @d_xa(τxy)/dx - @d_yi(Pt)/dy - @all(ϕy)*ρgy) )
     return
 end
 
-@parallel function compute_V!(Vx::Data.Array, Vy::Data.Array, dVx::Data.Array, dVy::Data.Array, θx::Data.Array, θy::Data.Array)
-    @inn(Vx) = (1.0-@all(θx))*(@inn(Vx) + @all(dVx))
-    @inn(Vy) = (1.0-@all(θy))*(@inn(Vy) + @all(dVy))
+@parallel function compute_Res!(Rx::Data.Array, Ry::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, ϕx::Data.Array, ϕy::Data.Array, ρgx::Data.Number, ρgy::Data.Number, dτ_ρ::Data.Number, dx::Data.Number, dy::Data.Number)
+    @all(Rx)  = @d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @all(ϕx)*ρgx
+    @all(Ry)  = @d_yi(τyy)/dy + @d_xa(τxy)/dx - @d_yi(Pt)/dy - @all(ϕy)*ρgy
     return
 end
 
@@ -151,12 +151,11 @@ end
     # iteration loop
     err_V=2*ε_V; err_∇V=2*ε_∇V; iter=0; err_evo1=[]; err_evo2=[]
     while !((err_V <= ε_V) && (err_∇V <= ε_∇V)) && (iter <= maxiter)
-        @parallel compute_P!(∇V, Pt, Vx, Vy, ϕ, Gdτ, r, dx, dy)
-        @parallel compute_τ!(τxx, τyy, τxy, Vx, Vy, ϕ, ϕv, μ_veτ,Gdτ, dx, dy)
-        @parallel compute_dV!(Rx, Ry, dVx, dVy, Pt, τxx, τyy, τxy, ϕx, ϕy, ρgx, ρgy, dτ_ρ, dx, dy)
-        @parallel compute_V!(Vx, Vy, dVx, dVy, θx, θy)
+        @parallel compute_P_τ!(∇V, Pt, τxx, τyy, τxy, Vx, Vy, ϕ, ϕv, r, μ_veτ,Gdτ, dx, dy)
+        @parallel compute_V!(Vx, Vy, Pt, τxx, τyy, τxy, ϕx, ϕy, θx, θy, ρgx, ρgy, dτ_ρ, dx, dy)
         iter += 1
         if iter % nchk == 0
+            @parallel compute_Res!(Rx, Ry, Pt, τxx, τyy, τxy, ϕx, ϕy, ρgx, ρgy, dτ_ρ, dx, dy)
             norm_Rx = norm((1.0 .- θx).*Rx)/psc*lx/sqrt(length(Rx))
             norm_Ry = norm((1.0 .- θy).*Ry)/psc*lx/sqrt(length(Ry))
             norm_∇V = norm(ϕ.*∇V)/vsc*lx/sqrt(length(∇V))
