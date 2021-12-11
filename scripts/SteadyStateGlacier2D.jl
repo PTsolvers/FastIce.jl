@@ -11,12 +11,6 @@ else
 end
 using Plots, Printf, Statistics, LinearAlgebra, MAT, Random
 
-# @parallel function compute_P!(∇V::Data.Array, Pt::Data.Array, Vx::Data.Array, Vy::Data.Array, ϕ::Data.Array, Gdτ::Data.Number, r::Data.Number, dx::Data.Number, dy::Data.Number)
-#     @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy
-#     @all(Pt)  = @all(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))
-#     return
-# end
-
 @parallel function compute_P_τ!(∇V::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, Vx::Data.Array, Vy::Data.Array, ϕ::Data.Array, ϕv::Data.Array, r::Data.Number, μ_veτ::Data.Number, Gdτ::Data.Number, dx::Data.Number, dy::Data.Number)
     @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy
     @all(Pt)  = @all(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))    
@@ -146,6 +140,9 @@ end
     ϕy        = @zeros(nx-2,ny-1)
     θx        = @zeros(nx-1,ny-2)
     θy        = @zeros(nx-2,ny-1)
+    Vx_v      = copy(Vx) # visu
+    Vy_v      = copy(Vy) # visu
+    Pt_v      = copy(Pt) # visu
     @parallel init_ϕ!(ϕ,ϕv,ϕx,ϕy,gl,dx,dy,lx,ly)
     @parallel init_θ!(θx,θy,el,tanβ,ω,amp,dx,dy,lx,ly)
     # iteration loop
@@ -165,9 +162,12 @@ end
             @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e], err_∇V = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, err_∇V)
         end
         if iter % nviz == 0
-            p1 = heatmap(Xv,Yc,Array(Vx)',aspect_ratio=1,xlims=(Xv[1],Xv[end]),ylims=(Yc[1],Yc[end]),c=:viridis,title="Vx")
-            p2 = heatmap(Xc,Yv,Array(Vy)',aspect_ratio=1,xlims=(Xc[1],Xc[end]),ylims=(Yv[1],Yv[end]),c=:viridis,title="Vy")
-            p3 = heatmap(Xc,Yc,Array(Pt)',aspect_ratio=1,xlims=(Xc[1],Xc[end]),ylims=(Yc[1],Yc[end]),clims=(0,0.5psc),c=:viridis,title="Pressure")
+            Vx_v .= Vx; Vx_v[Vx.==0] .= NaN
+            Vy_v .= Vy; Vy_v[Vy.==0] .= NaN
+            Pt_v .= Pt; Pt_v[Pt.==0] .= NaN
+            p1 = heatmap(Xv,Yc,Array(Vx_v)',aspect_ratio=1,xlims=(Xv[1],Xv[end]),ylims=(Yc[1],Yc[end]),c=:viridis,title="Vx")
+            p2 = heatmap(Xc,Yv,Array(Vy_v)',aspect_ratio=1,xlims=(Xc[1],Xc[end]),ylims=(Yv[1],Yv[end]),c=:viridis,title="Vy")
+            p3 = heatmap(Xc,Yc,Array(Pt_v)',aspect_ratio=1,xlims=(Xc[1],Xc[end]),ylims=(Yc[1],Yc[end]),clims=(0,0.5psc),c=:viridis,title="Pressure")
             p4 = plot(err_evo2,err_evo1, legend=false, xlabel="# iterations/nx", ylabel="log10(error)", linewidth=2, markershape=:circle, markersize=3, labels="max(error)", yaxis=:log10)
             display(plot(p1, p2, p3, p4))
         end
