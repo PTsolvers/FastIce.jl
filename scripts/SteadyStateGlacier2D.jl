@@ -130,8 +130,6 @@ end
     τxy       = @zeros(nx-1,ny-1)
     Rx        = @zeros(nx-1,ny-2)
     Ry        = @zeros(nx-2,ny-1)
-    dVx       = @zeros(nx-1,ny-2)
-    dVy       = @zeros(nx-2,ny-1)
     Vx        = @zeros(nx+1,ny  )
     Vy        = @zeros(nx  ,ny+1)
     ϕ         = @zeros(nx  ,ny  )
