@@ -18,8 +18,8 @@ ixi,iyi = :($ix+1), :($iy+1)
 @enum Flag air fluid solid
 
 macro fm(A)      esc(:( $A[$ix,$iy] == fluid )) end
-macro fmxy_xi(A) esc(:( !((($A[$ix,$iy] == air) && ($A[$ix,$iy+1] == air)) || (($A[$ix+1,$iy] == air) && ($A[$ix+1,$iy+1] == air))) )) end
-macro fmxy_yi(A) esc(:( !((($A[$ix,$iy] == air) && ($A[$ix+1,$iy] == air)) || (($A[$ix,$iy+1] == air) && ($A[$ix+1,$iy+1] == air))) )) end
+macro fmxy_xi(A) esc(:( !(($A[$ix,$iy] == air && $A[$ix,$iy+1] == air) || ($A[$ix+1,$iy] == air && $A[$ix+1,$iy+1] == air)) )) end
+macro fmxy_yi(A) esc(:( !(($A[$ix,$iy] == air && $A[$ix+1,$iy] == air) || ($A[$ix,$iy+1] == air && $A[$ix+1,$iy+1] == air)) )) end
 
 @parallel function compute_P_τ!(∇V::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, Vx::Data.Array, Vy::Data.Array, ϕ, r::Data.Number, μ_veτ::Data.Number, Gdτ::Data.Number, dx::Data.Number, dy::Data.Number)
     @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy
@@ -32,8 +32,8 @@ end
 
 macro sm_xi(A) esc(:( !(($A[$ix,$iyi] == solid) || ($A[$ix+1,$iyi] == solid)) )) end
 macro sm_yi(A) esc(:( !(($A[$ixi,$iy] == solid) || ($A[$ixi,$iy+1] == solid)) )) end
-macro fm_xi(A) esc(:( 0.5*((($A[$ix,$iyi] == fluid) || ($A[$ix,$iyi] == solid)) + (($A[$ix+1,$iyi] == fluid) || ($A[$ix+1,$iyi] == solid))) )) end
-macro fm_yi(A) esc(:( 0.5*((($A[$ixi,$iy] == fluid) || ($A[$ixi,$iy] == solid)) + (($A[$ixi,$iy+1] == fluid) || ($A[$ixi,$iy+1] == solid))) )) end
+macro fm_xi(A) esc(:( 0.5*((($A[$ix,$iyi] != air)) + (($A[$ix+1,$iyi] != air))) )) end
+macro fm_yi(A) esc(:( 0.5*((($A[$ixi,$iy] != air)) + (($A[$ixi,$iy+1] != air))) )) end
 
 @parallel function compute_V!(Vx::Data.Array, Vy::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, ϕ, ρgx::Data.Number, ρgy::Data.Number, dτ_ρ::Data.Number, dx::Data.Number, dy::Data.Number)
     @inn(Vx) = @sm_xi(ϕ)*( @inn(Vx) + dτ_ρ*(@d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) )
