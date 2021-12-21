@@ -11,67 +11,59 @@ else
 end
 using Plots, Printf, Statistics, LinearAlgebra, MAT, Random
 
-@parallel function compute_P_τ!(∇V::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, Vx::Data.Array, Vy::Data.Array, ϕ::Data.Array, ϕv::Data.Array, r::Data.Number, μ_veτ::Data.Number, Gdτ::Data.Number, dx::Data.Number, dy::Data.Number)
+import ParallelStencil: INDICES
+
+ix,iy = INDICES[1], INDICES[2]
+ixi,iyi = :($ix+1), :($iy+1)
+macro fm(A)      esc(:( $A[$ix,$iy] == fluid )) end
+macro fmxy_xi(A) esc(:( !((($A[$ix,$iy] == air) && ($A[$ix,$iy+1] == air)) || (($A[$ix+1,$iy] == air) && ($A[$ix+1,$iy+1] == air))) )) end
+macro fmxy_yi(A) esc(:( !((($A[$ix,$iy] == air) && ($A[$ix+1,$iy] == air)) || (($A[$ix,$iy+1] == air) && ($A[$ix+1,$iy+1] == air))) )) end
+
+@parallel function compute_P_τ!(∇V::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, Vx::Data.Array, Vy::Data.Array, ϕ, r::Data.Number, μ_veτ::Data.Number, Gdτ::Data.Number, dx::Data.Number, dy::Data.Number)
     @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy
-    @all(Pt)  = @all(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))    
-    @all(τxx) = @all(ϕ) *2.0*μ_veτ*(@d_xa(Vx)/dx + @all(τxx)/Gdτ/2.0)
-    @all(τyy) = @all(ϕ) *2.0*μ_veτ*(@d_ya(Vy)/dy + @all(τyy)/Gdτ/2.0)
-    @all(τxy) = @all(ϕv)*2.0*μ_veτ*(0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) + @all(τxy)/Gdτ/2.0)
+    @all(Pt)  = @fm(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))    
+    @all(τxx) = @fm(ϕ)*2.0*μ_veτ*(@d_xa(Vx)/dx + @all(τxx)/Gdτ/2.0)
+    @all(τyy) = @fm(ϕ)*2.0*μ_veτ*(@d_ya(Vy)/dy + @all(τyy)/Gdτ/2.0)
+    @all(τxy) = @fmxy_xi(ϕ)*@fmxy_yi(ϕ)*2.0*μ_veτ*(0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) + @all(τxy)/Gdτ/2.0)
     return
 end
 
-@parallel function compute_V!(Vx::Data.Array, Vy::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, ϕx::Data.Array, ϕy::Data.Array, θx::Data.Array, θy::Data.Array, ρgx::Data.Number, ρgy::Data.Number, dτ_ρ::Data.Number, dx::Data.Number, dy::Data.Number)
-    @inn(Vx) = (1.0-@all(θx))*( @inn(Vx) + dτ_ρ*(@d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @all(ϕx)*ρgx) )
-    @inn(Vy) = (1.0-@all(θy))*( @inn(Vy) + dτ_ρ*(@d_yi(τyy)/dy + @d_xa(τxy)/dx - @d_yi(Pt)/dy - @all(ϕy)*ρgy) )
+macro sm_xi(A) esc(:( !(($A[$ix,$iyi] == solid) || ($A[$ix+1,$iyi] == solid)) )) end
+macro sm_yi(A) esc(:( !(($A[$ixi,$iy] == solid) || ($A[$ixi,$iy+1] == solid)) )) end
+macro fm_xi(A) esc(:( 0.5*((($A[$ix,$iyi] == fluid) || ($A[$ix,$iyi] == solid)) + (($A[$ix+1,$iyi] == fluid) || ($A[$ix+1,$iyi] == solid))) )) end
+macro fm_yi(A) esc(:( 0.5*((($A[$ixi,$iy] == fluid) || ($A[$ixi,$iy] == solid)) + (($A[$ixi,$iy+1] == fluid) || ($A[$ixi,$iy+1] == solid))) )) end
+
+@parallel function compute_V!(Vx::Data.Array, Vy::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, ϕ, ρgx::Data.Number, ρgy::Data.Number, dτ_ρ::Data.Number, dx::Data.Number, dy::Data.Number)
+    @inn(Vx) = @sm_xi(ϕ)*( @inn(Vx) + dτ_ρ*(@d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) )
+    @inn(Vy) = @sm_yi(ϕ)*( @inn(Vy) + dτ_ρ*(@d_yi(τyy)/dy + @d_xa(τxy)/dx - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy) )
     return
 end
 
-@parallel function compute_Res!(Rx::Data.Array, Ry::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, ϕx::Data.Array, ϕy::Data.Array, ρgx::Data.Number, ρgy::Data.Number, dτ_ρ::Data.Number, dx::Data.Number, dy::Data.Number)
-    @all(Rx)  = @d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @all(ϕx)*ρgx
-    @all(Ry)  = @d_yi(τyy)/dy + @d_xa(τxy)/dx - @d_yi(Pt)/dy - @all(ϕy)*ρgy
+@parallel function compute_Res!(Rx::Data.Array, Ry::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, ϕ, ρgx::Data.Number, ρgy::Data.Number, dx::Data.Number, dy::Data.Number)
+    @all(Rx)  = @sm_xi(ϕ)*(@d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx)
+    @all(Ry)  = @sm_yi(ϕ)*(@d_yi(τyy)/dy + @d_xa(τxy)/dx - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy)
     return
 end
 
-@parallel_indices (iy) function bc_x!(A::Data.Array)
-    A[1  , iy] = A[2    , iy]
-    A[end, iy] = A[end-1, iy]
-    return
+@enum Flag air fluid solid
+
+function is_inside_fluid(x,y,gl)
+    return x*x + y*y < gl*gl
 end
 
-@parallel_indices (ix) function bc_y!(A::Data.Array)
-    A[ix, 1  ] = A[ix, 2    ]
-    A[ix, end] = A[ix, end-1]
-    return
+function is_inside_solid(x,y,lx,amp,ω,tanβ,el)
+    return y < amp*sin(ω*x/lx) + tanβ*x + el
 end
 
-@parallel_indices (ix,iy) function init_ϕ!(ϕ,ϕv,ϕx,ϕy,gl,dx,dy,lx,ly)
+@parallel_indices (ix,iy) function init_ϕ!(ϕ,gl,el,tanβ,ω,amp,dx,dy,lx,ly)
     xc,yc = dx*ix-dx/2-lx/2, dy*iy-dy/2
-    xv,yv = dx*ix     -lx/2, dy*iy
-    if checkbounds(Bool,ϕ,ix,iy) && (xc^2 + yc^2 < gl^2)
-        ϕ[ix,iy] = 1.0
-    end
-    if checkbounds(Bool,ϕv,ix,iy) && (xv^2 + yv^2 < gl^2)
-        ϕv[ix,iy] = 1.0
-    end
-    if checkbounds(Bool,ϕx,ix,iy) && (xv^2 + (yc+dx)^2 < gl^2)
-        ϕx[ix,iy] = 1.0
-    end
-    if checkbounds(Bool,ϕy,ix,iy) &&((xc+dx)^2 + yv^2 < gl^2)
-        ϕy[ix,iy] = 1.0
-    end
-    return
-end
-
-@parallel_indices (ix,iy) function init_θ!(θx,θy,el,tanβ,ω,amp,dx,dy,lx,ly)
-    xc,yc = dx*ix-dx/2-lx/2, dy*iy-dy/2
-    xv,yv = dx*ix     -lx/2, dy*iy
-    fc    = amp*sin(ω*xc/lx) + tanβ*xc + el
-    fv    = amp*sin(ω*xv/lx) + tanβ*xv + el
-    if checkbounds(Bool,θx,ix,iy) && (yc - fc < 0.0)
-        θx[ix,iy] = 1.0
-    end
-    if checkbounds(Bool,θy,ix,iy) && (yv - fv < 0.0)
-        θy[ix,iy] = 1.0
+    if checkbounds(Bool,ϕ,ix,iy)
+        if is_inside_fluid(xc,yc,gl)
+            ϕ[ix,iy] = fluid
+        end
+        if is_inside_solid(xc,yc,lx,amp,ω,tanβ,el)
+            ϕ[ix,iy] = solid
+        end
     end
     return
 end
@@ -91,7 +83,7 @@ end
     gl_ly     = 0.4
     el_ly     = 0.15
     amp_ly    = 1/25
-    α         = -0π
+    α         = 0*π/12
     tanβ      = tan(-π/12)
     ωly       = 10π
     ## dimensionally dependent
@@ -103,11 +95,11 @@ end
     ρgy       = ρg0*cos(α)
     ω         = ωly/ly
     # numerics
-    ny        = 511
+    ny        = 255
     nx        = ceil(Int,lx_ly*ny)
     maxiter   = 50ny         # maximum number of pseudo-transient iterations
-    nchk      = 1ny          # error checking frequency
-    nviz      = 1ny          # visualisation frequency
+    nchk      = 1*ny          # error checking frequency
+    nviz      = 1*ny          # visualisation frequency
     ε_V       = 1e-8         # nonlinear absolute tolerence for momentum
     ε_∇V      = 1e-8         # nonlinear absolute tolerence for divergence
     CFL       = 0.95/sqrt(2) # stability condition
@@ -132,28 +124,22 @@ end
     Ry        = @zeros(nx-2,ny-1)
     Vx        = @zeros(nx+1,ny  )
     Vy        = @zeros(nx  ,ny+1)
-    ϕ         = @zeros(nx  ,ny  )
-    ϕv        = @zeros(nx-1,ny-1)
-    ϕx        = @zeros(nx-1,ny-2)
-    ϕy        = @zeros(nx-2,ny-1)
-    θx        = @zeros(nx-1,ny-2)
-    θy        = @zeros(nx-2,ny-1)
+    ϕ         = fill(air,nx,ny)
     Vx_v      = copy(Vx) # visu
     Vy_v      = copy(Vy) # visu
     Pt_v      = copy(Pt) # visu
-    @parallel init_ϕ!(ϕ,ϕv,ϕx,ϕy,gl,dx,dy,lx,ly)
-    @parallel init_θ!(θx,θy,el,tanβ,ω,amp,dx,dy,lx,ly)
+    @parallel init_ϕ!(ϕ,gl,el,tanβ,ω,amp,dx,dy,lx,ly)
     # iteration loop
     err_V=2*ε_V; err_∇V=2*ε_∇V; iter=0; err_evo1=[]; err_evo2=[]
     while !((err_V <= ε_V) && (err_∇V <= ε_∇V)) && (iter <= maxiter)
-        @parallel compute_P_τ!(∇V, Pt, τxx, τyy, τxy, Vx, Vy, ϕ, ϕv, r, μ_veτ,Gdτ, dx, dy)
-        @parallel compute_V!(Vx, Vy, Pt, τxx, τyy, τxy, ϕx, ϕy, θx, θy, ρgx, ρgy, dτ_ρ, dx, dy)
+        @parallel compute_P_τ!(∇V, Pt, τxx, τyy, τxy, Vx, Vy, ϕ, r, μ_veτ,Gdτ, dx, dy)
+        @parallel compute_V!(Vx, Vy, Pt, τxx, τyy, τxy, ϕ, ρgx, ρgy, dτ_ρ, dx, dy)
         iter += 1
         if iter % nchk == 0
-            @parallel compute_Res!(Rx, Ry, Pt, τxx, τyy, τxy, ϕx, ϕy, ρgx, ρgy, dτ_ρ, dx, dy)
-            norm_Rx = norm((1.0 .- θx).*Rx)/psc*lx/sqrt(length(Rx))
-            norm_Ry = norm((1.0 .- θy).*Ry)/psc*lx/sqrt(length(Ry))
-            norm_∇V = norm(ϕ.*∇V)/vsc*lx/sqrt(length(∇V))
+            @parallel compute_Res!(Rx, Ry, Pt, τxx, τyy, τxy, ϕ, ρgx, ρgy, dx, dy)
+            norm_Rx = norm(Rx)/psc*lx/sqrt(length(Rx))
+            norm_Ry = norm(Ry)/psc*lx/sqrt(length(Ry))
+            norm_∇V = norm((ϕ.==fluid).*∇V)/vsc*lx/sqrt(length(∇V))
             err_V   = maximum([norm_Rx, norm_Ry])
             err_∇V  = norm_∇V
             push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/ny)
