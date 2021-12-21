@@ -48,7 +48,7 @@ end
 end
 
 function is_inside_fluid(x,y,gl)
-    return x*x + y*y < gl*gl
+    return (x+0.1*gl)*(x+0.1*gl) + y*y < gl*gl
 end
 
 function is_inside_solid(x,y,lx,amp,ω,tanβ,el)
@@ -79,9 +79,9 @@ end
     tsc       = μs0/psc
     vsc       = ly/tsc
     ## nondimensional parameters
-    lx_ly     = 1.0
-    gl_ly     = 0.4
-    el_ly     = 0.15
+    lx_ly     = 2.0
+    gl_ly     = 0.9
+    el_ly     = 0.3
     amp_ly    = 1/25
     α         = 0*π/12
     tanβ      = tan(-π/12)
