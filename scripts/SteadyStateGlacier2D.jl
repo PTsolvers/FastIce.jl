@@ -12,9 +12,11 @@ end
 using Plots, Printf, Statistics, LinearAlgebra, MAT, Random
 
 import ParallelStencil: INDICES
-
 ix,iy = INDICES[1], INDICES[2]
 ixi,iyi = :($ix+1), :($iy+1)
+
+@enum Flag air fluid solid
+
 macro fm(A)      esc(:( $A[$ix,$iy] == fluid )) end
 macro fmxy_xi(A) esc(:( !((($A[$ix,$iy] == air) && ($A[$ix,$iy+1] == air)) || (($A[$ix+1,$iy] == air) && ($A[$ix+1,$iy+1] == air))) )) end
 macro fmxy_yi(A) esc(:( !((($A[$ix,$iy] == air) && ($A[$ix+1,$iy] == air)) || (($A[$ix,$iy+1] == air) && ($A[$ix+1,$iy+1] == air))) )) end
@@ -44,8 +46,6 @@ end
     @all(Ry)  = @sm_yi(ϕ)*(@d_yi(τyy)/dy + @d_xa(τxy)/dx - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy)
     return
 end
-
-@enum Flag air fluid solid
 
 function is_inside_fluid(x,y,gl)
     return x*x + y*y < gl*gl
@@ -98,8 +98,8 @@ end
     ny        = 255
     nx        = ceil(Int,lx_ly*ny)
     maxiter   = 50ny         # maximum number of pseudo-transient iterations
-    nchk      = 1*ny          # error checking frequency
-    nviz      = 1*ny          # visualisation frequency
+    nchk      = 1*ny         # error checking frequency
+    nviz      = 1*ny         # visualisation frequency
     ε_V       = 1e-8         # nonlinear absolute tolerence for momentum
     ε_∇V      = 1e-8         # nonlinear absolute tolerence for divergence
     CFL       = 0.95/sqrt(2) # stability condition
@@ -151,7 +151,7 @@ end
             Pt_v .= Pt; Pt_v[Pt.==0] .= NaN
             p1 = heatmap(Xv,Yc,Array(Vx_v)',aspect_ratio=1,xlims=(Xv[1],Xv[end]),ylims=(Yc[1],Yc[end]),c=:viridis,title="Vx")
             p2 = heatmap(Xc,Yv,Array(Vy_v)',aspect_ratio=1,xlims=(Xc[1],Xc[end]),ylims=(Yv[1],Yv[end]),c=:viridis,title="Vy")
-            p3 = heatmap(Xc,Yc,Array(Pt_v)',aspect_ratio=1,xlims=(Xc[1],Xc[end]),ylims=(Yc[1],Yc[end]),clims=(0,0.5psc),c=:viridis,title="Pressure")
+            p3 = heatmap(Xc,Yc,Array(Pt_v)',aspect_ratio=1,xlims=(Xc[1],Xc[end]),ylims=(Yc[1],Yc[end]),c=:viridis,title="Pressure")
             p4 = plot(err_evo2,err_evo1, legend=false, xlabel="# iterations/nx", ylabel="log10(error)", linewidth=2, markershape=:circle, markersize=3, labels="max(error)", yaxis=:log10)
             display(plot(p1, p2, p3, p4))
         end
