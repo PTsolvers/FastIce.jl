@@ -95,11 +95,12 @@ end
     ρgy       = ρg0*cos(α)
     ω         = ωly/ly
     # numerics
-    ny        = 255
+    ny        = 256
     nx        = ceil(Int,lx_ly*ny)
+    nx, ny    = nx-1, ny-1
     maxiter   = 50ny         # maximum number of pseudo-transient iterations
-    nchk      = 1*ny         # error checking frequency
-    nviz      = 1*ny         # visualisation frequency
+    nchk      = 2*ny         # error checking frequency
+    nviz      = 2*ny         # visualisation frequency
     ε_V       = 1e-8         # nonlinear absolute tolerence for momentum
     ε_∇V      = 1e-8         # nonlinear absolute tolerence for divergence
     CFL       = 0.95/sqrt(2) # stability condition
@@ -149,11 +150,14 @@ end
             Vx_v .= Vx; Vx_v[Vx.==0] .= NaN
             Vy_v .= Vy; Vy_v[Vy.==0] .= NaN
             Pt_v .= Pt; Pt_v[Pt.==0] .= NaN
-            p1 = heatmap(Xv,Yc,Array(Vx_v)',aspect_ratio=1,xlims=(Xv[1],Xv[end]),ylims=(Yc[1],Yc[end]),c=:viridis,title="Vx")
-            p2 = heatmap(Xc,Yv,Array(Vy_v)',aspect_ratio=1,xlims=(Xc[1],Xc[end]),ylims=(Yv[1],Yv[end]),c=:viridis,title="Vy")
-            p3 = heatmap(Xc,Yc,Array(Pt_v)',aspect_ratio=1,xlims=(Xc[1],Xc[end]),ylims=(Yc[1],Yc[end]),c=:viridis,title="Pressure")
-            p4 = plot(err_evo2,err_evo1, legend=false, xlabel="# iterations/nx", ylabel="log10(error)", linewidth=2, markershape=:circle, markersize=3, labels="max(error)", yaxis=:log10)
-            display(plot(p1, p2, p3, p4))
+            fntsz = 7
+            opts  = (aspect_ratio=1, xlims=(Xv[1],Xv[end]), ylims=(Yc[1],Yc[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
+            opts2 = (linewidth=2, markershape=:circle, markersize=3,yaxis = (:log10, font(fntsz,"Courier")), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
+            p1 = heatmap(Xv,Yc,Array(Vx_v)'; c=:batlow, title="Vx", opts...)
+            p2 = heatmap(Xc,Yv,Array(Vy_v)'; c=:batlow, title="Vy", opts...)
+            p3 = heatmap(Xc,Yc,Array(Pt_v)'; c=:viridis, title="Pressure", clims=(0.0, 0.6), opts...)
+            p4 = plot(err_evo2,err_evo1; legend=false, xlabel="# iterations/nx", ylabel="log10(error)", labels="max(error)", opts2...)
+            display(plot(p1, p2, p3, p4, size=(1e3,600), dpi=200))
         end
     end
     return
