@@ -68,7 +68,10 @@ end
     return
 end
 
-@views function Stokes2D()
+@views function Stokes2D(xc, ybed, ysurf)
+    
+    ly  = max(ybed) - min(ybed)
+    
     # physics
     ## dimensionally independent
     ly        = 1.0               # domain height    [m]
