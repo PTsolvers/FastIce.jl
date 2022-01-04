@@ -1,4 +1,4 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
 const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
 ###
 using ParallelStencil
@@ -15,7 +15,9 @@ import ParallelStencil: INDICES
 ix,iy = INDICES[1], INDICES[2]
 ixi,iyi = :($ix+1), :($iy+1)
 
-@enum Flag air fluid solid
+const air   = 0.0
+const fluid = 1.0
+const solid = 2.0
 
 macro fm(A)      esc(:( $A[$ix,$iy] == fluid )) end
 macro fa(A)      esc(:( $A[$ix,$iy] == air )) end
@@ -70,6 +72,7 @@ end
 @parallel_indices (ix,iy) function init_ϕ!(ϕ,gl,el,tanβ,ω,amp,dx,dy,lx,ly)
     xc,yc = dx*ix-dx/2-lx/2, dy*iy-dy/2
     if checkbounds(Bool,ϕ,ix,iy)
+        ϕ[ix,iy] = air
         if is_inside_fluid(xc,yc,gl)
             ϕ[ix,iy] = fluid
         end
@@ -161,7 +164,7 @@ end
     T_o       = @zeros(nx  ,ny  )
     qTx       = @zeros(nx+1,ny  )
     qTy       = @zeros(nx  ,ny+1)
-    ϕ         = fill(air,nx,ny)
+    ϕ         = @zeros(nx  ,ny  )
     Vx_v      = copy(Vx) # visu
     Vy_v      = copy(Vy) # visu
     Pt_v      = copy(Pt) # visu
