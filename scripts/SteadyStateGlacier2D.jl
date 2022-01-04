@@ -155,7 +155,7 @@ end
             opts2 = (linewidth=2, markershape=:circle, markersize=3,yaxis = (:log10, font(fntsz,"Courier")), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
             p1 = heatmap(Xv,Yc,Array(Vx_v)'; c=:batlow, title="Vx", opts...)
             p2 = heatmap(Xc,Yv,Array(Vy_v)'; c=:batlow, title="Vy", opts...)
-            p3 = heatmap(Xc,Yc,Array(Pt_v)'; c=:viridis, title="Pressure", clims=(0.0, 0.6), opts...)
+            p3 = heatmap(Xc,Yc,Array(Pt_v)'; c=:viridis, title="Pressure", opts...)
             p4 = plot(err_evo2,err_evo1; legend=false, xlabel="# iterations/nx", ylabel="log10(error)", labels="max(error)", opts2...)
             display(plot(p1, p2, p3, p4, size=(1e3,600), dpi=200))
         end
