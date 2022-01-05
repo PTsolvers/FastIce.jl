@@ -116,8 +116,8 @@ end
     maxiter   = 50ny         # maximum number of pseudo-transient iterations
     nchk      = 2ny          # error checking frequency
     nviz      = 2ny          # visualisation frequency
-    ε_V       = 1e-8         # nonlinear absolute tolerence for momentum
-    ε_∇V      = 1e-8         # nonlinear absolute tolerence for divergence
+    ε_V       = 1e-8         # nonlinear absolute tolerance for momentum
+    ε_∇V      = 1e-8         # nonlinear absolute tolerance for divergence
     CFL       = 0.95/sqrt(2) # stability condition
     Re        = 2π           # Reynolds number                     (numerical parameter #1)
     r         = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)

@@ -130,9 +130,9 @@ end
     maxiter   = 50ny         # maximum number of pseudo-transient iterations
     nchk      = 2*ny         # error checking frequency
     nviz      = 1            # visualisation frequency
-    ε_V       = 1e-8         # nonlinear absolute tolerence for momentum
-    ε_∇V      = 1e-8         # nonlinear absolute tolerence for divergence
-    ε_T       = 1e-10        # nonlinear absolute tolerence for divergence
+    ε_V       = 1e-8         # nonlinear absolute tolerance for momentum
+    ε_∇V      = 1e-8         # nonlinear absolute tolerance for divergence
+    ε_T       = 1e-10        # nonlinear absolute tolerance for divergence
     CFL       = 0.95/sqrt(2) # stability condition
     Re_mech   = 2π           # Reynolds number for Stokes problem  (numerical parameter #1)
     Re_heat   = π + sqrt(π^2 + lx^2/χ/dt)  # Reynolds number for heat conduction (numerical parameter #1)
