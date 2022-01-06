@@ -28,28 +28,47 @@ macro εxx() esc(:( @d_xa(Vx)/dx )) end
 macro εyy() esc(:( @d_ya(Vy)/dy )) end
 macro εxy() esc(:( 0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) )) end
 
-macro εxxi() esc(:( @d_xi(Vx)/dx )) end
-macro εyyi() esc(:( @d_xi(Vy)/dy )) end
-macro εxyc() esc(:( 0.125*((Vx[$ixi  ,$iy+1] - Vx[$ixi  ,$iy  ])/dy + (Vy[$ix+1,$iyi  ] - Vy[$ix  ,$iyi  ])/dx +
-                           (Vx[$ixi+1,$iy+1] - Vx[$ixi+1,$iy  ])/dy + (Vy[$ix+2,$iyi  ] - Vy[$ix+1,$iyi  ])/dx +
-                           (Vx[$ixi  ,$iy+2] - Vx[$ixi  ,$iy+1])/dy + (Vy[$ix+1,$iyi+1] - Vy[$ix  ,$iyi+1])/dx +
-                           (Vx[$ixi+1,$iy+2] - Vx[$ixi+1,$iy+1])/dy + (Vy[$ix+2,$iyi+1] - Vy[$ix+1,$iyi+1])/dx ) )) end
-
 macro fnai(A)      esc(:( $A[$ixi,$iyi] != air                 )) end
 macro Gdτ()        esc(:(Vpdτ*Re_mech*@all(μs)/max_lxy/(r+2.0) )) end
 macro Gdτ_av()     esc(:(Vpdτ*Re_mech*@av(μs)/max_lxy/(r+2.0)  )) end
 macro μ_veτ()      esc(:(1.0/(1.0/@Gdτ()    + 1.0/@all(μs))    )) end
 macro μ_veτ_av()   esc(:(1.0/(1.0/@Gdτ_av() + 1.0/@av(μs))     )) end
 
-@parallel function compute_P_τ_qT!(∇V, Pt, τxx, τyy, τxy, Vx, Vy, μs, EII, qTx, qTy, T, ϕ, Vpdτ, Re_mech, r, max_lxy, χ, θr_dτ, dx, dy)
+@parallel_indices (ix,iy) function compute_EII!(EII, Vx, Vy, ϕ, dx, dy)
+    nfluid = 0
+    eii    = 0.0
+    if ix <= size(EII,1)-2 && iy <= size(EII,2)-2
+        if ϕ[ix,iy] == fluid && ϕ[ix+1,iy] == fluid && ϕ[ix,iy+1] == fluid && ϕ[ix+1,iy+1] == fluid
+            nfluid += 1
+            eii    += (Vx[ix+1,iy+1] - Vx[ix+1,iy])/dy + (Vy[ix+1,iy+1] - Vy[ix,iy+1])/dx
+        end
+        if ϕ[ix+1,iy] == fluid && ϕ[ix+2,iy] == fluid && ϕ[ix+1,iy+1] == fluid && ϕ[ix+2,iy+1] == fluid
+            nfluid += 1
+            eii    += (Vx[ix+2,iy+1] - Vx[ix+2,iy])/dy + (Vy[ix+2,iy+1] - Vy[ix+1,iy+1])/dx
+        end
+        if ϕ[ix,iy+1] == fluid && ϕ[ix+1,iy+1] == fluid && ϕ[ix,iy+2] == fluid && ϕ[ix+1,iy+2] == fluid
+            nfluid += 1
+            eii    += (Vx[ix+1,iy+2] - Vx[ix+1,iy+1])/dy + (Vy[ix+1,iy+2] - Vy[ix,iy+2])/dx
+        end
+        if ϕ[ix+1,iy+1] == fluid && ϕ[ix+2,iy+1] == fluid && ϕ[ix+1,iy+2] == fluid && ϕ[ix+2,iy+2] == fluid
+            nfluid += 1
+            eii    += (Vx[ix+2,iy+2] - Vx[ix+2,iy+1])/dy + (Vy[ix+2,iy+2] - Vy[ix+1,iy+2])/dx
+        end
+        if nfluid > 0
+            eii /= nfluid
+        end
+        EII[ix+1,iy+1] = eii
+    end
+    return
+end
+
+@parallel function compute_P_τ_qT!(∇V, Pt, τxx, τyy, τxy, Vx, Vy, μs, qTx, qTy, T, ϕ, Vpdτ, Re_mech, r, max_lxy, χ, θr_dτ, dx, dy)
     # mechanics
     @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy
     @all(Pt)  = @fm(ϕ)*(@all(Pt) - r*@Gdτ()*@all(∇V))
     @all(τxx) =                  @fm(ϕ)*2.0*@μ_veτ()*(@εxx() + @all(τxx)/@Gdτ()/2.0)
     @all(τyy) =                  @fm(ϕ)*2.0*@μ_veτ()*(@εyy() + @all(τyy)/@Gdτ()/2.0)
     @all(τxy) = @fmxy_xi(ϕ)*@fmxy_yi(ϕ)*2.0*@μ_veτ_av()*(@εxy() + @all(τxy)/@Gdτ_av()/2.0)
-    # strain rate invariant
-    @inn(EII) = @fnai(ϕ)*(@εxxi()*@εxxi() + @εyyi()*@εyyi() + 2.0*@εxyc()*@εxyc())
     # thermo
     @inn_x(qTx) = (@inn_x(qTx) * θr_dτ - χ*@d_xa(T)/dx) / (θr_dτ + 1.0)
     @inn_y(qTy) = (@inn_y(qTy) * θr_dτ - χ*@d_ya(T)/dy) / (θr_dτ + 1.0)
@@ -134,7 +153,7 @@ end
     tanβ      = tan(-π/12)
     ωly       = 10π
     T0_δT     = 1.0
-    Q_R       = 10.0
+    Q_R       = 1.0e1
     ## dimensionally dependent
     lx        = lx_ly*ly
     gl        = gl_ly*ly
@@ -148,7 +167,7 @@ end
     dt        = 1e-2*tsc
     Ta        = T0+0*ΔT
     # numerics
-    ny        = 128
+    ny        = 127
     nx        = ceil(Int,lx_ly*ny)
     nx, ny    = nx-1, ny-1
     maxiter   = 50ny         # maximum number of pseudo-transient iterations
@@ -203,7 +222,8 @@ end
         # iteration loop
         err_V=2*ε_V; err_∇V=2*ε_∇V; err_T=2*ε_T; iter=0; err_evo1=[]; err_evo2=[]
         while !((err_V <= ε_V) && (err_∇V <= ε_∇V) && (err_T <= ε_T)) && (iter <= maxiter)
-            @parallel compute_P_τ_qT!(∇V, Pt, τxx, τyy, τxy, Vx, Vy, μs, EII, qTx, qTy, T, ϕ, Vpdτ, Re_mech, r, max_lxy, χ, θr_dτ, dx, dy)
+            @parallel compute_P_τ_qT!(∇V, Pt, τxx, τyy, τxy, Vx, Vy, μs, qTx, qTy, T, ϕ, Vpdτ, Re_mech, r, max_lxy, χ, θr_dτ, dx, dy)
+            @parallel compute_EII!(EII,Vx,Vy,ϕ,dx,dy)
             @parallel compute_V_T!(Vx, Vy, Pt, τxx, τyy, τxy, EII, μs, T, T_o, qTx, qTy, ϕ, ρgx, ρgy, μs0, T0, Ta, Q_R, dt, Vpdτ, max_lxy, Re_mech, dτ_ρ_heat, dx, dy)
             iter += 1
             if iter % nchk == 0
@@ -230,7 +250,7 @@ end
             opts  = (aspect_ratio=1, xlims=(Xv[1],Xv[end]), ylims=(Yc[1],Yc[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
             opts2 = (linewidth=2, markershape=:circle, markersize=3,yaxis = (:log10, font(fntsz,"Courier")), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
             p1 = heatmap(Xc,Yc,Array(T_v)'; c=:batlow, title="T", opts...)
-            p2 = heatmap(Xc,Yc,Array(log10.(μs_v))'; c=:batlow, title="log10(μs)", opts...)
+            p2 = heatmap(Xc,Yc,Array(μs_v)'; c=:batlow, title="μs", opts...)
             p3 = heatmap(Xc,Yc,Array(Pt_v)'; c=:viridis, title="Pressure", opts...)
             p4 = heatmap(Xc,Yc,Array(EII_v)'; c=:viridis, title="EII", opts...)
             p5 = heatmap(Xc,Yv,Array(Vy_v)'; c=:viridis, title="Vy", opts...)
