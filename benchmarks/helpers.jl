@@ -15,6 +15,7 @@ mutable struct InputParams
     xv
     yv
     lx_ly
+    max∆y
     nx::Int
     ny::Int
     α
@@ -73,11 +74,11 @@ end
 
 
 """
-    ls_fit(xv, ybed, ysurf)
+    lsq_fit(xv, ybed, ysurf)
 
-Perform linear least-square fit of mean bedrock and surface data.
+Linear least-square fit of mean bedrock and surface data.
 """
-function ls_fit(xv, ybed, ysurf)
+function lsq_fit(xv, ybed, ysurf)
     nxv     = length(xv)
     x_mean  = sum(xv) ./ nxv
     y_avg   = (ybed .+ ysurf) ./ 2.0
@@ -105,7 +106,7 @@ Preprocess input data for iceflow model.
 function preprocess(xv, ybed, ysurf; do_rotate=false, fact_ny::Int=4, olen::Int=1)
     
     println("Starting preprocessing ... ")
-    lin_fit, y_avg, orig, α = ls_fit(xv, ybed, ysurf)
+    lin_fit, y_avg, orig, α = lsq_fit(xv, ybed, ysurf)
 
     if do_rotate
         ybedr, ysurfr = rotate(ybed, ysurf, lin_fit)
@@ -116,6 +117,7 @@ function preprocess(xv, ybed, ysurf; do_rotate=false, fact_ny::Int=4, olen::Int=
     ymin   = minimum(ybedr)
     ybedr  = ybedr  .- ymin
     ysurfr = ysurfr .- ymin
+    max∆y  = maximum(ysurf .- ybed)
     ly     = maximum(ysurfr)
     lx     = maximum(xv) - minimum(xv)
     xc     = 0.5(xv[1:end-1].+xv[2:end])
@@ -128,9 +130,9 @@ function preprocess(xv, ybed, ysurf; do_rotate=false, fact_ny::Int=4, olen::Int=
     yv     = LinRange(0,ly,nyv)
     yc     = 0.5(yv[1:end-1].+yv[2:end])
 
-    println("Preprocessed data: nx=$nx, ny=$ny (dx=$(lx/nx), dx=$(ly/ny))")
+    println("Preprocessed data: nx=$nx, ny=$ny (dx=$(round(lx/nx, sigdigits=4)), dx=$(round(ly/ny, sigdigits=4)))")
 
-    inputs = InputParams(ybedr/ly, ysurfr/ly, xc/ly, yc/ly, xv/ly, yv/ly, lx/ly, nx, ny, α) # nondim
+    inputs = InputParams(ybedr/ly, ysurfr/ly, xc/ly, yc/ly, xv/ly, yv/ly, lx/ly, max∆y/ly, nx, ny, α) # nondim
     # inputs = InputParams(ybedr, ysurfr, xc, yc, xv, yv, lx, nx, ny, α) # dim
     
     println("done.")
