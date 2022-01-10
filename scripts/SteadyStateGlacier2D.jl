@@ -19,16 +19,15 @@ const air   = 0.0
 const fluid = 1.0
 const solid = 2.0
 
-macro fm(A)      esc(:( $A[$ix,$iy] == fluid )) end
-macro fmxy_xi(A) esc(:( !(($A[$ix,$iy] == air && $A[$ix,$iy+1] == air) || ($A[$ix+1,$iy] == air && $A[$ix+1,$iy+1] == air)) )) end
-macro fmxy_yi(A) esc(:( !(($A[$ix,$iy] == air && $A[$ix+1,$iy] == air) || ($A[$ix,$iy+1] == air && $A[$ix+1,$iy+1] == air)) )) end
+macro fm(A)   esc(:( $A[$ix,$iy] == fluid )) end
+macro fmxy(A) esc(:( !($A[$ix,$iy] == air || $A[$ix+1,$iy] == air || $A[$ix,$iy+1] == air || $A[$ix+1,$iy+1] == air) )) end
 
 @parallel function compute_P_τ!(∇V::Data.Array, Pt::Data.Array, τxx::Data.Array, τyy::Data.Array, τxy::Data.Array, Vx::Data.Array, Vy::Data.Array, ϕ, r::Data.Number, μ_veτ::Data.Number, Gdτ::Data.Number, dx::Data.Number, dy::Data.Number)
     @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy
     @all(Pt)  = @fm(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))    
     @all(τxx) = @fm(ϕ)*2.0*μ_veτ*(@d_xa(Vx)/dx + @all(τxx)/Gdτ/2.0)
     @all(τyy) = @fm(ϕ)*2.0*μ_veτ*(@d_ya(Vy)/dy + @all(τyy)/Gdτ/2.0)
-    @all(τxy) = @fmxy_xi(ϕ)*@fmxy_yi(ϕ)*2.0*μ_veτ*(0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) + @all(τxy)/Gdτ/2.0)
+    @all(τxy) = @fmxy(ϕ)*2.0*μ_veτ*(0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) + @all(τxy)/Gdτ/2.0)
     return
 end
 
