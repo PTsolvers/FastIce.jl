@@ -1,6 +1,6 @@
 const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
 const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
-const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
+const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : false
 ###
 using ParallelStencil
 using ParallelStencil.FiniteDifferences2D
@@ -12,7 +12,7 @@ else
 end
 using Printf, Statistics, LinearAlgebra, MAT, Random, UnPack, Plots
 
-include(joinpath(@__DIR__, "helpers.jl"))
+include(joinpath(@__DIR__, "helpers2D.jl"))
 
 import ParallelStencil: INDICES
 ix,iy = INDICES[1], INDICES[2]
@@ -174,7 +174,7 @@ end
 # ---------------------
 
 # load the data
-xv, ybed, ysurf = read_data("../data/arolla51.txt"; resol=2048)
+xv, ybed, ysurf = read_data("../data/arolla51.txt"; resol=512)
 
 # preprocessing
 inputs, lin_fit, y_avg, orig  = preprocess(xv, ybed, ysurf; do_rotate=true, fact_ny=2)
