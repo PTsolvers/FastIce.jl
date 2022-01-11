@@ -10,7 +10,7 @@ const ty = 8
 const tz = 8
 
 "Input parameters structure"
-mutable struct InputParams
+mutable struct InputParams3D
     zbedv
     zbedc
     zsurfv
@@ -124,7 +124,7 @@ Load bedrock and ice surface elevation data and return the interpolated data.
 """
 @views function load_data(dat_file::String, do_interp::Bool, resolx::Int, resoly::Int, olen::Int)
     
-    println("Loading the data ... ")
+    println("- Loading the data")
     vars   = matread(dat_file)
     bed_d  = get(vars,"zbed" ,1)
     surf_d = get(vars,"zsurf",1)
@@ -140,16 +140,15 @@ Load bedrock and ice surface elevation data and return the interpolated data.
     
     if do_interp
         bed, surf, mask = interp(bed_d, surf_d, mask_d, xv_d, yv_d, xv, yv)
-        println("Interpolating original data (nxv, nyv = $(size(bed_d)[1]), $(size(bed_d)[2])) on nxv, nyv = $(size(bed)[1]), $(size(bed)[2]) grid.")
+        println("- Interpolating original data (nxv, nyv = $(size(bed_d)[1]), $(size(bed_d)[2])) on nxv, nyv = $(size(bed)[1]), $(size(bed)[2]) grid")
     else
         bed, surf, mask = bed_d, surf_d, mask_d
-        println("Using original data (nxv, nyv = $(size(bed_d)[1]), $(size(bed_d)[2])) grid.")
+        println("- Using original data (nxv, nyv = $(size(bed_d)[1]), $(size(bed_d)[2])) grid")
     end
     
     # avoid interp noise (avg in mask)
     mask[mask.<1.0] .= 0.0
     
-    println("done.")
     return bed, surf, mask, xv, yv
 end
 
@@ -202,20 +201,20 @@ Preprocess input data for iceflow model.
     zc     = 0.5(zv[1:end-1].+zv[2:end])
     nz     = length(zc)
 
-    println("Preprocessed data: nx=$nx, ny=$ny, nz=$nz (dx=$(round(lx/nx, sigdigits=4)), dy=$(round(ly/ny, sigdigits=4)), dz=$(round(lz/nz, sigdigits=4)))")
+    println("- Preprocessed data: nx=$nx, ny=$ny, nz=$nz (dx=$(round(lx/nx, sigdigits=4)), dy=$(round(ly/ny, sigdigits=4)), dz=$(round(lz/nz, sigdigits=4)))")
     
     maskc  = av(mask)
     maskc[maskc.<1.0] .= 0.0
 
     sc     = do_nondim ? 1.0/lz : 1.0    
-    inputs = InputParams(zbed*sc, av(zbed)*sc, zsurf*sc, av(zsurf)*sc, mask, maskc, xv*sc, yv*sc, zv*sc, xc*sc, yc*sc, zc*sc, lx*sc, ly*sc, max∆z*sc, nx, ny, nz, x[1], x[2])
+    inputs = InputParams3D(zbedr*sc, av(zbedr)*sc, zsurfr*sc, av(zsurfr)*sc, mask, maskc, xv*sc, yv*sc, zv*sc, xc*sc, yc*sc, zc*sc, lx*sc, ly*sc, max∆z*sc, nx, ny, nz, x[1], x[2])
     
-    println("done.")
+    println("... done.")
     return inputs, zavg, plane, x
 end
 
 # preprocessing
-inputs, zavg, plane, x = preprocess("../data/arolla3D.mat"; resolx=260, resoly=260, fact_nz=4)
+inputs, zavg, plane, x = preprocess("../data/arolla3D.mat"; resolx=512, resoly=512, fact_nz=6)
 
 
 bed_v   = copy(inputs.zbedv);  bed_v[inputs.maskv.==0] .=NaN
