@@ -78,8 +78,8 @@ end
     return
 end
 
-@views function Stokes2D(inputs::InputParams)
-    @unpack ybed, ysurf, xc, yc, xv, yv, lx_ly, max∆y, nx, ny, α = inputs
+@views function Stokes2D(inputs::InputParams2D)
+    @unpack ybedv, ybedc, ysurfv, ysurfc, xv, yv, xc, yc, lx_ly, max∆y, nx, ny, α = inputs
     # physics
     ## dimensionally independent
     ly        = 1.0               # domain height    [m]
@@ -104,7 +104,7 @@ end
     r         = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
     # preprocessing
     dx, dy    = lx/nx, ly/ny # cell sizes
-    max_lxy   = max∆y
+    max_lxy   = 1.2*max∆y
     Vpdτ      = min(dx,dy)*CFL
     dτ_ρ      = Vpdτ*max_lxy/Re/μs0
     Gdτ       = Vpdτ^2/dτ_ρ/(r+2.0)
@@ -122,8 +122,8 @@ end
     ϕ         = @zeros(nx  ,ny  )
     Vn        = @zeros(nx  ,ny  )
     τII       = @zeros(nx-2,ny-2)
-    ybed      = Data.Array(ybed)
-    ysurf     = Data.Array(ysurf)
+    ybed      = Data.Array(ybedc)
+    ysurf     = Data.Array(ysurfc)
     @parallel init_ϕ!(ϕ,ybed,ysurf,yc)
     # visu
     Vn_v      = @zeros(nx,ny) # visu
@@ -173,20 +173,18 @@ end
 
 # ---------------------
 
-# load the data
-xv, ybed, ysurf = read_data("../data/arolla51.txt"; resol=512)
 
 # preprocessing
-inputs, lin_fit, y_avg, orig  = preprocess(xv, ybed, ysurf; do_rotate=true, fact_ny=2)
+inputs, y_avg, lin_fit = preprocess("../data/arolla51.txt"; resol=256, do_rotate=true, fact_ny=4)
 
 visu = true
 if visu
-    p1 = plot(xv, ybed   , label="bedrock", linewidth=3)
-        plot!(xv, ysurf  , label="surface", linewidth=3)
-        plot!(xv, y_avg  , label="y_avg"  , linewidth=3)
-        plot!(xv, lin_fit, label="lin_fit", linewidth=3)
-    p2 = plot(xv, inputs.ybed , label="bedrock", linewidth=3)
-        plot!(xv, inputs.ysurf, label="bedrock", linewidth=3, legend=false)
+    xc, yc, xv, yv = inputs.xc, inputs.yc, inputs.xv, inputs.yv
+    p1 = plot(xv, inputs.ybedv , label="bedrock", linewidth=3)
+        plot!(xv, inputs.ysurfv, label="surface", linewidth=3)
+    p2 = plot(xc, inputs.ybedc , label="bedrock", linewidth=3)
+        plot!(xc, inputs.ysurfc, label="bedrock", linewidth=3, legend=false)
+        plot!(xc, inputs.ysurfc .- inputs.ybedc, label="bedrock", linewidth=3, legend=false)
     display(plot(p1,p2, layout = (2,1)))
 end
 
