@@ -32,7 +32,7 @@ Read bedrock and ice surface elevation data from a text file and returns the int
 - `resol::Int=128`: output resolution
 - `olen::Int=1`: overlength for arrays larger then `nx` and `ny`
 """
-function read_data(dat_file::String; resol::Int=128, olen::Int=1)
+@views function read_data(dat_file::String; resol::Int=128, olen::Int=1)
     
     println("Loading the data ... ")
     data = readdlm(dat_file, Float64)
@@ -45,8 +45,8 @@ function read_data(dat_file::String; resol::Int=128, olen::Int=1)
     shiftx = resol % tx
     resx   = (shiftx < tx/2 ? Int(resol - shiftx) : Int(resol + tx - shiftx)) - olen
 
-    xv     = LinRange(xv_d[1], xv_d[end], resol)
-    itp1   = interpolate( (xv_d,), bed_d[:,1] , Gridded(Linear()))
+    xv     = LinRange(xv_d[1], xv_d[end], resx)
+    itp1   = interpolate( (xv_d,),  bed_d[:,1], Gridded(Linear()))
     itp2   = interpolate( (xv_d,), surf_d[:,1], Gridded(Linear()))
     bed    = itp1.(xv)
     surf   = itp2.(xv)
@@ -55,6 +55,23 @@ function read_data(dat_file::String; resol::Int=128, olen::Int=1)
     println("Interpolating original data (nxv=$(size(bed_d)[1])) on nxv=$(size(bed)[1]) grid.")
     println("done.")
     return xv, bed, surf
+end
+
+
+"""
+    lsq_fit(xv, ybed, ysurf)
+
+Linear least-square fit of mean bedrock and surface data.
+"""
+function lsq_fit(xv, ybed, ysurf)
+    nxv     = length(xv)
+    x_mean  = sum(xv) ./ nxv
+    y_avg   = 0.5 .* (ybed .+ ysurf)
+    y_mean  = sum(y_avg) ./ nxv
+    α       = sum((xv .- x_mean) .* (y_avg .- y_mean)) ./ sum((xv .- x_mean).^2)
+    orig    = y_mean .- α .* x_mean
+    lin_fit = α.*xv .+ orig
+    return lin_fit, y_avg, orig, α
 end
 
 
@@ -74,23 +91,6 @@ end
 
 
 """
-    lsq_fit(xv, ybed, ysurf)
-
-Linear least-square fit of mean bedrock and surface data.
-"""
-function lsq_fit(xv, ybed, ysurf)
-    nxv     = length(xv)
-    x_mean  = sum(xv) ./ nxv
-    y_avg   = (ybed .+ ysurf) ./ 2.0
-    y_mean  = sum(y_avg) ./ nxv
-    α       = sum((xv .- x_mean) .* (y_avg .- y_mean)) ./ sum((xv .- x_mean).^2)
-    orig    = y_mean .- α .* x_mean
-    lin_fit = α.*xv .+ orig
-    return lin_fit, y_avg, orig, α
-end
-
-
-"""
     preprocess(xv, ybed, ysurf; do_rotate=false, fact_ny::Int=4, olen::Int=1, visu=false)
 
 Preprocess input data for iceflow model.
@@ -103,7 +103,7 @@ Preprocess input data for iceflow model.
 - `fact_ny::Int=4`: grid-point increase in y-dim
 - `olen::Int=1`: overlength for arrays larger then `nx` and `ny`
 """
-function preprocess(xv, ybed, ysurf; do_rotate=false, fact_ny::Int=4, olen::Int=1)
+@views function preprocess(xv, ybed, ysurf; do_rotate=false, fact_ny::Int=4, olen::Int=1)
     
     println("Starting preprocessing ... ")
     lin_fit, y_avg, orig, α = lsq_fit(xv, ybed, ysurf)
