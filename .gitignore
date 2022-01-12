@@ -23,5 +23,7 @@ docs/site/
 # environment.
 Manifest.toml
 .DS_Store
-
 .vscode
+figs/
+out_visu/
+gitignore/
