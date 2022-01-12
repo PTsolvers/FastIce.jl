@@ -12,7 +12,7 @@ else
 end
 using Printf, Statistics, LinearAlgebra, MAT, Random, UnPack, Plots
 
-include(joinpath(@__DIR__, "helpers2D.jl"))
+include(joinpath(@__DIR__, "helpers2D_v3.jl"))
 
 import ParallelStencil: INDICES
 ix,iy = INDICES[1], INDICES[2]
@@ -52,26 +52,6 @@ end
     return
 end
 
-function is_inside_fluid(y,ysurf)
-    return y < ysurf
-end
-
-function is_inside_solid(y,ybed)
-    return y < ybed
-end
-
-@parallel_indices (ix,iy) function init_ϕ!(ϕ,ybed,ysurf,yc)
-    if checkbounds(Bool,ϕ,ix,iy)
-        if is_inside_fluid(yc[iy],ysurf[ix])
-            ϕ[ix,iy] = fluid
-        end
-        if is_inside_solid(yc[iy],ybed[ix])
-            ϕ[ix,iy] = solid
-        end
-    end
-    return
-end
-
 @parallel function preprocess_visu!(Vn, τII, Vx, Vy, τxx, τyy, τxy)
     @all(Vn)  = (@av_xa(Vx)*@av_xa(Vx) + @av_ya(Vy)*@av_ya(Vy)).^0.5
     @all(τII) = (0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy).*@inn(τyy)) .+ @av(τxy).*@av(τxy)).^0.5
@@ -79,10 +59,11 @@ end
 end
 
 @views function Stokes2D(inputs::InputParams2D)
-    @unpack ybedv, ybedc, ysurfv, ysurfc, xv, yv, xc, yc, lx_ly, max∆y, nx, ny, α = inputs
+    @unpack ϕ, x2rot, y2rot, x2, y2, xc, yc, lx, ly, nx, ny, α, sc = inputs
+    println("Ice flow solver: lx=$(round(lx,sigdigits=4)), ly=$(round(ly,sigdigits=4)), sc=$(round(sc,sigdigits=4)), α=$(round(α,sigdigits=4))")
     # physics
     ## dimensionally independent
-    ly        = 1.0               # domain height    [m]
+    # ly        = 1.0               # domain height    [m]
     μs0       = 1.0               # matrix viscosity [Pa*s]
     ρg0       = 1.0               # gravity          [Pa/m]
     ## scales
@@ -90,9 +71,9 @@ end
     tsc       = μs0/psc
     vsc       = ly/tsc
     ## dimensionally dependent
-    lx        = lx_ly*ly
-    ρgx       = ρg0*sin(α)
-    ρgy       = ρg0*cos(α)
+    # lx        = lx_ly*ly
+    ρgx       = ρg0*sin(-α)
+    ρgy       = ρg0*cos(-α)
     # numerics
     maxiter   = 50nx         # maximum number of pseudo-transient iterations
     nchk      = nx           # error checking frequency
@@ -104,7 +85,7 @@ end
     r         = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
     # preprocessing
     dx, dy    = lx/nx, ly/ny # cell sizes
-    max_lxy   = 1.2*max∆y
+    max_lxy   = ly
     Vpdτ      = min(dx,dy)*CFL
     dτ_ρ      = Vpdτ*max_lxy/Re/μs0
     Gdτ       = Vpdτ^2/dτ_ρ/(r+2.0)
@@ -119,22 +100,19 @@ end
     Ry        = @zeros(nx-2,ny-1)
     Vx        = @zeros(nx+1,ny  )
     Vy        = @zeros(nx  ,ny+1)
-    ϕ         = @zeros(nx  ,ny  )
     Vn        = @zeros(nx  ,ny  )
     τII       = @zeros(nx-2,ny-2)
-    ybed      = Data.Array(ybedc)
-    ysurf     = Data.Array(ysurfc)
-    @parallel init_ϕ!(ϕ,ybed,ysurf,yc)
     # visu
     Vn_v      = @zeros(nx,ny) # visu
     τII_v     = copy(τII) # visu
     Pt_v      = copy(Pt)  # visu
     if do_save
         !ispath("../out_visu") && mkdir("../out_visu")
-        matwrite("../out_visu/out_pa.mat", Dict("Phase"=> Array(ϕ), "ybed"=> Array(ybed), "ysurf"=> Array(ysurf), "xc"=> Array(xc), "yc"=> Array(yc), "al"=> α ); compress = true)
+        matwrite("../out_visu/out_pa.mat", Dict("Phase"=> Array(ϕ), "x2rot"=> Array(x2rot), "y2rot"=> Array(y2rot), "xc"=> Array(xc), "yc"=> Array(yc), "lx"=> lx, "ly"=> ly, "sc"=> sc, "al"=> α ); compress = true)
+
     end
     fntsz = 7; xci, yci = xc[2:end-1], yc[2:end-1]
-    opts  = (aspect_ratio=4, xlims=(xv[1],xv[end]), ylims=(yc[1],yc[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
+    opts  = (aspect_ratio=4, xlims=(xc[1],xc[end]), ylims=(yc[1],yc[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
     opts2 = (linewidth=2, markershape=:circle, markersize=3,yaxis = (:log10, font(fntsz,"Courier")), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
     # iteration loop
     err_V=2*ε_V; err_∇V=2*ε_∇V; iter=0; err_evo1=[]; err_evo2=[]
@@ -173,19 +151,7 @@ end
 
 # ---------------------
 
-
 # preprocessing
-inputs, y_avg, lin_fit = preprocess("../data/arolla51.txt"; resol=256, do_rotate=true, fact_ny=4)
-
-visu = true
-if visu
-    xc, yc, xv, yv = inputs.xc, inputs.yc, inputs.xv, inputs.yv
-    p1 = plot(xv, inputs.ybedv , label="bedrock", linewidth=3)
-        plot!(xv, inputs.ysurfv, label="surface", linewidth=3)
-    p2 = plot(xc, inputs.ybedc , label="bedrock", linewidth=3)
-        plot!(xc, inputs.ysurfc, label="bedrock", linewidth=3, legend=false)
-        plot!(xc, inputs.ysurfc .- inputs.ybedc, label="bedrock", linewidth=3, legend=false)
-    display(plot(p1,p2, layout = (2,1)))
-end
+inputs = preprocess("../data/arolla51.txt"; resx=1024, do_rotate=true, fact_ny=5)
 
 Stokes2D(inputs)
