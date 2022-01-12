@@ -1,6 +1,7 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
-const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
-const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : false
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
+const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 7
+const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
+const do_visu = haskey(ENV, "DO_VISU") ? parse(Bool, ENV["DO_VISU"]) : false
 ###
 using ParallelStencil
 using ParallelStencil.FiniteDifferences2D
@@ -22,10 +23,6 @@ const air   = 0.0
 const fluid = 1.0
 const solid = 2.0
 
-# macro fm(A)      esc(:( $A[$ix,$iy] == fluid )) end
-# macro fmxy_xi(A) esc(:( !(($A[$ix,$iy] == air && $A[$ix,$iy+1] == air) || ($A[$ix+1,$iy] == air && $A[$ix+1,$iy+1] == air)) )) end
-# macro fmxy_yi(A) esc(:( !(($A[$ix,$iy] == air && $A[$ix+1,$iy] == air) || ($A[$ix,$iy+1] == air && $A[$ix+1,$iy+1] == air)) )) end
-
 macro fm(A)   esc(:( $A[$ix,$iy] == fluid )) end
 macro fmxy(A) esc(:( !($A[$ix,$iy] == air || $A[$ix+1,$iy] == air || $A[$ix,$iy+1] == air || $A[$ix+1,$iy+1] == air) )) end
 
@@ -34,7 +31,6 @@ macro fmxy(A) esc(:( !($A[$ix,$iy] == air || $A[$ix+1,$iy] == air || $A[$ix,$iy+
     @all(Pt)  = @fm(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))    
     @all(τxx) = @fm(ϕ)*2.0*μ_veτ*(@d_xa(Vx)/dx + @all(τxx)/Gdτ/2.0)
     @all(τyy) = @fm(ϕ)*2.0*μ_veτ*(@d_ya(Vy)/dy + @all(τyy)/Gdτ/2.0)
-    # @all(τxy) = @fmxy_xi(ϕ)*@fmxy_yi(ϕ)*2.0*μ_veτ*(0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) + @all(τxy)/Gdτ/2.0)
     @all(τxy) = @fmxy(ϕ)*2.0*μ_veτ*(0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) + @all(τxy)/Gdτ/2.0)
     return
 end
@@ -76,8 +72,8 @@ end
     vsc       = ly/tsc
     ## dimensionally dependent
     # lx        = lx_ly*ly
-    ρgx       = ρg0*sin(-α)
-    ρgy       = ρg0*cos(-α)
+    ρgx       = ρg0*sin(α)
+    ρgy       = ρg0*cos(α)
     # numerics
     maxiter   = 50nx         # maximum number of pseudo-transient iterations
     nchk      = nx           # error checking frequency
@@ -113,7 +109,6 @@ end
     if do_save
         !ispath("../out_visu") && mkdir("../out_visu")
         matwrite("../out_visu/out_pa.mat", Dict("Phase"=> Array(ϕ), "x2rot"=> Array(x2rot), "y2rot"=> Array(y2rot), "xc"=> Array(xc), "yc"=> Array(yc), "lx"=> lx, "ly"=> ly, "sc"=> sc, "al"=> α ); compress = true)
-
     end
     fntsz = 7; xci, yci = xc[2:end-1], yc[2:end-1]
     opts  = (aspect_ratio=4, xlims=(xc[1],xc[end]), ylims=(yc[1],yc[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
@@ -134,7 +129,7 @@ end
             push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/nx)
             @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e], err_∇V = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, err_∇V)
         end
-        if iter % nviz == 0
+        if do_visu && iter % nviz == 0
             @parallel preprocess_visu!(Vn, τII, Vx, Vy, τxx, τyy, τxy)
             Vn_v  .= Vn;  Vn_v[Vn.==0]   .= NaN
             τII_v .= τII; τII_v[τII.==0] .= NaN
@@ -147,8 +142,11 @@ end
         end
     end
     if do_save
-        matwrite("../out_visu/out_res.mat", Dict("Vn"=> Array(Vn), "tII"=> Array(τII), "Pt"=> Array(Pt),
-          "xc"=> Array(xc), "yc"=> Array(yc)); compress = true)
+        @parallel preprocess_visu!(Vn, τII, Vx, Vy, τxx, τyy, τxy)
+        Vn_v  .= Vn;  Vn_v[Vn.==0]   .= NaN
+        τII_v .= τII; τII_v[τII.==0] .= NaN
+        Pt_v  .= Pt;  Pt_v[Pt.==0]   .= NaN
+        matwrite("../out_visu/out_res.mat", Dict("Vn"=> Array(Vn), "tII"=> Array(τII), "Pt"=> Array(Pt), "xc"=> Array(xc), "yc"=> Array(yc)); compress = true)
     end
     return
 end
@@ -156,6 +154,6 @@ end
 # ---------------------
 
 # preprocessing
-inputs = preprocess("../data/arolla51.txt"; resx=1024, do_rotate=true, fact_ny=5)
+inputs = preprocess("../data/arolla51.txt"; resx=40*256, do_rotate=true, fact_ny=5)
 
-Stokes2D(inputs)
+@time Stokes2D(inputs)

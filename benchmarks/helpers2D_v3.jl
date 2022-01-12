@@ -51,7 +51,7 @@ function lsq_fit(y_avg, xv)
     nxv     = length(xv)
     x_mean  = sum(xv) ./ nxv
     y_mean  = sum(y_avg) ./ nxv
-    α       = sum((xv .- x_mean) .* (y_avg .- y_mean)) ./ sum((xv .- x_mean).^2)
+    α       = atan(sum((xv .- x_mean) .* (y_avg .- y_mean)) ./ sum((xv .- x_mean).^2))
     orig    = y_mean .- α .* x_mean
     lin_fit = α.*xv .+ orig
     return lin_fit, α
@@ -72,11 +72,27 @@ Define phases as function of surface and bad topo.
     if checkbounds(Bool,ϕ,ix,iy)
         ixr = clamp(floor(Int, (x2rot[ix,iy]-ox)/dx) + 1, 1, length(ysurf))
         if is_inside_phase(y2rot[ix,iy],ysurf[ixr])
-            ϕ[ix,iy] = 1
+            ϕ[ix,iy] = fluid
         end
         if is_inside_phase(y2rot[ix,iy],ybed[ixr])
-            ϕ[ix,iy] = 2
+            ϕ[ix,iy] = solid
         end
+    end
+    return
+end
+
+"Apply one explicit diffusion step as smoothing"
+@parallel function smooth!(A2, A, fact)
+    @inn(A2) = @inn(A) + 1.0/4.1/fact*(@d2_xi(A) + @d2_yi(A))
+    return
+end
+
+"Round phases after applying smoothing."
+@parallel_indices (ix,iy) function round_phase!(A)
+    if checkbounds(Bool,A,ix,iy)
+        if (A[ix,iy] <= 0.9) A[ix,iy] = air end
+        if (A[ix,iy] >  0.9 && A[ix,iy] <= 1.9) A[ix,iy] = fluid end
+        if (A[ix,iy] >  1.9) A[ix,iy] = solid end
     end
     return
 end
@@ -164,8 +180,21 @@ Preprocess input data for iceflow model.
     
     # set phases
     println("- set phases (0-air, 1-ice, 2-bedrock)")
-    ϕ = @zeros(size(x2)) 
+    ϕ      = air .* @ones(size(x2))
+    x2rot  = Data.Array(x2rot)
+    y2rot  = Data.Array(y2rot)
+    ysurf  = Data.Array(ysurf)
+    ybed   = Data.Array(ybed)
     @parallel set_phases!(ϕ, x2rot, y2rot, ysurf, ybed, ox, dx)
+
+    nsm = ceil(Int,nx/50)
+    println("- apply smoothing ($nsm diffusion steps)")
+    ϕ2 = copy(ϕ)    
+    for ism=1:nsm
+        @parallel smooth!(ϕ2, ϕ, 1.0)
+        ϕ, ϕ2 = ϕ2, ϕ
+    end
+    @parallel round_phase!(ϕ)
 
     sc     = do_nondim ? 1.0/ly : 1.0
     inputs = InputParams2D(ϕ, x2rot*sc, y2rot*sc, x2*sc, y2*sc, xc*sc, yc*sc, lx*sc, ly*sc, nx, ny, α, sc)
