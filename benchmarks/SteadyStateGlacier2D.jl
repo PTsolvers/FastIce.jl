@@ -1,4 +1,4 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
 const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 7
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 const do_visu = haskey(ENV, "DO_VISU") ? parse(Bool, ENV["DO_VISU"]) : false
@@ -154,6 +154,6 @@ end
 # ---------------------
 
 # preprocessing
-inputs = preprocess("../data/arolla51.txt"; resx=40*256, do_rotate=true, fact_ny=5)
+inputs = preprocess("../data/arolla51.txt"; resx=256, do_rotate=true, fact_ny=5)
 
 @time Stokes2D(inputs)
