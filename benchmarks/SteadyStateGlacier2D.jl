@@ -53,8 +53,8 @@ end
 end
 
 @parallel function preprocess_visu!(Vn, τII, Vx, Vy, τxx, τyy, τxy)
-    @all(Vn)  = (@av_xa(Vx)*@av_xa(Vx) + @av_ya(Vy)*@av_ya(Vy)).^0.5
-    @all(τII) = (0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy).*@inn(τyy)) .+ @av(τxy).*@av(τxy)).^0.5
+    @all(Vn)  = (@av_xa(Vx)*@av_xa(Vx) + @av_ya(Vy)*@av_ya(Vy))^0.5
+    @all(τII) = (0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy)) + @av(τxy)*@av(τxy))^0.5
     return
 end
 
