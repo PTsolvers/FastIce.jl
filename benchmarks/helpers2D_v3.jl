@@ -81,18 +81,20 @@ Define phases as function of surface and bad topo.
     return
 end
 
+
 "Apply one explicit diffusion step as smoothing"
 @parallel function smooth!(A2, A, fact)
     @inn(A2) = @inn(A) + 1.0/4.1/fact*(@d2_xi(A) + @d2_yi(A))
     return
 end
 
+
 "Round phases after applying smoothing."
 @parallel_indices (ix,iy) function round_phase!(A)
     if checkbounds(Bool,A,ix,iy)
-        if (A[ix,iy] <= 0.9) A[ix,iy] = air end
+        if (A[ix,iy] <= 0.9                   ) A[ix,iy] = air   end
         if (A[ix,iy] >  0.9 && A[ix,iy] <= 1.9) A[ix,iy] = fluid end
-        if (A[ix,iy] >  1.9) A[ix,iy] = solid end
+        if (A[ix,iy] >  1.9                   ) A[ix,iy] = solid end
     end
     return
 end
@@ -122,7 +124,7 @@ Preprocess input data for iceflow model.
     ybed_d  = data[:,2]
     ysurf_d = data[:,3]
 
-    # GPU friendly resolution nx, ny
+    # GPU friendly resolution nx
     nx = gpu_res(resx, tx, olen)
     xv = LinRange(xv_d[1], xv_d[end], nx+1)
 
