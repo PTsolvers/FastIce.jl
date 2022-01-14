@@ -1,6 +1,6 @@
 clear
 
-do_save = 0;
+do_save = 1;
 
 no_dat    = -9999;
 path_data = '../data';
@@ -13,10 +13,13 @@ tif   = Tiff([path_data, '/', name_surf, '.tif'],'r');
 zsurf = read(tif);
 
 % crop
-ystart = 168;
-xend   = 319;
-zbed   = double(zbed(1:xend,ystart:end));
-zsurf  = double(zsurf(1:xend,ystart:end));
+ystart  = 168;
+yend    = 360;
+xend    = 280;
+max_alt = 2960;
+zbed(zbed>max_alt)=no_dat;
+zbed    = double(zbed(1:xend,ystart:yend));
+zsurf   = double(zsurf(1:xend,ystart:yend));
 
 % preprocess
 mask   = abs(1-(zbed==no_dat));
@@ -33,11 +36,11 @@ xv  = 0:dx:Lx;
 yv  = 0:dy:Ly;
 [xv2,yv2] = ndgrid(xv,yv);
 
-if do_save==1, save([path_data, '/', 'arolla3D.mat'], 'zbed', 'zsurf', 'mask', 'xv', 'yv'); end
+% if do_save==1, save([path_data, '/', 'arolla3D.mat'], 'zbed', 'zsurf', 'mask', 'xv', 'yv'); end
 
-xv2   = mask.*xv2;
-yv2   = mask.*yv2;
-zavg  = mask.*zavg;
+% xv2   = mask.*xv2;
+% yv2   = mask.*yv2;
+% zavg  = mask.*zavg;
 
 % LSQ fit
 xv2_  = xv2;  xv2_(mask==0)=[];
@@ -50,6 +53,24 @@ B = zavg_(:);
 x = (A'*A)\(A'*B);
 
 plane = xv2*x(1) + yv2*x(2) + x(3);
+
+%%
+zbed(mask == 0) = plane(mask == 0);
+mask2 = mask; mask2([1,end],:)=1; mask2(:,[1,end])=1;
+[x,y] = ndgrid(xv,yv);
+x     = x(:);
+y     = y(:);
+zbed  = zbed(:);
+mask2  = mask2(:);
+x(mask2 == 0) = [];
+y(mask2 == 0) = [];
+zbed(mask2 == 0) = [];
+
+[x2,y2] = ndgrid(linspace(min(x),max(x),280),linspace(min(y),max(y),193));
+zbed    = griddata(x,y,zbed,x2,y2);
+%%
+
+if do_save==1, save([path_data, '/', 'arolla3D_2.mat'], 'zbed', 'zsurf', 'mask', 'plane', 'xv', 'yv'); end
 
 % rotate
 zbedr  = (zbed  - plane).*mask;
