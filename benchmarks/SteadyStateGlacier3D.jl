@@ -1,5 +1,5 @@
 const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
-const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
+const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 6
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 const do_visu = haskey(ENV, "DO_VISU") ? parse(Bool, ENV["DO_VISU"]) : true
 ###
@@ -163,7 +163,7 @@ end
     if do_save
         @parallel preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
         Vn_v  .= Vn;  Vn_v[Vn_v.==0]   .= NaN
-        τII_v .= τII; τII_v[τII_V.==0] .= NaN
+        τII_v .= τII; τII_v[τII_v.==0] .= NaN
         Pt_v  .= Pt;  Pt_v[Pt_v.==0]   .= NaN
         matwrite("../out_visu/out_res3D.mat", Dict("Vn"=> Array(Vn), "tII"=> Array(τII), "Pt"=> Array(Pt), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc)); compress = true)
     end
@@ -173,6 +173,6 @@ end
 # ---------------------
 
 # preprocessing
-inputs = preprocess("../data/arolla3D.mat"; resx=256, resy=256, fact_nz=1)
+inputs = preprocess("../data/arolla3D.mat"; resx=128, resy=128, fact_nz=2)
 
 @time Stokes3D(inputs)
