@@ -1,5 +1,5 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
-const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 6
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
+const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 const do_visu = haskey(ENV, "DO_VISU") ? parse(Bool, ENV["DO_VISU"]) : true
 ###
@@ -40,30 +40,53 @@ macro fmyz(A) esc(:( !($A[$ixi,$iy,$iz] == air || $A[$ixi,$iy+1,$iz] == air || $
     return
 end
 
-macro sm_xi(A) esc(:( !(($A[$ix,$iyi,$izi] == solid) || ($A[$ix+1,$iyi,$izi] == solid)) )) end
-macro sm_yi(A) esc(:( !(($A[$ixi,$iy,$izi] == solid) || ($A[$ixi,$iy+1,$izi] == solid)) )) end
-macro sm_zi(A) esc(:( !(($A[$ixi,$iyi,$iz] == solid) || ($A[$ixi,$iyi,$iz+1] == solid)) )) end
+macro sm_xi(A) esc(:( ($A[$ix,$iyi,$izi] == fluid) && ($A[$ix+1,$iyi,$izi] == fluid) )) end
+macro sm_yi(A) esc(:( ($A[$ixi,$iy,$izi] == fluid) && ($A[$ixi,$iy+1,$izi] == fluid) )) end
+macro sm_zi(A) esc(:( ($A[$ixi,$iyi,$iz] == fluid) && ($A[$ixi,$iyi,$iz+1] == fluid) )) end
+
 macro fm_xi(A) esc(:( 0.5*((($A[$ix,$iyi,$izi] != air)) + (($A[$ix+1,$iyi,$izi] != air))) )) end
 macro fm_yi(A) esc(:( 0.5*((($A[$ixi,$iy,$izi] != air)) + (($A[$ixi,$iy+1,$izi] != air))) )) end
 macro fm_zi(A) esc(:( 0.5*((($A[$ixi,$iyi,$iz] != air)) + (($A[$ixi,$iyi,$iz+1] != air))) )) end
 
 @parallel function compute_V!(Vx, Vy, Vz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dτ_ρ, dx, dy, dz)
-    @inn(Vx) = @sm_xi(ϕ)*( @inn(Vx) + dτ_ρ*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) )
-    @inn(Vy) = @sm_yi(ϕ)*( @inn(Vy) + dτ_ρ*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy) )
-    @inn(Vz) = @sm_zi(ϕ)*( @inn(Vz) + dτ_ρ*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz) )
+    @inn(Vx) = @sm_xi(ϕ)*( @inn(Vx) + dτ_ρ*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - ρgx) )
+    @inn(Vy) = @sm_yi(ϕ)*( @inn(Vy) + dτ_ρ*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - ρgy) )
+    @inn(Vz) = @sm_zi(ϕ)*( @inn(Vz) + dτ_ρ*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - ρgz) )
     return
 end
 
 @parallel function compute_Res!(Rx, Ry, Rz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dx, dy, dz)
-    @all(Rx)  = @sm_xi(ϕ)*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx)
-    @all(Ry)  = @sm_yi(ϕ)*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy)
-    @all(Rz)  = @sm_zi(ϕ)*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz)
+    @all(Rx)  = @sm_xi(ϕ)*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - ρgx)
+    @all(Ry)  = @sm_yi(ϕ)*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - ρgy)
+    @all(Rz)  = @sm_zi(ϕ)*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - ρgz)
     return
 end
 
 @parallel function preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
     @all(Vn)  = (@av_xa(Vx)*@av_xa(Vx) + @av_ya(Vy)*@av_ya(Vy) + @av_za(Vz)*@av_za(Vz))^0.5
     @all(τII) = (0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy) + @inn(τzz)*@inn(τzz)) + @av_xya(τxy)*@av_xya(τxy) + @av_xza(τxz)*@av_xza(τxz) + @av_yza(τyz)*@av_yza(τyz))^0.5
+    return
+end
+
+@parallel_indices (ix,iy,iz) function init_ϕi!(ϕ,ϕx,ϕy,ϕz)
+    if ix <= size(ϕx,1) && iy <= size(ϕx,2) && iz <= size(ϕx,3)
+        ϕx[ix,iy,iz] = air
+        if ϕ[ix,iy,iz] == fluid && ϕ[ix+1,iy,iz] == fluid
+            ϕx[ix,iy,iz] = fluid
+        end
+    end
+    if ix <= size(ϕy,1) && iy <= size(ϕy,2) && iz <= size(ϕy,3)
+        ϕy[ix,iy,iz] = air
+        if ϕ[ix,iy,iz] == fluid && ϕ[ix,iy+1,iz] == fluid
+            ϕy[ix,iy,iz] = fluid
+        end
+    end
+    if ix <= size(ϕz,1) && iy <= size(ϕz,2) && iz <= size(ϕz,3)
+        ϕz[ix,iy,iz] = air
+        if ϕ[ix,iy,iz] == fluid && ϕ[ix,iy,iz+1] == fluid
+            ϕz[ix,iy,iz] = fluid
+        end
+    end
     return
 end
 
@@ -112,6 +135,9 @@ end
     Rx        = @zeros(nx-1,ny-2,nz-2)
     Ry        = @zeros(nx-2,ny-1,nz-2)
     Rz        = @zeros(nx-2,ny-2,nz-1)
+    ϕx        = @zeros(nx-1,ny-2,nz-2)
+    ϕy        = @zeros(nx-2,ny-1,nz-2)
+    ϕz        = @zeros(nx-2,ny-2,nz-1)
     Vx        = @zeros(nx+1,ny  ,nz  )
     Vy        = @zeros(nx  ,ny+1,nz  )
     Vz        = @zeros(nx  ,ny  ,nz+1)
@@ -124,11 +150,19 @@ end
     Vn_s      = @zeros(nx  ,nz  ) # visu
     τII_s     = @zeros(nx-2,nz-2) # visu
     Pt_s      = @zeros(nx  ,nz  ) # visu
+    Rx1_v     = zeros(nx-1,nz-2) # visu
+    Ry1_v     = zeros(nx-2,nz-2) # visu
+    Rz1_v     = zeros(nx-2,nz-1) # visu
+    Rx2_v     = zeros(ny-2,nz-2) # visu
+    Ry2_v     = zeros(ny-1,nz-2) # visu
+    Rz2_v     = zeros(ny-2,nz-1) # visu
+    @parallel init_ϕi!(ϕ,ϕx,ϕy,ϕz)
     if do_save
         !ispath("../out_visu") && mkdir("../out_visu")
         matwrite("../out_visu/out_pa3D.mat", Dict("Phase"=> Array(ϕ), "x3rot"=> Array(x3rot), "y3rot"=> Array(y3rot), "z3rot"=> Array(z3rot), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc), "rhogv"=> Array(ρgv), "lx"=> lx, "ly"=> ly, "lz"=> lz, "sc"=> sc); compress = true)
     end
     fntsz = 7; sl = ceil(Int,ny*0.2); xci, yci, zci = xc[2:end-1], yc[2:end-1], zc[2:end-1]
+    xvi, yvi, zvi = 0.5.*(xc[1:end-1] .+ xc[2:end]), 0.5.*(yc[1:end-1] .+ yc[2:end]), 0.5.*(zc[1:end-1] .+ zc[2:end])
     opts  = (aspect_ratio=1, xlims=(xc[1],xc[end]), ylims=(zc[1],zc[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
     opts2 = (linewidth=2, markershape=:circle, markersize=3,yaxis = (:log10, font(fntsz,"Courier")), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
     # iteration loop
@@ -139,9 +173,9 @@ end
         iter += 1
         if iter % nchk == 0
             @parallel compute_Res!(Rx, Ry, Rz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dx, dy, dz)
-            norm_Rx = norm(Rx)/psc*lz/sqrt(length(Rx))
-            norm_Ry = norm(Ry)/psc*lz/sqrt(length(Ry))
-            norm_Rz = norm(Rz)/psc*lz/sqrt(length(Rz))
+            norm_Rx = norm((ϕx.==fluid).*Rx)/psc*lz/sqrt(length(Rx))
+            norm_Ry = norm((ϕy.==fluid).*Ry)/psc*lz/sqrt(length(Ry))
+            norm_Rz = norm((ϕz.==fluid).*Rz)/psc*lz/sqrt(length(Rz))
             norm_∇V = norm((ϕ.==fluid).*∇V)/vsc*lz/sqrt(length(∇V))
             err_V   = maximum([norm_Rx, norm_Ry, norm_Rz])
             err_∇V  = norm_∇V
@@ -150,14 +184,26 @@ end
         end
         if do_visu && iter % nviz == 0
             @parallel preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
-            Vn_s  .=  Vn[:,sl,:];  Vn_s[Vn_s .==0] .= NaN
+            Vn_s  .=  Vn[:,sl,:];  Vn_s[ϕ[:,sl,:].!=fluid] .= NaN
             τII_s .= τII[:,sl,:]; τII_s[τII_s.==0] .= NaN
-            Pt_s  .=  Pt[:,sl,:];  Pt_s[Pt_s .==0] .= NaN
-            p1 = heatmap(xc ,zc ,Array(Vn_s)' ; c=:batlow, title="Vn (y=0)", opts...)
-            p2 = heatmap(xci,zci,Array(τII_s)'; c=:batlow, title="τII (y=0)", opts...)
-            p3 = heatmap(xc, zc ,Array(Pt_s)' ; c=:viridis,title="Pressure (y=0)", opts...)
-            p4 = plot(err_evo2,err_evo1; legend=false, xlabel="# iterations/nx", ylabel="log10(error)", labels="max(error)", opts2...)
-            display(plot(p1, p2, p3, p4, size=(1e3,600), dpi=200,layout=(2,2)))
+            Pt_s  .=  Pt[:,sl,:];  Pt_s[ϕ[:,sl,:].!=fluid] .= NaN
+            Rx1_v .= Rx[:,sl,:]; Rx1_v[ϕx[:,sl,:].!=fluid] .= NaN
+            Ry1_v .= Ry[:,sl,:]; Ry1_v[ϕy[:,sl,:].!=fluid] .= NaN
+            Rz1_v .= Rz[:,sl,:]; Rz1_v[ϕz[:,sl,:].!=fluid] .= NaN
+            Rx2_v .= Rx[sl,:,:]; Rx2_v[ϕx[sl,:,:].!=fluid] .= NaN
+            Ry2_v .= Ry[sl,:,:]; Ry2_v[ϕy[sl,:,:].!=fluid] .= NaN
+            Rz2_v .= Rz[sl,:,:]; Rz2_v[ϕz[sl,:,:].!=fluid] .= NaN
+            p1 = heatmap(xvi,zci,Rx1_v'; c=:batlow, title="Rx (y=0)", opts...)
+            p2 = heatmap(xci,zci,Ry1_v'; c=:batlow, title="Ry (y=0)", opts...)
+            p3 = heatmap(xci,zvi,Rz1_v'; c=:batlow, title="Rz (y=0)", opts...)
+            p4 = heatmap(yci,zci,Rx2_v'; c=:batlow, title="Rx (x=0)", opts...)
+            p5 = heatmap(yvi,zci,Ry2_v'; c=:batlow, title="Ry (x=0)", opts...)
+            p6 = heatmap(yci,zvi,Rz2_v'; c=:batlow, title="Rz (x=0)", opts...)
+            p7 = heatmap(xc ,zc ,Array(Vn_s)' ; c=:batlow, title="Vn (y=0)", opts...)
+            # p2 = heatmap(xci,zci,Array(τII_s)'; c=:batlow, title="τII (y=0)", opts...)
+            p8 = heatmap(xc, zc ,Array(Pt_s)' ; c=:viridis,title="Pressure (y=0)", opts...)
+            p9 = plot(err_evo2,err_evo1; legend=false, xlabel="# iterations/nx", ylabel="log10(error)", labels="max(error)", opts2...)
+            display(plot(p1, p2, p3, p4, p5, p6, p7, p8, p9, size=(3e3,1.5e3), dpi=200))
         end
     end
     if do_save
