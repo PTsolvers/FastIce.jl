@@ -154,6 +154,6 @@ end
 # ---------------------
 
 # preprocessing
-inputs = preprocess("../data/arolla51.txt"; resx=256, do_rotate=true, fact_ny=5)
+inputs = preprocess("../data/arolla2D/arolla51.txt"; resx=256, do_rotate=true, fact_ny=5)
 
 @time Stokes2D(inputs)
