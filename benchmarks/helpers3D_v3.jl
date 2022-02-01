@@ -1,4 +1,4 @@
-using Statistics, GeoArrays, Interpolations, LinearAlgebra
+using Statistics, GeoArrays, Interpolations, LinearAlgebra, Plots
 
 const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
 const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
@@ -159,7 +159,7 @@ Preprocess input data for iceflow model.
     file2  = ("../data/alps/BedElev_cr_$(dat_name).tif"  )
     zthick = reverse(GeoArrays.read(file1)[:,:,1], dims=2)
     zbed   = reverse(GeoArrays.read(file2)[:,:,1], dims=2)
-    coord  = reverse(GeoArrays.coords(GeoArrays.read(file1)), dims=2)
+    coord  = reverse(GeoArrays.coords(GeoArrays.read(file2)), dims=2)
 
     # define and apply masks
     mask = ones(size(zthick))
@@ -178,8 +178,7 @@ Preprocess input data for iceflow model.
     ymax, xmax = extrema(extrema(coord)[2])
     dx, dy     = abs.(coord[1,1]-coord[2,2])
     zmin,zmax  = minimum(zbed),maximum(zsurf)
-
-    (x2v,y2v)  = ([coord[i,j][1] for i=1:size(coord,1), j=1:size(coord,2)], [coord[i,j][2] for i=1:size(coord,1), j=1:size(coord,2)])
+    (x2v,y2v)  = (getindex.(coord, 1), getindex.(coord, 2))
 
     if do_rotate
         println("- perform least square fit")
