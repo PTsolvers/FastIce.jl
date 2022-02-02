@@ -299,4 +299,4 @@ Preprocess input data for iceflow model.
 end
 
 # preprocessing
-inputs = preprocess("ArollaHaut"; resx=256, resy=256, do_rotate=true, fact_nz=2)
+inputs = preprocess("Rhone"; resx=256, resy=256, do_rotate=true, fact_nz=2)
