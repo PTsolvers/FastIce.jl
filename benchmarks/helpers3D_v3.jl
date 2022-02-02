@@ -1,4 +1,4 @@
-using Statistics, GeoArrays, Interpolations, LinearAlgebra, Plots
+using Statistics, GeoArrays, Interpolations, LinearAlgebra#, Plots
 
 const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
 const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
@@ -174,11 +174,11 @@ Preprocess input data for iceflow model.
     zavg  = 0.5(zsurf .+ zbed)
 
     # retrieve extrema
-    ymin, xmin = extrema(extrema(coord)[1])
-    ymax, xmax = extrema(extrema(coord)[2])
-    dx, dy     = abs.(coord[1,1]-coord[2,2])
-    zmin,zmax  = minimum(zbed),maximum(zsurf)
-    (x2v,y2v)  = (getindex.(coord, 1), getindex.(coord, 2))
+    # zmin, zmax = minimum(zbed),maximum(zsurf)
+    zmin, zmax = minimum( my_filter(zbed,mask) ),maximum( my_filter(zsurf,mask) )
+    (x2v,y2v)  = (getindex.(coord,1), getindex.(coord,2))
+    xmin, xmax = extrema(x2v)
+    ymin, ymax = extrema(y2v)
 
     if do_rotate
         println("- perform least square fit")
@@ -229,7 +229,8 @@ Preprocess input data for iceflow model.
     # get extents
     xrmin,xrmax = min(xsmin,xbmin),max(xsmax,xbmax)
     yrmin,yrmax = min(ysmin,ybmin),max(ysmax,ybmax)
-    zrmin,zrmax = min(zsmin,zbmin),max(zsmax,zbmax)
+    # zrmin,zrmax = min(zsmin,zbmin),max(zsmax,zbmax)
+    zrmin,zrmax = zbmin, zbmax
     lx,ly,lz    = xrmax-xrmin, yrmax-yrmin, zrmax-zrmin
 
     # GPU friendly resolution nx, ny, nz
@@ -260,6 +261,7 @@ Preprocess input data for iceflow model.
 
     # 3D grid
     xc, yc, zc  = LinRange(xrmin-0.01lx,xrmax+0.01lx,nx), LinRange(yrmin-0.01ly,yrmax+0.01ly,ny), LinRange(zrmin-0.01lz,zrmax+0.01lz,nz)
+    dx, dy, dz  = xc[2]-xc[1], yc[2]-yc[1], zc[2]-zc[1]
     (x3,y3,z3)  = ([x for x=xc,y=yc,z=zc], [y for x=xc,y=yc,z=zc], [z for x=xc,y=yc,z=zc])
 
     Rinv    = R'
@@ -290,12 +292,11 @@ Preprocess input data for iceflow model.
     # # subplot(133),pcolor(sl[200,:,:]'),colorbar()
     # subplot(133),pcolor(y3rot[ceil(Int,3*nx/4),:,:], z3rot[ceil(Int,3*nx/4),:,:], sl[ceil(Int,3*nx/4),:,:]),colorbar()
     
-    display(heatmap(xv,yv,zthick2'))
+    # display(Plot.heatmap(xv,yv,zthick2'))
 
     println("... done.")
     return inputs
 end
 
 # preprocessing
-inputs = preprocess("Rhone"; resx=256, resy=256, do_rotate=true, fact_nz=2)
-
+inputs = preprocess("ArollaHaut"; resx=256, resy=256, do_rotate=true, fact_nz=2)
