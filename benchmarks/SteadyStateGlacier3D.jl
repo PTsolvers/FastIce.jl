@@ -1,5 +1,5 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
-const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
+const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 7
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 const do_visu = haskey(ENV, "DO_VISU") ? parse(Bool, ENV["DO_VISU"]) : true
 ###
@@ -11,7 +11,7 @@ using ParallelStencil.FiniteDifferences3D
 else
     @init_parallel_stencil(Threads, Float64, 3)
 end
-using Printf, Statistics, LinearAlgebra, MAT, Random, UnPack, Plots
+using Printf, Statistics, LinearAlgebra, Random, UnPack, Plots, MAT, WriteVTK
 
 include(joinpath(@__DIR__, "helpers3D_v4.jl"))
 
@@ -159,7 +159,7 @@ end
     @parallel init_ϕi!(ϕ,ϕx,ϕy,ϕz)
     if do_save
         !ispath("../out_visu") && mkdir("../out_visu")
-        matwrite("../out_visu/out_pa3D.mat", Dict("Phase"=> Array(ϕ), "x3rot"=> Array(x3rot), "y3rot"=> Array(y3rot), "z3rot"=> Array(z3rot), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc), "rhogv"=> Array(ρgv), "lx"=> lx, "ly"=> ly, "lz"=> lz, "sc"=> sc); compress = true)
+        # matwrite("../out_visu/out_pa3D.mat", Dict("Phase"=> Array(ϕ), "x3rot"=> Array(x3rot), "y3rot"=> Array(y3rot), "z3rot"=> Array(z3rot), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc), "rhogv"=> Array(ρgv), "lx"=> lx, "ly"=> ly, "lz"=> lz, "sc"=> sc); compress = true)
     end
     fntsz = 16; sl = ceil(Int,ny*0.2); xci, yci, zci = xc[2:end-1], yc[2:end-1], zc[2:end-1]
     xvi, yvi, zvi = 0.5.*(xc[1:end-1] .+ xc[2:end]), 0.5.*(yc[1:end-1] .+ yc[2:end]), 0.5.*(zc[1:end-1] .+ zc[2:end])
@@ -203,7 +203,7 @@ end
             # p2 = heatmap(xci,zci,Array(τII_s)'; c=:batlow, title="τII (y=0)", opts...)
             p8 = heatmap(xc, zc ,Array(Pt_s)' ; c=:viridis,title="Pressure (y=0)", opts...)
             p9 = plot(err_evo2,err_evo1; legend=false, xlabel="# iterations/nx", ylabel="log10(error)", labels="max(error)", opts2...)
-            display(plot(p1, p2, p3, p4, p5, p6, p7, p8, p9, size=(3e3,1.5e3), dpi=200))
+            display(plot(p1, p2, p3, p4, p5, p6, p7, p8, p9, size=(1.5e3,8e2), dpi=200))
         end
     end
     if do_save
@@ -211,7 +211,14 @@ end
         Vn_v  .= Vn;  Vn_v[Vn_v.==0]   .= NaN
         τII_v .= τII; τII_v[τII_v.==0] .= NaN
         Pt_v  .= Pt;  Pt_v[Pt_v.==0]   .= NaN
-        matwrite("../out_visu/out_res3D.mat", Dict("Vn"=> Array(Vn), "tII"=> Array(τII), "Pt"=> Array(Pt), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc)); compress = true)
+        # matwrite("../out_visu/out_res3D.mat", Dict("Vn"=> Array(Vn), "tII"=> Array(τII), "Pt"=> Array(Pt), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc)); compress = true)
+        st = 3 # downsampling factor
+        vtk_grid("../out_visu/out_3Dfields", Array(x3rot)[1:st:end,1:st:end,1:st:end], Array(y3rot)[1:st:end,1:st:end,1:st:end], Array(z3rot)[1:st:end,1:st:end,1:st:end]) do vtk
+            vtk["Vnorm"]    = Array(Vn_v)[1:st:end,1:st:end,1:st:end]
+            vtk["TauII"]    = Array(τII_v)[1:st:end,1:st:end,1:st:end]
+            vtk["Pressure"] = Array(Pt_v)[1:st:end,1:st:end,1:st:end]
+            vtk["Phase"]    = Array(ϕ)[1:st:end,1:st:end,1:st:end]
+        end
     end
     return
 end
@@ -222,6 +229,7 @@ end
 # inputs = preprocess("../data/arolla3D.mat"; resx=256, resy=256, fact_nz=1)
 zsurf, zbed, zthick, x2v, y2v, R, ori = preprocess1("Rhone"; do_rotate=true)
 
-inputs = preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx=128, resy=128, fact_nz=2, ns=16)
+inputs = preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx=512, resy=512, fact_nz=2, ns=8)
 
 @time Stokes3D(inputs)
+

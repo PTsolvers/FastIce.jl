@@ -286,7 +286,7 @@ Preprocess input data for iceflow model.
     xv, yv = LinRange(xv_d[1], xv_d[end], ns*(nx+1)), LinRange(yv_d[1], yv_d[end], ns*(ny+1))
 
     zbed2, zthick2 = interp(zbed, zthick, xv_d, yv_d, xv, yv)
-    println("- interpolate original data (nxv, nyv = $(size(zbed)[1]), $(size(zbed)[2])) on nxv, nyv = $(size(zbed2)[1]), $(size(zbed2)[2]) grid")
+    println("- interpolate original data (nxv, nyv = $(size(zbed)[1]), $(size(zbed)[2])) on nxv, nyv = $(size(zbed2)[1]), $(size(zbed2)[2]) grid ($(ns)x oversampling)")
     
     nsmb, nsmt = 5, 5 #ceil(Int,nx/20)
     println("- apply smoothing ($nsmb steps on bed, $nsmt steps on thickness)")
