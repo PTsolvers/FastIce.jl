@@ -163,23 +163,17 @@ end
 
 
 """
-    preprocess(dat_file::String; resx::Int=128, resy::Int=128, do_rotate::Bool=true, do_nondim::Bool=true, fact_nz::Int=2, ns=::Int=4, olen::Int=1)
+    preprocess1(dat_file::String; do_rotate::Bool=true)
 
 Preprocess input data for iceflow model.
 
 # Arguments
 - `dat_file::String`: input data file
-- `resx::Int=128`: output x-resolution
-- `resy::Int=128`: output y-resolution
 - `do_rotate=true`: perform data rotation
-- `do_nondim=true`: perform non-dimensionalisation
-- `fact_nz::Int=2`: grid-point increase in z-dim
-- `ns=::Int=4`: number of oversampling to limit aliasing
-- `olen::Int=1`: overlength for arrays larger then `nx`, `ny` and `nz`
 """
-@views function preprocess(dat_name::String; resx::Int=128, resy::Int=128, do_rotate::Bool=true, do_nondim::Bool=true, fact_nz::Int=2, ns::Int=4, olen::Int=1)
-    
-    println("Starting preprocessing ... ")
+@views function preprocess1(dat_name::String; do_rotate::Bool=true)
+
+    println("Starting preprocessing 1 ... ")
 
     println("- load the data")
     file1  = ("../data/alps/IceThick_cr0_$(dat_name).tif")
@@ -241,9 +235,35 @@ Preprocess input data for iceflow model.
          ax[2]*ax[1]*(1-cos(θ))     cos(θ) + ax[2]^2*(1-cos(θ)) -ax[1]*sin(θ)
         -ax[2]*sin(θ)               ax[1]*sin(θ)                       cos(θ)]
 
+    println("... done.")
     # DEBUG: one could here stop and export an HDF5 file including data, x,y coords, rotation matrix and ori
-    # ----------------
+    return zsurf, zbed, zthick, x2v, y2v, R, ori
+end
+
+
+"""
+    preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx::Int=128, resy::Int=128, do_nondim::Bool=true, fact_nz::Int=2, ns=::Int=4, olen::Int=1)
+
+Preprocess input data for iceflow model.
+
+# Arguments
+- `zsurf`: 2D surface elevation data
+- `zbed`: 2D bedrock elevation data
+- `ice`: 2D ice thickness data
+- `x2v`, `y2v`: 2D x-y coords
+- `R`: rotation matrix
+- `ori`: rotation centre
+- `resx::Int=128`: output x-resolution
+- `resy::Int=128`: output y-resolution
+- `do_nondim=true`: perform non-dimensionalisation
+- `fact_nz::Int=2`: grid-point increase in z-dim
+- `ns=::Int=4`: number of oversampling to limit aliasing
+- `olen::Int=1`: overlength for arrays larger then `nx`, `ny` and `nz`
+"""
+@views function preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx::Int=128, resy::Int=128, do_nondim::Bool=true, fact_nz::Int=2, ns::Int=4, olen::Int=1)
     # DEBUG: since here, it could be done in code
+    println("Starting preprocessing 2 ... ")
+
     # rotate surface
     xsmin, xsmax, ysmin, ysmax, zsmin, zsmax = my_rot_minmax(R, x2v, y2v, zsurf)
 
@@ -324,4 +344,5 @@ Preprocess input data for iceflow model.
 end
 
 # preprocessing
-inputs = preprocess("Rhone"; resx=128, resy=128, do_rotate=true, fact_nz=2, ns=16)
+zsurf, zbed, zthick, x2v, y2v, R, ori = preprocess1("Rhone"; do_rotate=true)
+inputs = preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx=128, resy=128, fact_nz=2, ns=16)
