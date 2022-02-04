@@ -1,4 +1,4 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
 const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 const do_visu = haskey(ENV, "DO_VISU") ? parse(Bool, ENV["DO_VISU"]) : true
@@ -13,7 +13,7 @@ else
 end
 using Printf, Statistics, LinearAlgebra, MAT, Random, UnPack, Plots
 
-include(joinpath(@__DIR__, "helpers3D_v2.jl"))
+include(joinpath(@__DIR__, "helpers3D_v4.jl"))
 
 import ParallelStencil: INDICES
 ix,iy,iz    = INDICES[1], INDICES[2], INDICES[3]
@@ -219,6 +219,9 @@ end
 # ---------------------
 
 # preprocessing
-inputs = preprocess("../data/arolla3D.mat"; resx=256, resy=256, fact_nz=1)
+# inputs = preprocess("../data/arolla3D.mat"; resx=256, resy=256, fact_nz=1)
+zsurf, zbed, zthick, x2v, y2v, R, ori = preprocess1("Rhone"; do_rotate=true)
+
+inputs = preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx=128, resy=128, fact_nz=2, ns=16)
 
 @time Stokes3D(inputs)

@@ -1,19 +1,19 @@
-using Statistics, GeoArrays, Interpolations, LinearAlgebra, MAT, PyPlot
+using Statistics, GeoArrays, Interpolations, LinearAlgebra#, MAT, PyPlot
 
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
-const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
-###
-using ParallelStencil
-using ParallelStencil.FiniteDifferences3D
-@static if USE_GPU
-    @init_parallel_stencil(CUDA, Float64, 3)
-    CUDA.device!(gpu_id)
-else
-    @init_parallel_stencil(Threads, Float64, 3)
-end
-const air   = 0.0
-const fluid = 1.0
-const solid = 2.0
+# const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
+# const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
+# ###
+# using ParallelStencil
+# using ParallelStencil.FiniteDifferences3D
+# @static if USE_GPU
+#     @init_parallel_stencil(CUDA, Float64, 3)
+#     CUDA.device!(gpu_id)
+# else
+#     @init_parallel_stencil(Threads, Float64, 3)
+# end
+# const air   = 0.0
+# const fluid = 1.0
+# const solid = 2.0
 
 "Heuristic number of threads per block in x-dim."
 const tx = 32
@@ -325,11 +325,11 @@ Preprocess input data for iceflow model.
     sc     = do_nondim ? 1.0/lz : 1.0    
     inputs = InputParams3D(ϕ, x3rot*sc, y3rot*sc, z3rot*sc, x3*sc, y3*sc, z3*sc, xc*sc, yc*sc, zc*sc, R, lx*sc, ly*sc, lz*sc, nx, ny, nz, sc)
 
-    sl = copy(ϕ)
-    clf()
-    subplot(311),pcolor(x3rot[:,ceil(Int,  ny/4),:], z3rot[:,ceil(Int,  ny/4),:], sl[:,ceil(Int,  ny/4),:]),colorbar()
-    subplot(312),pcolor(x3rot[:,ceil(Int,  ny/2),:], z3rot[:,ceil(Int,  ny/2),:], sl[:,ceil(Int,  ny/2),:]),colorbar()
-    subplot(313),pcolor(x3rot[:,ceil(Int,3*ny/4),:], z3rot[:,ceil(Int,3*ny/4),:], sl[:,ceil(Int,3*ny/4),:]),colorbar()
+    # sl = copy(ϕ)
+    # clf()
+    # subplot(311),pcolor(x3rot[:,ceil(Int,  ny/4),:], z3rot[:,ceil(Int,  ny/4),:], sl[:,ceil(Int,  ny/4),:]),colorbar()
+    # subplot(312),pcolor(x3rot[:,ceil(Int,  ny/2),:], z3rot[:,ceil(Int,  ny/2),:], sl[:,ceil(Int,  ny/2),:]),colorbar()
+    # subplot(313),pcolor(x3rot[:,ceil(Int,3*ny/4),:], z3rot[:,ceil(Int,3*ny/4),:], sl[:,ceil(Int,3*ny/4),:]),colorbar()
     
     # !ispath("../out_visu") && mkdir("../out_visu")
     # matwrite("../out_visu/out_pa3D.mat",
@@ -344,5 +344,5 @@ Preprocess input data for iceflow model.
 end
 
 # preprocessing
-zsurf, zbed, zthick, x2v, y2v, R, ori = preprocess1("Rhone"; do_rotate=true)
-inputs = preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx=128, resy=128, fact_nz=2, ns=16)
+# zsurf, zbed, zthick, x2v, y2v, R, ori = preprocess1("Rhone"; do_rotate=true)
+# inputs = preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx=128, resy=128, fact_nz=2, ns=16)
