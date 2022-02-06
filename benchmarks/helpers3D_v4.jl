@@ -1,4 +1,4 @@
-using Statistics, GeoArrays, Interpolations, LinearAlgebra#, MAT, PyPlot
+using Statistics, GeoArrays, Interpolations, LinearAlgebra, HDF5
 
 # const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
 # const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 0
@@ -91,7 +91,7 @@ Linear least-square fit of mean bedrock and surface data.
 end
 
 
-"Rotate field `A`, `x2v`, `y2v` with rotation matrix `R`."
+"Rotate field `X`, `Y`, `Z` with rotation matrix `R`."
 function my_rot(R, X, Y, Z)
     xrot = R[1,1].*X .+ R[1,2].*Y .+ R[1,3].*Z
     yrot = R[2,1].*X .+ R[2,2].*Y .+ R[2,3].*Z
@@ -100,7 +100,7 @@ function my_rot(R, X, Y, Z)
 end
 
 
-"Rotate field `A`, `x2v`, `y2v` with rotation matrix `R` and return extent."
+"Rotate field `X`, `Y`, `Z` with rotation matrix `R` and return extents."
 function my_rot_minmax(R, X, Y, Z)
     xrot, yrot, zrot = my_rot(R, X, Y, Z)
     xmin,xmax = minimum(xrot), maximum(xrot)
@@ -117,7 +117,7 @@ end
 
 
 """
-    set_phases!(ϕ, x3rot, y3rot, z3rot, zsurf, zbed, ox, oy, dx, dy)
+    set_phases!(ϕ, x3rot, y3rot, z3rot, zsurf, zbed, ox, oy, dx, dy, ns)
 
 Define phases as function of surface and bad topo.
 """
@@ -136,7 +136,7 @@ Define phases as function of surface and bad topo.
 end
 
 
-"Apply one explicit diffusion step as smoothing"
+"Apply one explicit diffusion step as smoothing on 2D data."
 @views function smooth2D!(A, B, fact)
     A[2:end-1,2:end-1] .= B[2:end-1,2:end-1] .+ 1.0/4.1/fact*(diff(diff(B[:,2:end-1],dims=1),dims=1) .+ diff(diff(B[2:end-1,:],dims=2),dims=2))
     return
@@ -235,24 +235,33 @@ Preprocess input data for iceflow model.
          ax[2]*ax[1]*(1-cos(θ))     cos(θ) + ax[2]^2*(1-cos(θ)) -ax[1]*sin(θ)
         -ax[2]*sin(θ)               ax[1]*sin(θ)                       cos(θ)]
 
-    println("... done.")
     # DEBUG: one could here stop and export an HDF5 file including data, x,y coords, rotation matrix and ori
-    return zsurf, zbed, zthick, x2v, y2v, R, ori
+    println("- save data to ../data/alps/data_$(dat_name).h5")
+    
+    h5open("../data/alps/data_$(dat_name).h5", "w") do fid
+        create_group(fid, "glacier")
+        fid["glacier/zsurf",compress=3]  = zsurf
+        fid["glacier/zbed",compress=3]   = zbed
+        fid["glacier/zthick",compress=3] = zthick
+        fid["glacier/x2v",compress=3]    = x2v
+        fid["glacier/z2v",compress=3]    = y2v
+        fid["glacier/R",compress=3]      = R
+        fid["glacier/ori",compress=3]    = ori
+    end
+
+    println("... done.")
+    # return zsurf, zbed, zthick, x2v, y2v, R, ori
+    return
 end
 
 
 """
-    preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx::Int=128, resy::Int=128, do_nondim::Bool=true, fact_nz::Int=2, ns=::Int=4, olen::Int=1)
+    preprocess2(filename::String; resx::Int=128, resy::Int=128, do_nondim::Bool=true, fact_nz::Int=2, ns=::Int=4, olen::Int=1)
 
 Preprocess input data for iceflow model.
 
 # Arguments
-- `zsurf`: 2D surface elevation data
-- `zbed`: 2D bedrock elevation data
-- `ice`: 2D ice thickness data
-- `x2v`, `y2v`: 2D x-y coords
-- `R`: rotation matrix
-- `ori`: rotation centre
+- `filename::String`: input data file (relative path + extension)
 - `resx::Int=128`: output x-resolution
 - `resy::Int=128`: output y-resolution
 - `do_nondim=true`: perform non-dimensionalisation
@@ -260,9 +269,20 @@ Preprocess input data for iceflow model.
 - `ns=::Int=4`: number of oversampling to limit aliasing
 - `olen::Int=1`: overlength for arrays larger then `nx`, `ny` and `nz`
 """
-@views function preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx::Int=128, resy::Int=128, do_nondim::Bool=true, fact_nz::Int=2, ns::Int=4, olen::Int=1)
+@views function preprocess2(filename::String; resx::Int=128, resy::Int=128, do_nondim::Bool=true, fact_nz::Int=2, ns::Int=4, olen::Int=1)
     # DEBUG: since here, it could be done in code
     println("Starting preprocessing 2 ... ")
+    
+    println("- read data from $(filename)")
+    fid    = h5open(filename, "r")
+    zsurf  = read(fid,"glacier/zsurf")
+    zbed   = read(fid,"glacier/zbed")
+    zthick = read(fid,"glacier/zthick")
+    x2v    = read(fid,"glacier/x2v")
+    y2v    = read(fid,"glacier/z2v")
+    R      = read(fid,"glacier/R")
+    ori    = read(fid,"glacier/ori")
+    close(fid)
 
     # rotate surface
     xsmin, xsmax, ysmin, ysmax, zsmin, zsmax = my_rot_minmax(R, x2v, y2v, zsurf)

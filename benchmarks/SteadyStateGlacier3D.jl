@@ -212,8 +212,8 @@ end
         τII_v .= τII; τII_v[τII_v.==0] .= NaN
         Pt_v  .= Pt;  Pt_v[Pt_v.==0]   .= NaN
         # matwrite("../out_visu/out_res3D.mat", Dict("Vn"=> Array(Vn), "tII"=> Array(τII), "Pt"=> Array(Pt), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc)); compress = true)
-        st = 3 # downsampling factor
-        vtk_grid("../out_visu/out_3Dfields", Array(x3rot)[1:st:end,1:st:end,1:st:end], Array(y3rot)[1:st:end,1:st:end,1:st:end], Array(z3rot)[1:st:end,1:st:end,1:st:end]) do vtk
+        st = 1 # downsampling factor
+        vtk_grid("../out_visu/out_3Dfields", Array(x3rot)[1:st:end,1:st:end,1:st:end], Array(y3rot)[1:st:end,1:st:end,1:st:end], Array(z3rot)[1:st:end,1:st:end,1:st:end]; compress=5) do vtk
             vtk["Vnorm"]    = Array(Vn_v)[1:st:end,1:st:end,1:st:end]
             vtk["TauII"]    = Array(τII_v)[1:st:end,1:st:end,1:st:end]
             vtk["Pressure"] = Array(Pt_v)[1:st:end,1:st:end,1:st:end]
@@ -226,10 +226,9 @@ end
 # ---------------------
 
 # preprocessing
-# inputs = preprocess("../data/arolla3D.mat"; resx=256, resy=256, fact_nz=1)
-zsurf, zbed, zthick, x2v, y2v, R, ori = preprocess1("Rhone"; do_rotate=true)
+# preprocess1("Rhone"; do_rotate=true)
 
-inputs = preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx=512, resy=512, fact_nz=2, ns=8)
+inputs = preprocess2("../data/alps/data_Rhone.h5"; resx=128, resy=128, fact_nz=2, ns=8)
 
 @time Stokes3D(inputs)
 

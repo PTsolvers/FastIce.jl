@@ -3,14 +3,8 @@ using DBFTables, DataFrames, Shapefile, Rasters, Plots
 "Helper function to mask, trim and pad bedrock and ice thickness data given a glacier polygon."
 @views mask_trim(rasterDat, poly, pad) = trim(mask(rasterDat; with=poly); pad=pad)
 
-# SGI_ID  = "E22/03"
-# name    = "Morteratsch"
-
 SGI_ID  = "B73/12"
 name    = "ArollaHaut"
-
-# SGI_ID  = "B73/14"
-# name    = "Arolla"
 
 # SGI_ID  = "B43/03"
 # name    = "Rhone"
@@ -20,6 +14,12 @@ name    = "ArollaHaut"
 
 # SGI_ID  = "A55f/03"
 # name    = "PlaineMorte"
+
+# SGI_ID  = "E22/03"
+# name    = "Morteratsch"
+
+# SGI_ID  = "B73/14"
+# name    = "Arolla"
 
 padding = 10
 
