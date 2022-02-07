@@ -14,6 +14,8 @@ using Statistics, GeoArrays, Interpolations, LinearAlgebra, HDF5
 # const air   = 0.0
 # const fluid = 1.0
 # const solid = 2.0
+"Data format single `Float32` or double `Float64` precision"
+const DAT = Float64
 
 "Heuristic number of threads per block in x-dim."
 const tx = 32
@@ -163,15 +165,15 @@ end
 
 
 """
-    preprocess1(dat_file::String; do_rotate::Bool=true)
+    extract_geodata(dat_file::String; do_rotate::Bool=true)
 
-Preprocess input data for iceflow model.
+Extract geadata and return elevation maps, rotation matrix and origin.
 
 # Arguments
 - `dat_file::String`: input data file
 - `do_rotate=true`: perform data rotation
 """
-@views function preprocess1(dat_name::String; do_rotate::Bool=true)
+@views function extract_geodata(dat_name::String; do_rotate::Bool=true)
 
     println("Starting preprocessing 1 ... ")
 
@@ -180,7 +182,7 @@ Preprocess input data for iceflow model.
     file2  = ("../data/alps/BedElev_cr_$(dat_name).tif"  )
     zthick = reverse(GeoArrays.read(file1)[:,:,1], dims=2)
     zbed   = reverse(GeoArrays.read(file2)[:,:,1], dims=2)
-    coord  = reverse(GeoArrays.coords(GeoArrays.read(file2)), dims=2)  
+    coord  = reverse(GeoArrays.coords(GeoArrays.read(file2)), dims=2)
 
     # DEBUG: a step here could be rotation of the (x,y) plane using bounding box (rotating calipers)
     
@@ -193,18 +195,18 @@ Preprocess input data for iceflow model.
     y2v       .= y2v .- ymin .- ∆y/2
 
     # define and apply masks
-    mask = ones(size(zthick))
+    mask = ones(DAT, size(zthick))
     mask[ismissing.(zthick)] .= 0
 
     zthick[mask.==0] .= 0
-    zthick = convert(Matrix{Float64}, zthick)
+    zthick = convert(Matrix{DAT}, zthick)
 
     zbed[ismissing.(zbed)] .= mean(my_filter(zbed,mask))
-    zbed = convert(Matrix{Float64}, zbed)
+    zbed = convert(Matrix{DAT}, zbed)
 
     # define surface and avg topo
     zsurf = zbed .+ zthick
-    zavg  = 0.5(zsurf .+ zbed)
+    zavg  = 0.5f0(zsurf .+ zbed)
 
     # retrieve extrema and centre data
     zmin, zmax = minimum( my_filter(zbed,mask) ),maximum( my_filter(zsurf,mask) )
@@ -235,7 +237,6 @@ Preprocess input data for iceflow model.
          ax[2]*ax[1]*(1-cos(θ))     cos(θ) + ax[2]^2*(1-cos(θ)) -ax[1]*sin(θ)
         -ax[2]*sin(θ)               ax[1]*sin(θ)                       cos(θ)]
 
-    # DEBUG: one could here stop and export an HDF5 file including data, x,y coords, rotation matrix and ori
     println("- save data to ../data/alps/data_$(dat_name).h5")
     
     h5open("../data/alps/data_$(dat_name).h5", "w") do fid
@@ -256,7 +257,7 @@ end
 
 
 """
-    preprocess2(filename::String; resx::Int=128, resy::Int=128, do_nondim::Bool=true, fact_nz::Int=2, ns=::Int=4, olen::Int=1)
+    preprocess(filename::String; resx::Int=128, resy::Int=128, do_nondim::Bool=true, fact_nz::Int=2, ns=::Int=4, olen::Int=1)
 
 Preprocess input data for iceflow model.
 
@@ -269,7 +270,7 @@ Preprocess input data for iceflow model.
 - `ns=::Int=4`: number of oversampling to limit aliasing
 - `olen::Int=1`: overlength for arrays larger then `nx`, `ny` and `nz`
 """
-@views function preprocess2(filename::String; resx::Int=128, resy::Int=128, do_nondim::Bool=true, fact_nz::Int=2, ns::Int=4, olen::Int=1)
+@views function preprocess(filename::String; resx::Int=128, resy::Int=128, do_nondim::Bool=true, fact_nz::Int=2, ns::Int=4, olen::Int=1)
     # DEBUG: since here, it could be done in code
     println("Starting preprocessing 2 ... ")
     
@@ -345,24 +346,6 @@ Preprocess input data for iceflow model.
     sc     = do_nondim ? 1.0/lz : 1.0    
     inputs = InputParams3D(ϕ, x3rot*sc, y3rot*sc, z3rot*sc, x3*sc, y3*sc, z3*sc, xc*sc, yc*sc, zc*sc, R, lx*sc, ly*sc, lz*sc, nx, ny, nz, sc)
 
-    # sl = copy(ϕ)
-    # clf()
-    # subplot(311),pcolor(x3rot[:,ceil(Int,  ny/4),:], z3rot[:,ceil(Int,  ny/4),:], sl[:,ceil(Int,  ny/4),:]),colorbar()
-    # subplot(312),pcolor(x3rot[:,ceil(Int,  ny/2),:], z3rot[:,ceil(Int,  ny/2),:], sl[:,ceil(Int,  ny/2),:]),colorbar()
-    # subplot(313),pcolor(x3rot[:,ceil(Int,3*ny/4),:], z3rot[:,ceil(Int,3*ny/4),:], sl[:,ceil(Int,3*ny/4),:]),colorbar()
-    
-    # !ispath("../out_visu") && mkdir("../out_visu")
-    # matwrite("../out_visu/out_pa3D.mat",
-    #     Dict("Phase"=> Array(ϕ),
-    #          "x3rot"=> Array(x3rot*sc), "y3rot"=> Array(y3rot*sc), "z3rot"=> Array(z3rot*sc),
-    #          "x3"=> Array(x3*sc), "y3"=> Array(y3*sc), "z3"=> Array(z3*sc),
-    #          "xc"=> Array(xc*sc), "yc"=> Array(yc*sc), "zc"=> Array(zc*sc),
-    #          "lx"=> lx, "ly"=> ly, "lz"=> lz, "sc"=> sc); compress = true)
-
     println("... done.")
     return inputs
 end
-
-# preprocessing
-# zsurf, zbed, zthick, x2v, y2v, R, ori = preprocess1("Rhone"; do_rotate=true)
-# inputs = preprocess2(zsurf, zbed, zthick, x2v, y2v, R, ori; resx=128, resy=128, fact_nz=2, ns=16)

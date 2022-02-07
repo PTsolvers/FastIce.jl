@@ -1,4 +1,4 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
 const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 7
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 const do_visu = haskey(ENV, "DO_VISU") ? parse(Bool, ENV["DO_VISU"]) : true
@@ -226,9 +226,8 @@ end
 # ---------------------
 
 # preprocessing
-# preprocess1("Rhone"; do_rotate=true)
+# extract_geodata("Rhone"; do_rotate=true)
 
-inputs = preprocess2("../data/alps/data_Rhone.h5"; resx=128, resy=128, fact_nz=2, ns=8)
+inputs = preprocess("../data/alps/data_Rhone.h5"; resx=128, resy=128, fact_nz=2, ns=8)
 
 @time Stokes3D(inputs)
-
