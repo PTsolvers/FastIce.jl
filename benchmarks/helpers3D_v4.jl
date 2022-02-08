@@ -175,7 +175,7 @@ Extract geadata and return elevation maps, rotation matrix and origin.
 """
 @views function extract_geodata(dat_name::String; do_rotate::Bool=true)
 
-    println("Starting preprocessing 1 ... ")
+    println("Starting geodata extraction ... ")
 
     println("- load the data")
     file1  = ("../data/alps/IceThick_cr0_$(dat_name).tif")
@@ -272,7 +272,7 @@ Preprocess input data for iceflow model.
 """
 @views function preprocess(filename::String; resx::Int=128, resy::Int=128, do_nondim::Bool=true, fact_nz::Int=2, ns::Int=4, olen::Int=1)
     # DEBUG: since here, it could be done in code
-    println("Starting preprocessing 2 ... ")
+    println("Starting preprocessing ... ")
     
     println("- read data from $(filename)")
     fid    = h5open(filename, "r")
