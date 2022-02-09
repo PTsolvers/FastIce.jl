@@ -90,25 +90,6 @@ end
     return
 end
 
-# @parallel_indices (ix,iy,iz) function preprocess_visu2!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt, ϕ)
-#     if checkbounds(Bool,Vn,ix,iy,iz)
-#         @all(Vn)  = (@av_xa(Vx)*@av_xa(Vx) + @av_ya(Vy)*@av_ya(Vy) + @av_za(Vz)*@av_za(Vz))
-#         @all(Ptv) = @all(Pt)
-#         if @all(ϕ) != fluid
-#             @all(Vn)  = NaN
-#             @all(Ptv) = NaN
-#         end
-#     end
-
-#     if checkbounds(Bool,τII,ix,iy,iz)
-#         @all(τII) = (0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy) + @inn(τzz)*@inn(τzz)) + @av_xya(τxy)*@av_xya(τxy) + @av_xza(τxz)*@av_xza(τxz) + @av_yza(τyz)*@av_yza(τyz))
-#         if @inn(ϕ) != fluid
-#             @all(τII) = NaN
-#         end
-#     end
-#     return
-# end
-
 @parallel_indices (ix,iy,iz) function init_ϕi!(ϕ,ϕx,ϕy,ϕz)
     if ix <= size(ϕx,1) && iy <= size(ϕx,2) && iz <= size(ϕx,3)
         ϕx[ix,iy,iz] = air
@@ -289,6 +270,7 @@ end
     #     opts  = (aspect_ratio=1, xlims=(xi_g[1],xi_g[end]), ylims=(zi_g[1],zi_g[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
     #     opts2 = (linewidth=2, markershape=:circle, markersize=3,yaxis = (:log10, font(fntsz,"Courier")), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
     # end
+    if (me==0) println("... done. Starting the real stuff.") end
     # iteration loop
     err_V=2*ε_V; err_∇V=2*ε_∇V; iter=0; err_evo1=[]; err_evo2=[]
     while !((err_V <= ε_V) && (err_∇V <= ε_∇V)) && (iter <= maxiter)
@@ -313,7 +295,6 @@ end
         # if do_visu && (iter % nviz == 0)
         #     @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
         #     @parallel apply_mask!(Vn, τII, Ptv, ϕ)
-        #     # @parallel preprocess_visu2!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt, ϕ)
         #     ϕ_i   .= inn(ϕ);   gather!(ϕ_i, ϕ_v)
         #     Vn_i  .= inn(Vn);  gather!(Vn_i, Vn_v)
         #     τII_i .= τII;      gather!(τII_i, τII_v)
@@ -330,7 +311,6 @@ end
     # if do_save
     #     @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
     #     @parallel apply_mask!(Vn, τII, Ptv, ϕ)
-    #     # @parallel preprocess_visu2!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt, ϕ)
     #     st = 1 # downsampling factor
     #     ϕ_i   .= inn(ϕ);   gather!(ϕ_i, ϕ_v)
     #     Vn_i  .= inn(Vn);  gather!(Vn_i, Vn_v)
