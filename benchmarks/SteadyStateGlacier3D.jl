@@ -62,9 +62,25 @@ end
     return
 end
 
-@parallel function preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
+@parallel function preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
     @all(Vn)  = (@av_xa(Vx)*@av_xa(Vx) + @av_ya(Vy)*@av_ya(Vy) + @av_za(Vz)*@av_za(Vz))^0.5
     @all(τII) = (0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy) + @inn(τzz)*@inn(τzz)) + @av_xya(τxy)*@av_xya(τxy) + @av_xza(τxz)*@av_xza(τxz) + @av_yza(τyz)*@av_yza(τyz))^0.5
+    @all(Ptv) = @all(Pt)
+    return
+end
+
+@parallel_indices (ix,iy,iz) function apply_mask!(Vn, τII, Ptv, ϕ)
+    if checkbounds(Bool,Vn,ix,iy,iz)
+        if ϕ[ix,iy,iz] != fluid
+             Vn[ix,iy,iz] = NaN
+            Ptv[ix,iy,iz] = NaN
+        end
+    end
+    if checkbounds(Bool,τII,ix,iy,iz)
+        if ϕ[ix+1,iy+1,iz+1] != fluid
+            τII[ix,iy,iz] = NaN
+        end
+    end
     return
 end
 
@@ -141,31 +157,23 @@ end
     Vx        = @zeros(nx+1,ny  ,nz  )
     Vy        = @zeros(nx  ,ny+1,nz  )
     Vz        = @zeros(nx  ,ny  ,nz+1)
-    Vn        = @zeros(nx  ,ny  ,nz  )
-    τII       = @zeros(nx-2,ny-2,nz-2)
-    # visu
-    Vn_v      = @zeros(nx,ny,nz) # visu
-    τII_v     = copy(τII) # visu
-    Pt_v      = copy(Pt)  # visu
-    Vn_s      = @zeros(nx  ,nz  ) # visu
-    τII_s     = @zeros(nx-2,nz-2) # visu
-    Pt_s      = @zeros(nx  ,nz  ) # visu
-    Rx1_v     = zeros(nx-1,nz-2) # visu
-    Ry1_v     = zeros(nx-2,nz-2) # visu
-    Rz1_v     = zeros(nx-2,nz-1) # visu
-    Rx2_v     = zeros(ny-2,nz-2) # visu
-    Ry2_v     = zeros(ny-1,nz-2) # visu
-    Rz2_v     = zeros(ny-2,nz-1) # visu
+    # initialise
     @parallel init_ϕi!(ϕ,ϕx,ϕy,ϕz)
     len_g     = sum(ϕ.==fluid)
-    if do_save
-        !ispath("../out_visu") && mkdir("../out_visu")
+    if do_save || do_visu
+        if do_save !ispath("../out_visu") && mkdir("../out_visu") end
         # matwrite("../out_visu/out_pa3D.mat", Dict("Phase"=> Array(ϕ), "x3rot"=> Array(x3rot), "y3rot"=> Array(y3rot), "z3rot"=> Array(z3rot), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc), "rhogv"=> Array(ρgv), "lx"=> lx, "ly"=> ly, "lz"=> lz, "sc"=> sc); compress = true)
+        Vn        = @zeros(nx  ,ny  ,nz  )
+        τII       = @zeros(nx-2,ny-2,nz-2)
+        Ptv       = @zeros(nx  ,ny  ,nz  )
+        Vn_v      = @zeros(nx  ,ny  ,nz  )
+        τII_v     = copy(τII)
+        Pt_v      = copy(Pt)
+        fntsz = 16; sl = ceil(Int,ny*0.2); xci, yci, zci = xc[2:end-1], yc[2:end-1], zc[2:end-1]
+        xvi, yvi, zvi = 0.5.*(xc[1:end-1] .+ xc[2:end]), 0.5.*(yc[1:end-1] .+ yc[2:end]), 0.5.*(zc[1:end-1] .+ zc[2:end])
+        opts  = (aspect_ratio=1, xlims=(xc[1],xc[end]), ylims=(zc[1],zc[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
+        opts2 = (linewidth=2, markershape=:circle, markersize=3,yaxis = (:log10, font(fntsz,"Courier")), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
     end
-    fntsz = 16; sl = ceil(Int,ny*0.2); xci, yci, zci = xc[2:end-1], yc[2:end-1], zc[2:end-1]
-    xvi, yvi, zvi = 0.5.*(xc[1:end-1] .+ xc[2:end]), 0.5.*(yc[1:end-1] .+ yc[2:end]), 0.5.*(zc[1:end-1] .+ zc[2:end])
-    opts  = (aspect_ratio=1, xlims=(xc[1],xc[end]), ylims=(zc[1],zc[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
-    opts2 = (linewidth=2, markershape=:circle, markersize=3,yaxis = (:log10, font(fntsz,"Courier")), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
     # iteration loop
     err_V=2*ε_V; err_∇V=2*ε_∇V; iter=0; err_evo1=[]; err_evo2=[]
     while !((err_V <= ε_V) && (err_∇V <= ε_∇V)) && (iter <= maxiter)
@@ -184,40 +192,24 @@ end
             @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e, norm_Rz=%1.3e], err_∇V = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, norm_Rz, err_∇V)
         end
         if do_visu && iter % nviz == 0
-            @parallel preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
-            Vn_s  .=  Vn[:,sl,:];  Vn_s[ϕ[:,sl,:].!=fluid] .= NaN
-            τII_s .= τII[:,sl,:]; τII_s[τII_s.==0] .= NaN
-            Pt_s  .=  Pt[:,sl,:];  Pt_s[ϕ[:,sl,:].!=fluid] .= NaN
-            Rx1_v .= Rx[:,sl,:]; Rx1_v[ϕx[:,sl,:].!=fluid] .= NaN
-            Ry1_v .= Ry[:,sl,:]; Ry1_v[ϕy[:,sl,:].!=fluid] .= NaN
-            Rz1_v .= Rz[:,sl,:]; Rz1_v[ϕz[:,sl,:].!=fluid] .= NaN
-            Rx2_v .= Rx[sl,:,:]; Rx2_v[ϕx[sl,:,:].!=fluid] .= NaN
-            Ry2_v .= Ry[sl,:,:]; Ry2_v[ϕy[sl,:,:].!=fluid] .= NaN
-            Rz2_v .= Rz[sl,:,:]; Rz2_v[ϕz[sl,:,:].!=fluid] .= NaN
-            p1 = heatmap(xvi,zci,Rx1_v'; c=:batlow, title="Rx (y=0)", opts...)
-            p2 = heatmap(xci,zci,Ry1_v'; c=:batlow, title="Ry (y=0)", opts...)
-            p3 = heatmap(xci,zvi,Rz1_v'; c=:batlow, title="Rz (y=0)", opts...)
-            p4 = heatmap(yci,zci,Rx2_v'; c=:batlow, title="Rx (x=0)", opts...)
-            p5 = heatmap(yvi,zci,Ry2_v'; c=:batlow, title="Ry (x=0)", opts...)
-            p6 = heatmap(yci,zvi,Rz2_v'; c=:batlow, title="Rz (x=0)", opts...)
-            p7 = heatmap(xc ,zc ,Array(Vn_s)' ; c=:batlow, title="Vn (y=0)", opts...)
-            # p2 = heatmap(xci,zci,Array(τII_s)'; c=:batlow, title="τII (y=0)", opts...)
-            p8 = heatmap(xc, zc ,Array(Pt_s)' ; c=:viridis,title="Pressure (y=0)", opts...)
-            p9 = plot(err_evo2,err_evo1; legend=false, xlabel="# iterations/nx", ylabel="log10(error)", labels="max(error)", opts2...)
-            display(plot(p1, p2, p3, p4, p5, p6, p7, p8, p9, size=(1.5e3,8e2), dpi=200))
+            @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
+            @parallel apply_mask!(Vn, τII, Ptv, ϕ)
+            p1 = heatmap(xc ,zc ,Array(Vn)[:,sl,:]' ; c=:batlow, title="Vn (y=0)", opts...)
+            p2 = heatmap(xci,zci,Array(τII)[:,sl,:]'; c=:batlow, title="τII (y=0)", opts...)
+            p3 = heatmap(xc, zc ,Array(Ptv)[:,sl,:]'; c=:viridis,title="Pressure (y=0)", opts...)
+            p4 = plot(err_evo2,err_evo1; legend=false, xlabel="# iterations/nx", ylabel="log10(error)", labels="max(error)", opts2...)
+            display(plot(p1, p2, p3, p4, size=(1.5e3,8e2), dpi=200))
         end
     end
     if do_save
-        @parallel preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
-        Vn_v  .= Vn;  Vn_v[Vn_v.==0]   .= NaN
-        τII_v .= τII; τII_v[τII_v.==0] .= NaN
-        Pt_v  .= Pt;  Pt_v[Pt_v.==0]   .= NaN
+        @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
+        @parallel apply_mask!(Vn, τII, Ptv, ϕ)
         # matwrite("../out_visu/out_res3D.mat", Dict("Vn"=> Array(Vn), "tII"=> Array(τII), "Pt"=> Array(Pt), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc)); compress = true)
         st = 1 # downsampling factor
         vtk_grid("../out_visu/out_3Dfields", Array(x3rot)[1:st:end,1:st:end,1:st:end], Array(y3rot)[1:st:end,1:st:end,1:st:end], Array(z3rot)[1:st:end,1:st:end,1:st:end]; compress=5) do vtk
-            vtk["Vnorm"]    = Array(Vn_v)[1:st:end,1:st:end,1:st:end]
-            vtk["TauII"]    = Array(τII_v)[1:st:end,1:st:end,1:st:end]
-            vtk["Pressure"] = Array(Pt_v)[1:st:end,1:st:end,1:st:end]
+            vtk["Vnorm"]    = Array(Vn)[1:st:end,1:st:end,1:st:end]
+            vtk["TauII"]    = Array(τII)[1:st:end,1:st:end,1:st:end]
+            vtk["Pressure"] = Array(Ptv)[1:st:end,1:st:end,1:st:end]
             vtk["Phase"]    = Array(ϕ)[1:st:end,1:st:end,1:st:end]
         end
     end
