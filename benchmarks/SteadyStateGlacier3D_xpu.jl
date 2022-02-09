@@ -1,18 +1,23 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
 const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 7
-const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
-const do_visu = haskey(ENV, "DO_VISU") ? parse(Bool, ENV["DO_VISU"]) : true
+const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : false
+const do_visu = haskey(ENV, "DO_VISU") ? parse(Bool, ENV["DO_VISU"]) : false
 ###
 using ParallelStencil
 using ParallelStencil.FiniteDifferences3D
 @static if USE_GPU
     @init_parallel_stencil(CUDA, Float64, 3)
-    CUDA.device!(gpu_id)
+    # CUDA.device!(gpu_id)
 else
     @init_parallel_stencil(Threads, Float64, 3)
 end
 using ImplicitGlobalGrid, Printf, Statistics, LinearAlgebra, Random, UnPack, Plots, MAT, WriteVTK
 import MPI
+
+norm_g(A) = (sum2_l = sum(A.^2); sqrt(MPI.Allreduce(sum2_l, MPI.SUM, MPI.COMM_WORLD)))
+sum_g(A)  = (sum_l  = sum(A); MPI.Allreduce(sum_l, MPI.SUM, MPI.COMM_WORLD))
+
+@views inn(A) = A[2:end-1,2:end-1,2:end-1]
 
 include(joinpath(@__DIR__, "helpers3D_v4_xpu.jl"))
 
@@ -30,7 +35,7 @@ macro fmxz(A) esc(:( !($A[$ix,$iyi,$iz] == air || $A[$ix+1,$iyi,$iz] == air || $
 macro fmyz(A) esc(:( !($A[$ixi,$iy,$iz] == air || $A[$ixi,$iy+1,$iz] == air || $A[$ixi,$iy,$iz+1] == air || $A[$ixi,$iy+1,$iz+1] == air) )) end
 
 @parallel function compute_P_τ!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, Vx, Vy, Vz, ϕ, r, μ_veτ, Gdτ, dx, dy, dz)
-    @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy + @d_za(Vz)/dz
+    @all(∇V)  = @fm(ϕ)*(@d_xa(Vx)/dx + @d_ya(Vy)/dy + @d_za(Vz)/dz)
     @all(Pt)  = @fm(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))    
     @all(τxx) = @fm(ϕ)*2.0*μ_veτ*(@d_xa(Vx)/dx + @all(τxx)/Gdτ/2.0)
     @all(τyy) = @fm(ϕ)*2.0*μ_veτ*(@d_ya(Vy)/dy + @all(τyy)/Gdτ/2.0)
@@ -63,11 +68,46 @@ end
     return
 end
 
-@parallel function preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
+@parallel function preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
     @all(Vn)  = (@av_xa(Vx)*@av_xa(Vx) + @av_ya(Vy)*@av_ya(Vy) + @av_za(Vz)*@av_za(Vz))^0.5
     @all(τII) = (0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy) + @inn(τzz)*@inn(τzz)) + @av_xya(τxy)*@av_xya(τxy) + @av_xza(τxz)*@av_xza(τxz) + @av_yza(τyz)*@av_yza(τyz))^0.5
+    @all(Ptv) = @all(Pt)
     return
 end
+
+@parallel_indices (ix,iy,iz) function apply_mask!(Vn, τII, Ptv, ϕ)
+    if checkbounds(Bool,Vn,ix,iy,iz)
+        if ϕ[ix,iy,iz] != fluid
+             Vn[ix,iy,iz] = NaN
+            Ptv[ix,iy,iz] = NaN
+        end
+    end
+    if checkbounds(Bool,τII,ix,iy,iz)
+        if ϕ[ix+1,iy+1,iz+1] != fluid
+            τII[ix,iy,iz] = NaN
+        end
+    end
+    return
+end
+
+# @parallel_indices (ix,iy,iz) function preprocess_visu2!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt, ϕ)
+#     if checkbounds(Bool,Vn,ix,iy,iz)
+#         @all(Vn)  = (@av_xa(Vx)*@av_xa(Vx) + @av_ya(Vy)*@av_ya(Vy) + @av_za(Vz)*@av_za(Vz))
+#         @all(Ptv) = @all(Pt)
+#         if @all(ϕ) != fluid
+#             @all(Vn)  = NaN
+#             @all(Ptv) = NaN
+#         end
+#     end
+
+#     if checkbounds(Bool,τII,ix,iy,iz)
+#         @all(τII) = (0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy) + @inn(τzz)*@inn(τzz)) + @av_xya(τxy)*@av_xya(τxy) + @av_xza(τxz)*@av_xza(τxz) + @av_yza(τyz)*@av_yza(τyz))
+#         if @inn(ϕ) != fluid
+#             @all(τII) = NaN
+#         end
+#     end
+#     return
+# end
 
 @parallel_indices (ix,iy,iz) function init_ϕi!(ϕ,ϕx,ϕy,ϕz)
     if ix <= size(ϕx,1) && iy <= size(ϕx,2) && iz <= size(ϕx,3)
@@ -94,18 +134,13 @@ end
 @views function Stokes3D()
     # inputs
     filename  = "../data/alps/data_Rhone.h5"
-    resx      = 64
-    resy      = 64
-    resz      = 32
+    nx        = 511
+    ny        = 511
+    nz        = 383
+    dim       = (2,2,2)
+    
     do_nondim = true
-    fact_nz   = 2
     ns        = 4
-    olen      = 1
-    dim       = (1,1,1)
-
-    nx = gpu_res(resx , tx, olen)
-    ny = gpu_res(resy , ty, olen)
-    nz = gpu_res(resz , tz, olen)
 
     me, dims, nprocs, coords = init_global_grid(nx, ny, nz; dimx=dim[1], dimy=dim[2], dimz=dim[3]) # MPI initialisation
 
@@ -120,7 +155,6 @@ end
     R      = read(fid,"glacier/R")
     ori    = read(fid,"glacier/ori")
     close(fid)
-
     # rotate surface
     xsmin, xsmax, ysmin, ysmax, zsmin, zsmax = my_rot_minmax(R, x2v, y2v, zsurf)
     # rotate bed
@@ -134,7 +168,32 @@ end
     xc, yc, zc = LinRange(xrmin-0.01∆x,xrmax+0.01∆x,nx_g()), LinRange(yrmin-0.01∆y,yrmax+0.01∆y,ny_g()), LinRange(zrmin-0.01∆z,zrmax+0.01∆z,nz_g())
     dx, dy, dz = xc[2]-xc[1], yc[2]-yc[1], zc[2]-zc[1]
     lx, ly, lz = xc[end]-xc[1], yc[end]-yc[1], zc[end]-zc[1]
+
+    # preprocessing
+    xv_d, yv_d = x2v[:,1], y2v[1,:]
+    xv, yv = LinRange(xv_d[1], xv_d[end], ns*(nx_g()+1)), LinRange(yv_d[1], yv_d[end], ns*(ny_g()+1))
+
+    zbed2, zthick2 = interp(zbed, zthick, xv_d, yv_d, xv, yv)
+    if (me==0) println("- interpolate original data (nxv, nyv = $(size(zbed)[1]), $(size(zbed)[2])) on nxv, nyv = $(size(zbed2)[1]), $(size(zbed2)[2]) grid ($(ns)x oversampling)") end
+    
+    nsmb, nsmt = 5, 5 #ceil(Int,nx/20)
+    if (me==0) println("- apply smoothing ($nsmb steps on bed, $nsmt steps on thickness)") end
+    Tmp = copy(zbed2);   for ismb=1:nsmb smooth2D!(zbed2  , Tmp, 1.0)  end
+    Tmp = copy(zthick2); for ismt=1:nsmt smooth2D!(zthick2, Tmp, 1.0)  end
+
+    # reconstruct surface
+    zsurf2 = zbed2 .+ zthick2
+
     sc         = do_nondim ? 1.0/lz : 1.0
+    # scaling
+    xc, yc, zc = xc*sc, yc*sc, zc*sc
+    dx, dy, dz = dx*sc, dy*sc, dz*sc
+    lx, ly, lz = lx*sc, ly*sc, lz*sc
+    xrmax, yrmax = xrmax*sc, yrmax*sc
+    zsurf2     = zsurf2*sc
+    zbed2      = zbed2*sc
+
+
     # physics
     ## dimensionally independent
     μs0       = 1.0               # matrix viscosity [Pa*s]
@@ -147,30 +206,16 @@ end
     ρgv       = ρg0*R'*[0,0,1]
     ρgx,ρgy,ρgz = ρgv[1], ρgv[2], ρgv[3]
     # numerics
-    maxiter   = 50nz         # maximum number of pseudo-transient iterations
-    nchk      = 2*nz         # error checking frequency
-    nviz      = 2*nz         # visualisation frequency
+    maxiter   = 50nz_g()     # maximum number of pseudo-transient iterations
+    nchk      = 2*nz_g()     # error checking frequency
+    nviz      = 2*nz_g()     # visualisation frequency
+    b_width   = (8,4,4)      # boundary width
     ε_V       = 1e-8         # nonlinear absolute tolerance for momentum
     ε_∇V      = 1e-8         # nonlinear absolute tolerance for divergence
     CFL       = 0.95/sqrt(3) # stability condition
     Re        = 2π           # Reynolds number                     (numerical parameter #1)
     r         = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
-    
     # preprocessing
-    xv_d, yv_d = x2v[:,1], y2v[1,:]
-    xv, yv = LinRange(xv_d[1], xv_d[end], ns*(nx_g()+1)), LinRange(yv_d[1], yv_d[end], ns*(ny_g()+1))
-
-    zbed2, zthick2 = interp(zbed, zthick, xv_d, yv_d, xv, yv)
-    println("- interpolate original data (nxv, nyv = $(size(zbed)[1]), $(size(zbed)[2])) on nxv, nyv = $(size(zbed2)[1]), $(size(zbed2)[2]) grid ($(ns)x oversampling)")
-    
-    nsmb, nsmt = 5, 5 #ceil(Int,nx/20)
-    println("- apply smoothing ($nsmb steps on bed, $nsmt steps on thickness)")
-    Tmp = copy(zbed2);   for ismb=1:nsmb smooth2D!(zbed2  , Tmp, 1.0)  end
-    Tmp = copy(zthick2); for ismt=1:nsmt smooth2D!(zthick2, Tmp, 1.0)  end
-
-    # reconstruct surface
-    zsurf2 = zbed2 .+ zthick2
-
     max_lxyz   = 0.25lz
     Vpdτ       = min(dx,dy,dz)*CFL
     dτ_ρ       = Vpdτ*max_lxyz/Re/μs0
@@ -194,25 +239,7 @@ end
     Vx        = @zeros(nx+1,ny  ,nz  )
     Vy        = @zeros(nx  ,ny+1,nz  )
     Vz        = @zeros(nx  ,ny  ,nz+1)
-    Vn        = @zeros(nx  ,ny  ,nz  )
-    τII       = @zeros(nx-2,ny-2,nz-2)
-    # visu
-    Vn_v      = @zeros(nx,ny,nz) # visu
-    τII_v     = copy(τII) # visu
-    Pt_v      = copy(Pt)  # visu
-    Vn_s      = @zeros(nx  ,nz  ) # visu
-    τII_s     = @zeros(nx-2,nz-2) # visu
-    Pt_s      = @zeros(nx  ,nz  ) # visu
-    Rx1_v     = zeros(nx-1,nz-2) # visu
-    Ry1_v     = zeros(nx-2,nz-2) # visu
-    Rz1_v     = zeros(nx-2,nz-1) # visu
-    Rx2_v     = zeros(ny-2,nz-2) # visu
-    Ry2_v     = zeros(ny-1,nz-2) # visu
-    Rz2_v     = zeros(ny-2,nz-1) # visu
-
-
     # rotate grid
-    coords   = Data.Array(coords)
     Rinv     = Data.Array(R')
     xc_g     = Data.Array(xc)
     yc_g     = Data.Array(yc)
@@ -220,88 +247,112 @@ end
     zsurf_g  = Data.Array(zsurf2)
     zbed_g   = Data.Array(zbed2)
 
-    X3rot_g  = @zeros(nx,ny,nz)
-    Y3rot_g  = @zeros(nx,ny,nz)
-    Z3rot_g  = @zeros(nx,ny,nz)
+    X3rot    = @zeros(nx,ny,nz)
+    Y3rot    = @zeros(nx,ny,nz)
+    Z3rot    = @zeros(nx,ny,nz)
     
-    @parallel my_rot_d!(X3rot_g, Y3rot_g, Z3rot_g, Rinv, xc_g, yc_g, zc_g, coords)
+    @parallel my_rot_d!(X3rot, Y3rot, Z3rot, Rinv, xc_g, yc_g, zc_g, coords...)
 
     # set phases
-    println("- set phases (0-air, 1-ice, 2-bedrock)")
-    ϕ      = air .* @ones(size(x3))
+    if (me==0) println("- set phases (0-air, 1-ice, 2-bedrock)") end
+    ϕ        = air .* @ones(size(X3rot))
     @parallel set_phases!(ϕ, X3rot, Y3rot, Z3rot, zsurf_g, zbed_g, -xrmax, -yrmax, dx, dy, ns)
-
-
     @parallel init_ϕi!(ϕ,ϕx,ϕy,ϕz)
-    if do_save
-        !ispath("../out_visu") && mkdir("../out_visu")
-        # matwrite("../out_visu/out_pa3D.mat", Dict("Phase"=> Array(ϕ), "x3rot"=> Array(x3rot), "y3rot"=> Array(y3rot), "z3rot"=> Array(z3rot), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc), "rhogv"=> Array(ρgv), "lx"=> lx, "ly"=> ly, "lz"=> lz, "sc"=> sc); compress = true)
-    end
-    fntsz = 16; sl = ceil(Int,ny*0.2); xci, yci, zci = xc[2:end-1], yc[2:end-1], zc[2:end-1]
-    xvi, yvi, zvi = 0.5.*(xc[1:end-1] .+ xc[2:end]), 0.5.*(yc[1:end-1] .+ yc[2:end]), 0.5.*(zc[1:end-1] .+ zc[2:end])
-    opts  = (aspect_ratio=1, xlims=(xc[1],xc[end]), ylims=(zc[1],zc[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
-    opts2 = (linewidth=2, markershape=:circle, markersize=3,yaxis = (:log10, font(fntsz,"Courier")), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
+    
+    len_g = sum_g(ϕ.==fluid)
+
+    # visu
+    # if do_visu || do_save
+    #     if !do_visu ENV["GKSwstype"]="nul" end
+    #     if do_save !ispath("../out_visu") && mkdir("../out_visu") end
+    #     nx_v, ny_v, nz_v = (nx-2)*dims[1], (ny-2)*dims[2], (nz-2)*dims[3]
+    #     Vn        = @zeros(nx  ,ny  ,nz  )
+    #     τII       = @zeros(nx-2,ny-2,nz-2)
+    #     Ptv       = @zeros(nx  ,ny  ,nz  )
+    #     Vn_v      = zeros(nx_v, ny_v, nz_v) # global array for visu
+    #     τII_v     = zeros(nx_v, ny_v, nz_v) # global array for visu
+    #     Pt_v      = zeros(nx_v, ny_v, nz_v) # global array for visu
+    #     ϕ_v       = zeros(nx_v, ny_v, nz_v) # global array for visu
+    #     Z3r_v     = zeros(nx_v, ny_v, nz_v) # global array for visu
+    #     X3r_v     = zeros(nx_v, ny_v, nz_v) # global array for visu
+    #     Y3r_v     = zeros(nx_v, ny_v, nz_v) # global array for visu
+    #     Vn_i      = zeros(nx-2, ny-2, nz-2)
+    #     τII_i     = zeros(nx-2, ny-2, nz-2)
+    #     Pt_i      = zeros(nx-2, ny-2, nz-2)
+    #     ϕ_i       = zeros(nx-2, ny-2, nz-2)
+    #     Z3r_i     = zeros(nx-2, ny-2, nz-2)
+    #     X3r_i     = zeros(nx-2, ny-2, nz-2)
+    #     Y3r_i     = zeros(nx-2, ny-2, nz-2)
+    #     # plotting
+    #     fntsz = 16; y_sl = Int(ceil(ny_g()/2))
+    #     xi_g, zi_g = LinRange(0,lx,nx_v), LinRange(0,lz,nz_v) # inner points only
+    #     opts  = (aspect_ratio=1, xlims=(xi_g[1],xi_g[end]), ylims=(zi_g[1],zi_g[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
+    #     opts2 = (linewidth=2, markershape=:circle, markersize=3,yaxis = (:log10, font(fntsz,"Courier")), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
+    # end
     # iteration loop
     err_V=2*ε_V; err_∇V=2*ε_∇V; iter=0; err_evo1=[]; err_evo2=[]
     while !((err_V <= ε_V) && (err_∇V <= ε_∇V)) && (iter <= maxiter)
         @parallel compute_P_τ!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, Vx, Vy, Vz, ϕ, r, μ_veτ, Gdτ, dx, dy, dz)
-        @parallel compute_V!(Vx, Vy, Vz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dτ_ρ, dx, dy,dz)
+        @hide_communication b_width begin
+            @parallel compute_V!(Vx, Vy, Vz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dτ_ρ, dx, dy, dz)
+            update_halo!(Vx,Vy,Vz)
+        end
         iter += 1
         if iter % nchk == 0
             @parallel compute_Res!(Rx, Ry, Rz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dx, dy, dz)
-            norm_Rx = norm((ϕx.==fluid).*Rx)/psc*lz/sqrt(length(Rx))
-            norm_Ry = norm((ϕy.==fluid).*Ry)/psc*lz/sqrt(length(Ry))
-            norm_Rz = norm((ϕz.==fluid).*Rz)/psc*lz/sqrt(length(Rz))
-            norm_∇V = norm((ϕ.==fluid).*∇V)/vsc*lz/sqrt(length(∇V))
+            norm_Rx = norm_g(Rx)/psc*lz/sqrt(len_g)
+            norm_Ry = norm_g(Ry)/psc*lz/sqrt(len_g)
+            norm_Rz = norm_g(Rz)/psc*lz/sqrt(len_g)
+            norm_∇V = norm_g(∇V)/vsc*lz/sqrt(len_g)
             err_V   = maximum([norm_Rx, norm_Ry, norm_Rz])
             err_∇V  = norm_∇V
-            push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/nx)
-            @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e, norm_Rz=%1.3e], err_∇V = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, norm_Rz, err_∇V)
+            # push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/nx)
+            if (me==0) @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e, norm_Rz=%1.3e], err_∇V = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, norm_Rz, err_∇V) end
+            GC.gc() # force garbage collection
         end
-        if do_visu && iter % nviz == 0
-            @parallel preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
-            Vn_s  .=  Vn[:,sl,:];  Vn_s[ϕ[:,sl,:].!=fluid] .= NaN
-            τII_s .= τII[:,sl,:]; τII_s[τII_s.==0] .= NaN
-            Pt_s  .=  Pt[:,sl,:];  Pt_s[ϕ[:,sl,:].!=fluid] .= NaN
-            Rx1_v .= Rx[:,sl,:]; Rx1_v[ϕx[:,sl,:].!=fluid] .= NaN
-            Ry1_v .= Ry[:,sl,:]; Ry1_v[ϕy[:,sl,:].!=fluid] .= NaN
-            Rz1_v .= Rz[:,sl,:]; Rz1_v[ϕz[:,sl,:].!=fluid] .= NaN
-            Rx2_v .= Rx[sl,:,:]; Rx2_v[ϕx[sl,:,:].!=fluid] .= NaN
-            Ry2_v .= Ry[sl,:,:]; Ry2_v[ϕy[sl,:,:].!=fluid] .= NaN
-            Rz2_v .= Rz[sl,:,:]; Rz2_v[ϕz[sl,:,:].!=fluid] .= NaN
-            p1 = heatmap(xvi,zci,Rx1_v'; c=:batlow, title="Rx (y=0)", opts...)
-            p2 = heatmap(xci,zci,Ry1_v'; c=:batlow, title="Ry (y=0)", opts...)
-            p3 = heatmap(xci,zvi,Rz1_v'; c=:batlow, title="Rz (y=0)", opts...)
-            p4 = heatmap(yci,zci,Rx2_v'; c=:batlow, title="Rx (x=0)", opts...)
-            p5 = heatmap(yvi,zci,Ry2_v'; c=:batlow, title="Ry (x=0)", opts...)
-            p6 = heatmap(yci,zvi,Rz2_v'; c=:batlow, title="Rz (x=0)", opts...)
-            p7 = heatmap(xc ,zc ,Array(Vn_s)' ; c=:batlow, title="Vn (y=0)", opts...)
-            # p2 = heatmap(xci,zci,Array(τII_s)'; c=:batlow, title="τII (y=0)", opts...)
-            p8 = heatmap(xc, zc ,Array(Pt_s)' ; c=:viridis,title="Pressure (y=0)", opts...)
-            p9 = plot(err_evo2,err_evo1; legend=false, xlabel="# iterations/nx", ylabel="log10(error)", labels="max(error)", opts2...)
-            display(plot(p1, p2, p3, p4, p5, p6, p7, p8, p9, size=(1.5e3,8e2), dpi=200))
-        end
+        # if do_visu && (iter % nviz == 0)
+        #     @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
+        #     @parallel apply_mask!(Vn, τII, Ptv, ϕ)
+        #     # @parallel preprocess_visu2!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt, ϕ)
+        #     ϕ_i   .= inn(ϕ);   gather!(ϕ_i, ϕ_v)
+        #     Vn_i  .= inn(Vn);  gather!(Vn_i, Vn_v)
+        #     τII_i .= τII;      gather!(τII_i, τII_v)
+        #     Pt_i  .= inn(Ptv); gather!(Pt_i, Pt_v)
+        #     if me==0
+        #         p1 = heatmap(xi_g,zi_g,Vn_v[:,y_sl,:]' ; c=:batlow, title="Vn (y=0)", opts...)
+        #         p2 = heatmap(xi_g,zi_g,τII_v[:,y_sl,:]'; c=:batlow, title="τII (y=0)", opts...)
+        #         p3 = heatmap(xi_g,zi_g,Pt_v[:,y_sl,:]' ; c=:viridis,title="Pressure (y=0)", opts...)
+        #         p4 = plot(err_evo2,err_evo1; legend=false, xlabel="# iterations/nx", ylabel="log10(error)", labels="max(error)", opts2...)
+        #         display(plot(p1, p2, p3, p4, size=(8e2,8e2), dpi=200))
+        #     end
+        # end
     end
-    if do_save
-        @parallel preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
-        Vn_v  .= Vn;  Vn_v[Vn_v.==0]   .= NaN
-        τII_v .= τII; τII_v[τII_v.==0] .= NaN
-        Pt_v  .= Pt;  Pt_v[Pt_v.==0]   .= NaN
-        # matwrite("../out_visu/out_res3D.mat", Dict("Vn"=> Array(Vn), "tII"=> Array(τII), "Pt"=> Array(Pt), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc)); compress = true)
-        st = 1 # downsampling factor
-        vtk_grid("../out_visu/out_3Dfields", Array(x3rot)[1:st:end,1:st:end,1:st:end], Array(y3rot)[1:st:end,1:st:end,1:st:end], Array(z3rot)[1:st:end,1:st:end,1:st:end]; compress=5) do vtk
-            vtk["Vnorm"]    = Array(Vn_v)[1:st:end,1:st:end,1:st:end]
-            vtk["TauII"]    = Array(τII_v)[1:st:end,1:st:end,1:st:end]
-            vtk["Pressure"] = Array(Pt_v)[1:st:end,1:st:end,1:st:end]
-            vtk["Phase"]    = Array(ϕ)[1:st:end,1:st:end,1:st:end]
-        end
-    end
+    # if do_save
+    #     @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
+    #     @parallel apply_mask!(Vn, τII, Ptv, ϕ)
+    #     # @parallel preprocess_visu2!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt, ϕ)
+    #     st = 1 # downsampling factor
+    #     ϕ_i   .= inn(ϕ);   gather!(ϕ_i, ϕ_v)
+    #     Vn_i  .= inn(Vn);  gather!(Vn_i, Vn_v)
+    #     τII_i .= τII;      gather!(τII_i, τII_v)
+    #     Pt_i  .= inn(Ptv); gather!(Pt_i, Pt_v)
+    #     X3r_i .= inn(X3rot); gather!(X3r_i, X3r_v)
+    #     Y3r_i .= inn(Y3rot); gather!(Y3r_i, Y3r_v)
+    #     Z3r_i .= inn(Z3rot); gather!(Z3r_i, Z3r_v)
+    #     if me==0
+    #         vtk_grid("../out_visu/out_3D_$(nprocs)procs", Array(X3r_v)[1:st:end,1:st:end,1:st:end], Array(Y3r_v)[1:st:end,1:st:end,1:st:end], Array(Z3r_v)[1:st:end,1:st:end,1:st:end]; compress=5) do vtk
+    #             vtk["Vnorm"]    = Array(Vn_v)[1:st:end,1:st:end,1:st:end]
+    #             vtk["TauII"]    = Array(τII_v)[1:st:end,1:st:end,1:st:end]
+    #             vtk["Pressure"] = Array(Pt_v)[1:st:end,1:st:end,1:st:end]
+    #             vtk["Phase"]    = Array(ϕ_v)[1:st:end,1:st:end,1:st:end]
+    #         end
+    #     end
+    # end
+    finalize_global_grid()
     return
 end
-
 # ---------------------
-
 # preprocessing
 # extract_geodata("Rhone"; do_rotate=true)
 
-@time Stokes3D()
+Stokes3D()

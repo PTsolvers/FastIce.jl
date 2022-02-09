@@ -102,14 +102,14 @@ function my_rot(R, X, Y, Z)
 end
 
 
-@parallel_indices (ix,iy,iz) function my_rot_d!(Xrot, Yrot, Zrot, R, xc, yc, zc)
+@parallel_indices (ix,iy,iz) function my_rot_d!(Xrot, Yrot, Zrot, R, xc, yc, zc, cx, cy, cz)
     if checkbounds(Bool,Xrot,ix,iy,iz)
-        ixg = ix + coords[1]*(nx-2)
-        iyg = iy + coords[2]*(ny-2)
-        izg = iz + coords[3]*(nz-2)
-        Xrot[ix,iy,iz] = R[1,1].*xc[ixg] .+ R[1,2].*yc[iyg] .+ R[1,3].*zc[izg]
-        Yrot[ix,iy,iz] = R[2,1].*xc[ixg] .+ R[2,2].*yc[iyg] .+ R[2,3].*zc[izg]
-        Zrot[ix,iy,iz] = R[3,1].*xc[ixg] .+ R[3,2].*yc[iyg] .+ R[3,3].*zc[izg]
+        ixg = ix + cx*(size(Xrot,1)-2)
+        iyg = iy + cy*(size(Xrot,2)-2)
+        izg = iz + cz*(size(Xrot,3)-2)
+        Xrot[ix,iy,iz] = R[1,1]*xc[ixg] + R[1,2]*yc[iyg] + R[1,3]*zc[izg]
+        Yrot[ix,iy,iz] = R[2,1]*xc[ixg] + R[2,2]*yc[iyg] + R[2,3]*zc[izg]
+        Zrot[ix,iy,iz] = R[3,1]*xc[ixg] + R[3,2]*yc[iyg] + R[3,3]*zc[izg]
     end
     return
 end
