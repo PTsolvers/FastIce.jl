@@ -29,7 +29,7 @@ macro fmxz(A) esc(:( !($A[$ix,$iyi,$iz] == air || $A[$ix+1,$iyi,$iz] == air || $
 macro fmyz(A) esc(:( !($A[$ixi,$iy,$iz] == air || $A[$ixi,$iy+1,$iz] == air || $A[$ixi,$iy,$iz+1] == air || $A[$ixi,$iy+1,$iz+1] == air) )) end
 
 @parallel function compute_P_τ!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, Vx, Vy, Vz, ϕ, r, μ_veτ, Gdτ, dx, dy, dz)
-    @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy + @d_za(Vz)/dz
+    @all(∇V)  = @fm(ϕ)*(@d_xa(Vx)/dx + @d_ya(Vy)/dy + @d_za(Vz)/dz)
     @all(Pt)  = @fm(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))    
     @all(τxx) = @fm(ϕ)*2.0*μ_veτ*(@d_xa(Vx)/dx + @all(τxx)/Gdτ/2.0)
     @all(τyy) = @fm(ϕ)*2.0*μ_veτ*(@d_ya(Vy)/dy + @all(τyy)/Gdτ/2.0)
@@ -56,9 +56,9 @@ macro fm_zi(A) esc(:( ($A[$ixi,$iyi,$iz] == fluid) && ($A[$ixi,$iyi,$iz+1] == fl
 end
 
 @parallel function compute_Res!(Rx, Ry, Rz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dx, dy, dz)
-    @all(Rx)  = @sm_xi(ϕ)*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx)
-    @all(Ry)  = @sm_yi(ϕ)*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy)
-    @all(Rz)  = @sm_zi(ϕ)*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz)
+    @all(Rx) = @sm_xi(ϕ)*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx)
+    @all(Ry) = @sm_yi(ϕ)*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy)
+    @all(Rz) = @sm_zi(ϕ)*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz)
     return
 end
 
@@ -157,6 +157,7 @@ end
     Ry2_v     = zeros(ny-1,nz-2) # visu
     Rz2_v     = zeros(ny-2,nz-1) # visu
     @parallel init_ϕi!(ϕ,ϕx,ϕy,ϕz)
+    len_g     = sum(ϕ.==fluid)
     if do_save
         !ispath("../out_visu") && mkdir("../out_visu")
         # matwrite("../out_visu/out_pa3D.mat", Dict("Phase"=> Array(ϕ), "x3rot"=> Array(x3rot), "y3rot"=> Array(y3rot), "z3rot"=> Array(z3rot), "xc"=> Array(xc), "yc"=> Array(yc), "zc"=> Array(zc), "rhogv"=> Array(ρgv), "lx"=> lx, "ly"=> ly, "lz"=> lz, "sc"=> sc); compress = true)
@@ -173,10 +174,10 @@ end
         iter += 1
         if iter % nchk == 0
             @parallel compute_Res!(Rx, Ry, Rz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dx, dy, dz)
-            norm_Rx = norm((ϕx.==fluid).*Rx)/psc*lz/sqrt(length(Rx))
-            norm_Ry = norm((ϕy.==fluid).*Ry)/psc*lz/sqrt(length(Ry))
-            norm_Rz = norm((ϕz.==fluid).*Rz)/psc*lz/sqrt(length(Rz))
-            norm_∇V = norm((ϕ.==fluid).*∇V)/vsc*lz/sqrt(length(∇V))
+            norm_Rx = norm(Rx)/psc*lz/sqrt(len_g)
+            norm_Ry = norm(Ry)/psc*lz/sqrt(len_g)
+            norm_Rz = norm(Rz)/psc*lz/sqrt(len_g)
+            norm_∇V = norm(∇V)/vsc*lz/sqrt(len_g)
             err_V   = maximum([norm_Rx, norm_Ry, norm_Rz])
             err_∇V  = norm_∇V
             push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/nx)
