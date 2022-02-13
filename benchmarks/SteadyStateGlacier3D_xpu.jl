@@ -188,7 +188,7 @@ end
         τII = @zeros(nx-2,ny-2,nz-2)
         Ptv = @zeros(nx-2,ny-2,nz-2)
     end
-    (me==0) && println("... done. Starting the real stuff 😎.")
+    (me==0) && println("... done. Starting the real stuff 😎")
     # iteration loop
     err_V=2*ε_V; err_∇V=2*ε_∇V; iter=0; err_evo1=[]; err_evo2=[]
     while !((err_V <= ε_V) && (err_∇V <= ε_∇V)) && (iter <= maxiter)
@@ -217,8 +217,8 @@ end
         @parallel apply_mask!(Vn, τII, Ptv, ϕ)
         out_name = "../out_visu/result.h5"
         I = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
-        (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
-        (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
+                               (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
+                               (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
         fields = Dict("Vn"=>Vn,"TauII"=>τII,"Pr"=>Pv,"Phi"=>ϕ[2:end-1,2:end-1])
         (me==0) && print("saving HDF5 file...")
         write_h5(out_name,fields,comm_cart,MPI.Info(),dim_g,I)
