@@ -9,17 +9,18 @@ using ParallelStencil.FiniteDifferences3D
 else
     @init_parallel_stencil(Threads, Float64, 3)
 end
-using ImplicitGlobalGrid, Printf, Statistics, LinearAlgebra, Random, UnPack, Plots, MAT
+using ImplicitGlobalGrid,Printf,Statistics,LinearAlgebra,Random,UnPack,LightXML
 import MPI
 using HDF5
-using LightXML
 
 norm_g(A) = (sum2_l = sum(A.^2); sqrt(MPI.Allreduce(sum2_l, MPI.SUM, MPI.COMM_WORLD)))
 sum_g(A)  = (sum_l  = sum(A); MPI.Allreduce(sum_l, MPI.SUM, MPI.COMM_WORLD))
 
 @views inn(A) = A[2:end-1,2:end-1,2:end-1]
+@views av(A)  = convert(eltype(A),0.5)*(A[1:end-1]+A[2:end])
 
-include(joinpath(@__DIR__, "helpers3D_v4_xpu.jl"))
+include(joinpath(@__DIR__, "helpers3D_v5.jl"))
+include(joinpath(@__DIR__, "data_io.jl"     ))
 
 import ParallelStencil: INDICES
 ix,iy,iz    = INDICES[1], INDICES[2], INDICES[3]
@@ -113,138 +114,73 @@ end
     return
 end
 
-function create_xdmf_attribute(xgrid,file,name,dim_g)
-    # TODO: solve type and precision
-    xattr = new_child(xgrid, "Attribute")
-    set_attribute(xattr, "Name", name)
-    set_attribute(xattr, "Center", "Cell")
-    xdata = new_child(xattr, "DataItem")
-    set_attribute(xdata, "Format", "HDF")
-    set_attribute(xdata, "NumberType", "Float")
-    set_attribute(xdata, "Precision", "8")
-    set_attribute(xdata, "Dimensions", join(reverse(dim_g), ' '))
-    add_text(xdata, "$file:/$name")
-    return xattr
-end
-
-@views function Stokes3D()
+@views function Stokes3D(dem)
     # inputs
-    filename  = "../data/alps/data_Rhone.h5"
-    nx        = 511
-    ny        = 511
-    nz        = 383
-    dim       = (2,2,2)
-    
-    do_nondim = true
-    ns        = 4
-
-    me, dims, nprocs, coords, comm_cart = init_global_grid(nx, ny, nz; dimx=dim[1], dimy=dim[2], dimz=dim[3]) # MPI initialisation
-
-    if (me==0) println("Starting preprocessing ... ") end
-    if (me==0) println("- read data from $(filename)") end
-    fid    = h5open(filename, "r")
-    zsurf  = read(fid,"glacier/zsurf")
-    zbed   = read(fid,"glacier/zbed")
-    zthick = read(fid,"glacier/zthick")
-    x2v    = read(fid,"glacier/x2v")
-    y2v    = read(fid,"glacier/z2v")
-    R      = read(fid,"glacier/R")
-    ori    = read(fid,"glacier/ori")
-    close(fid)
-    # rotate surface
-    xsmin, xsmax, ysmin, ysmax, zsmin, zsmax = my_rot_minmax(R, x2v, y2v, zsurf)
-    # rotate bed
-    xbmin, xbmax, ybmin, ybmax, zbmin, zbmax = my_rot_minmax(R, x2v, y2v, zbed)
-    # get extents
-    xrmin,xrmax = min(xsmin,xbmin), max(xsmax,xbmax)
-    yrmin,yrmax = min(ysmin,ybmin), max(ysmax,ybmax)
-    zrmin,zrmax = zbmin, zbmax
-    ∆x,∆y,∆z    = xrmax-xrmin, yrmax-yrmin, zrmax-zrmin
-    # init global domain
-    xc, yc, zc = LinRange(xrmin-0.01∆x,xrmax+0.01∆x,nx_g()), LinRange(yrmin-0.01∆y,yrmax+0.01∆y,ny_g()), LinRange(zrmin-0.01∆z,zrmax+0.01∆z,nz_g())
-    dx, dy, dz = xc[2]-xc[1], yc[2]-yc[1], zc[2]-zc[1]
-    lx, ly, lz = xc[end]-xc[1], yc[end]-yc[1], zc[end]-zc[1]
-
-    # preprocessing
-    xv_d, yv_d = x2v[:,1], y2v[1,:]
-    xv, yv = LinRange(xv_d[1], xv_d[end], ns*(nx_g()+1)), LinRange(yv_d[1], yv_d[end], ns*(ny_g()+1))
-
-    zbed2, zthick2 = interp(zbed, zthick, xv_d, yv_d, xv, yv)
-    if (me==0) println("- interpolate original data (nxv, nyv = $(size(zbed)[1]), $(size(zbed)[2])) on nxv, nyv = $(size(zbed2)[1]), $(size(zbed2)[2]) grid ($(ns)x oversampling)") end
-    
-    nsmb, nsmt = 5, 5 #ceil(Int,nx/20)
-    if (me==0) println("- apply smoothing ($nsmb steps on bed, $nsmt steps on thickness)") end
-    Tmp = copy(zbed2);   for ismb=1:nsmb smooth2D!(zbed2  , Tmp, 1.0)  end
-    Tmp = copy(zthick2); for ismt=1:nsmt smooth2D!(zthick2, Tmp, 1.0)  end
-
-    # reconstruct surface
-    zsurf2 = zbed2 .+ zthick2
-
-    sc         = do_nondim ? 1.0/lz : 1.0
-    # scaling
-    xc, yc, zc = xc*sc, yc*sc, zc*sc
-    dx, dy, dz = dx*sc, dy*sc, dz*sc
-    lx, ly, lz = lx*sc, ly*sc, lz*sc
-    xrmax, yrmax = xrmax*sc, yrmax*sc
-    zsurf2     = zsurf2*sc
-    zbed2      = zbed2*sc
-
-    ox,oy,oz = -xrmax, -yrmax, ori
-
+    nx,ny,nz = 511,511,383
+    dim      = (2,2,2)
+    ns       = 4
+    # IGG initialisation
+    me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3]) 
+    # define domain
+    domain   = dilate(rotated_domain(dem), (0.05, 0.05, 0.05))
+    lx,ly,lz = extents(domain)
+    xv,yv,zv = create_grid(domain,(nx_g()+1,ny_g()+1,nz_g()+1))
+    xc,yc,zc = av.((xv,yv,zv))
+    dx,dy,dz = lx/nx_g(),ly/ny_g(),lz/nz_g()
     # physics
     ## dimensionally independent
-    μs0       = 1.0               # matrix viscosity [Pa*s]
-    ρg0       = 1.0               # gravity          [Pa/m]
+    μs0      = 1.0               # matrix viscosity [Pa*s]
+    ρg0      = 1.0               # gravity          [Pa/m]
     ## scales
-    psc       = ρg0*lz
-    tsc       = μs0/psc
-    vsc       = lz/tsc
+    psc      = ρg0*lz
+    tsc      = μs0/psc
+    vsc      = lz/tsc
     ## dimensionally dependent
-    ρgv       = ρg0*R'*[0,0,1]
-    ρgx,ρgy,ρgz = ρgv[1], ρgv[2], ρgv[3]
+    ρgv         = ρg0*R'*[0,0,1]
+    ρgx,ρgy,ρgz = ρgv
     # numerics
-    maxiter   = 50nz_g()     # maximum number of pseudo-transient iterations
-    nchk      = 2*nz_g()     # error checking frequency
-    nviz      = 2*nz_g()     # visualisation frequency
-    b_width   = (8,4,4)      # boundary width
-    ε_V       = 1e-8         # nonlinear absolute tolerance for momentum
-    ε_∇V      = 1e-8         # nonlinear absolute tolerance for divergence
-    CFL       = 0.95/sqrt(3) # stability condition
-    Re        = 2π           # Reynolds number                     (numerical parameter #1)
-    r         = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
+    maxiter  = 50nz_g()     # maximum number of pseudo-transient iterations
+    nchk     = 2*nz_g()     # error checking frequency
+    b_width  = (8,4,4)      # boundary width
+    ε_V      = 1e-8         # nonlinear absolute tolerance for momentum
+    ε_∇V     = 1e-8         # nonlinear absolute tolerance for divergence
+    CFL      = 0.95/sqrt(3) # stability condition
+    Re       = 2π           # Reynolds number                     (numerical parameter #1)
+    r        = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
     # preprocessing
-    max_lxyz   = 0.25lz
-    Vpdτ       = min(dx,dy,dz)*CFL
-    dτ_ρ       = Vpdτ*max_lxyz/Re/μs0
-    Gdτ        = Vpdτ^2/dτ_ρ/(r+2.0)
-    μ_veτ      = 1.0/(1.0/Gdτ + 1.0/μs0)
+    max_lxyz = 0.25lz
+    Vpdτ     = min(dx,dy,dz)*CFL
+    dτ_ρ     = Vpdτ*max_lxyz/Re/μs0
+    Gdτ      = Vpdτ^2/dτ_ρ/(r+2.0)
+    μ_veτ    = 1.0/(1.0/Gdτ + 1.0/μs0)
     # allocation
-    Pt        = @zeros(nx  ,ny  ,nz  )
-    ∇V        = @zeros(nx  ,ny  ,nz  )
-    τxx       = @zeros(nx  ,ny  ,nz  )
-    τyy       = @zeros(nx  ,ny  ,nz  )
-    τzz       = @zeros(nx  ,ny  ,nz  )
-    τxy       = @zeros(nx-1,ny-1,nz-2)
-    τxz       = @zeros(nx-1,ny-2,nz-1)
-    τyz       = @zeros(nx-2,ny-1,nz-1)
-    Rx        = @zeros(nx-1,ny-2,nz-2)
-    Ry        = @zeros(nx-2,ny-1,nz-2)
-    Rz        = @zeros(nx-2,ny-2,nz-1)
-    ϕx        = @zeros(nx-1,ny-2,nz-2)
-    ϕy        = @zeros(nx-2,ny-1,nz-2)
-    ϕz        = @zeros(nx-2,ny-2,nz-1)
-    Vx        = @zeros(nx+1,ny  ,nz  )
-    Vy        = @zeros(nx  ,ny+1,nz  )
-    Vz        = @zeros(nx  ,ny  ,nz+1)
+    Pt       = @zeros(nx  ,ny  ,nz  )
+    ∇V       = @zeros(nx  ,ny  ,nz  )
+    τxx      = @zeros(nx  ,ny  ,nz  )
+    τyy      = @zeros(nx  ,ny  ,nz  )
+    τzz      = @zeros(nx  ,ny  ,nz  )
+    τxy      = @zeros(nx-1,ny-1,nz-2)
+    τxz      = @zeros(nx-1,ny-2,nz-1)
+    τyz      = @zeros(nx-2,ny-1,nz-1)
+    Rx       = @zeros(nx-1,ny-2,nz-2)
+    Ry       = @zeros(nx-2,ny-1,nz-2)
+    Rz       = @zeros(nx-2,ny-2,nz-1)
+    ϕx       = @zeros(nx-1,ny-2,nz-2)
+    ϕy       = @zeros(nx-2,ny-1,nz-2)
+    ϕz       = @zeros(nx-2,ny-2,nz-1)
+    Vx       = @zeros(nx+1,ny  ,nz  )
+    Vy       = @zeros(nx  ,ny+1,nz  )
+    Vz       = @zeros(nx  ,ny  ,nz+1)
     # set phases
     if (me==0) println("- set phases (0-air, 1-ice, 2-bedrock)") end
     Rinv     = Data.Array(R')
-    zsurf_g  = Data.Array(zsurf2)
-    zbed_g   = Data.Array(zbed2)
-    ϕ        = air .* @ones(nx,ny,nz)
-    @parallel set_phases!(ϕ, zsurf_g, zbed_g, Rinv, xc[1], yc[1], zc[1], dx, dy, dz, ns, coords...)
+    # supersampled grid
+    xc_ss,yc_ss  = LinRange(xc[1],xc[end],ns*length(xc)),LinRange(yc[1],yc[end],ns*length(yc))
+    z_bed,z_surf = Data.Array.(evaluate(dem, xc_ss, yc_ss))
+    ϕ            = air.*@ones(nx,ny,nz)
+    @parallel set_phases!(ϕ,z_surf,z_bed,Rinv,xc[1],yc[1],zc[1],dx,dy,dz,ns,coords...)
     @parallel init_ϕi!(ϕ, ϕx, ϕy, ϕz)
-    len_g   = sum_g(ϕ.==fluid)
+    len_g = sum_g(ϕ.==fluid)
     # visu
     if do_save
         (me==0) && !ispath("../out_visu") && mkdir("../out_visu")
@@ -275,69 +211,27 @@ end
             GC.gc() # force garbage collection
         end
     end
-    dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
     if do_save
+        dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
         @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
         @parallel apply_mask!(Vn, τII, Ptv, ϕ)
         out_name = "../out_visu/result.h5"
-        info     = MPI.Info()
+        I = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
+        (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
+        (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
+        fields = Dict("Vn"=>Vn,"TauII"=>τII,"Pr"=>Pv,"Phi"=>ϕ[2:end-1,2:end-1])
         (me==0) && print("saving HDF5 file...")
-        h5open(out_name, "w", comm_cart, info) do io
-            # Create dataset
-            # Write local data
-            ix = (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2)
-            iy = (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2)
-            iz = (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2)
-            ϕ_set = create_dataset(io, "/Vn", datatype(eltype(ϕ)), dataspace(dim_g))
-            ϕ_set[ix,iy,iz] = Array(ϕ)[2:end-1,2:end-1]
-            Vn_set = create_dataset(io, "/Vn", datatype(eltype(Vn)), dataspace(dim_g))
-            Vn_set[ix,iy,iz] = Array(Vn)
-            τII_set = create_dataset(io, "/TauII", datatype(eltype(τII)), dataspace(dim_g))
-            τII_set[ix,iy,iz] = Array(τII)
-            Pt_set = create_dataset(io, "/Pt", datatype(eltype(Ptv)), dataspace(dim_g))
-            Pt_set[ix,iy,iz] = Array(Ptv)
-        end
+        write_h5(out_name,fields,comm_cart,MPI.Info(),dim_g,I)
         (me==0) && println(" done")
         # write XDMF
         if me == 0
-            xdoc = XMLDocument()
-            xroot = create_root(xdoc, "Xdmf")
-            set_attribute(xroot, "Version","3.0")
-
-            xdomain = new_child(xroot, "Domain")
-            xgrid   = new_child(xdomain, "Grid")
-            set_attribute(xgrid, "GridType","Uniform")
-            xtopo = new_child(xgrid, "Topology")
-            set_attribute(xtopo, "TopologyType", "3DCoRectMesh")
-            set_attribute(xtopo, "Dimensions", join(reverse(dim_g).+1,' '))
-
-            xgeom = new_child(xgrid, "Geometry")
-            set_attribute(xgeom, "GeometryType", "ORIGIN_DXDYDZ")
-
-            xorig = new_child(xgeom, "DataItem")
-            set_attribute(xorig, "Format", "XML")
-            set_attribute(xorig, "NumberType", "Float")
-            set_attribute(xorig, "Dimensions", "$(length(dim_g)) ")
-            add_text(xorig, join((oz,oy,ox), ' '))
-
-            xdr   = new_child(xgeom, "DataItem")
-            set_attribute(xdr, "Format", "XML")
-            set_attribute(xdr, "NumberType", "Float")
-            set_attribute(xdr, "Dimensions", "$(length(dim_g))")
-            add_text(xdr, join((dz,dy,dx), ' '))
-
-            create_xdmf_attribute(xgrid,out_name,"Vn",dim_g)
-            create_xdmf_attribute(xgrid,out_name,"TauII",dim_g)
-            create_xdmf_attribute(xgrid,out_name,"Pt",dim_g)
-
-            save_file(xdoc, "../out_visu/result.xdmf3")
+            print("saving XDMF file...")
+            write_xdmf("../out_visu/result.xdmf3",out_name,fields,(xc[1],yc[1],zc[1]),(dx,dy,dz),dim_g)
+            println(" done")
         end
     end
     finalize_global_grid()
     return
 end
-# ---------------------
-# preprocessing
-# extract_geodata("Rhone"; do_rotate=true)
 
-Stokes3D()
+Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
