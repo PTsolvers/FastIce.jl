@@ -1,17 +1,15 @@
 const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
 const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 7
-const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : false
-const do_visu = haskey(ENV, "DO_VISU") ? parse(Bool, ENV["DO_VISU"]) : false
+const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 ###
 using ParallelStencil
 using ParallelStencil.FiniteDifferences3D
 @static if USE_GPU
     @init_parallel_stencil(CUDA, Float64, 3)
-    # CUDA.device!(gpu_id)
 else
     @init_parallel_stencil(Threads, Float64, 3)
 end
-using ImplicitGlobalGrid, Printf, Statistics, LinearAlgebra, Random, UnPack, Plots, MAT, WriteVTK
+using ImplicitGlobalGrid, Printf, Statistics, LinearAlgebra, Random, UnPack, Plots, HDF5, LightXML
 import MPI
 
 norm_g(A) = (sum2_l = sum(A.^2); sqrt(MPI.Allreduce(sum2_l, MPI.SUM, MPI.COMM_WORLD)))
@@ -28,6 +26,10 @@ ixi,iyi,izi = :($ix+1), :($iy+1), :($iz+1)
 const air   = 0.0
 const fluid = 1.0
 const solid = 2.0
+
+macro av_xii(A) esc(:( 0.5*($A[$ixi,$iyi,$izi] + $A[$ixi+1,$iyi  ,$izi  ]) )) end
+macro av_yii(A) esc(:( 0.5*($A[$ixi,$iyi,$izi] + $A[$ixi  ,$iyi+1,$izi  ]) )) end
+macro av_zii(A) esc(:( 0.5*($A[$ixi,$iyi,$izi] + $A[$ixi  ,$iyi  ,$izi+1]) )) end
 
 macro fm(A)   esc(:( $A[$ix,$iy,$iz] == fluid )) end
 macro fmxy(A) esc(:( !($A[$ix,$iy,$izi] == air || $A[$ix+1,$iy,$izi] == air || $A[$ix,$iy+1,$izi] == air || $A[$ix+1,$iy+1,$izi] == air) )) end
@@ -69,21 +71,18 @@ end
 end
 
 @parallel function preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
-    @all(Vn)  = (@av_xa(Vx)*@av_xa(Vx) + @av_ya(Vy)*@av_ya(Vy) + @av_za(Vz)*@av_za(Vz))^0.5
-    @all(τII) = (0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy) + @inn(τzz)*@inn(τzz)) + @av_xya(τxy)*@av_xya(τxy) + @av_xza(τxz)*@av_xza(τxz) + @av_yza(τyz)*@av_yza(τyz))^0.5
-    @all(Ptv) = @all(Pt)
+    # all arrays of size (nx-2,ny-2,nz-2)
+    @all(Vn)  = sqrt(@av_xii(Vx)*@av_xa(Vx) + @av_yii(Vy)*@av_yii(Vy) + @av_zii(Vz)*@av_zii(Vz))
+    @all(τII) = sqrt(0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy) + @inn(τzz)*@inn(τzz)) + @av_xya(τxy)*@av_xya(τxy) + @av_xza(τxz)*@av_xza(τxz) + @av_yza(τyz)*@av_yza(τyz))
+    @all(Ptv) = @inn(Pt)
     return
 end
 
 @parallel_indices (ix,iy,iz) function apply_mask!(Vn, τII, Ptv, ϕ)
     if checkbounds(Bool,Vn,ix,iy,iz)
-        if ϕ[ix,iy,iz] != fluid
+        if ϕ[ix+1,iy+1,iz+1] != fluid
              Vn[ix,iy,iz] = NaN
             Ptv[ix,iy,iz] = NaN
-        end
-    end
-    if checkbounds(Bool,τII,ix,iy,iz)
-        if ϕ[ix+1,iy+1,iz+1] != fluid
             τII[ix,iy,iz] = NaN
         end
     end
@@ -112,6 +111,20 @@ end
     return
 end
 
+function create_xdmf_attribute(xgrid,file,name,dim_g)
+    # TODO: solve type and precision
+    xattr = new_child(xgrid, "Attribute")
+    set_attribute(xattr, "Name", name)
+    set_attribute(xattr, "Center", "Cell")
+    xdata = new_child(xattr, "DataItem")
+    set_attribute(xdata, "Format", "HDF")
+    set_attribute(xdata, "NumberType", "Float")
+    set_attribute(xdata, "Precision", "8")
+    set_attribute(xdata, "Dimensions", join(reverse(dim_g), ' '))
+    add_text(xdata, "$file:/$name")
+    return xattr
+end
+
 @views function Stokes3D()
     # inputs
     filename  = "../data/alps/data_Rhone.h5"
@@ -123,7 +136,7 @@ end
     do_nondim = true
     ns        = 4
 
-    me, dims, nprocs, coords = init_global_grid(nx, ny, nz; dimx=dim[1], dimy=dim[2], dimz=dim[3]) # MPI initialisation
+    me, dims, nprocs, coords, comm_cart = init_global_grid(nx, ny, nz; dimx=dim[1], dimy=dim[2], dimz=dim[3]) # MPI initialisation
 
     if (me==0) println("Starting preprocessing ... ") end
     if (me==0) println("- read data from $(filename)") end
@@ -174,6 +187,7 @@ end
     zsurf2     = zsurf2*sc
     zbed2      = zbed2*sc
 
+    ox,oy,oz = -xrmax, -yrmax, ori
 
     # physics
     ## dimensionally independent
@@ -220,57 +234,23 @@ end
     Vx        = @zeros(nx+1,ny  ,nz  )
     Vy        = @zeros(nx  ,ny+1,nz  )
     Vz        = @zeros(nx  ,ny  ,nz+1)
-    # rotate grid
-    Rinv     = Data.Array(R')
-    xc_g     = Data.Array(xc)
-    yc_g     = Data.Array(yc)
-    zc_g     = Data.Array(zc)
-    zsurf_g  = Data.Array(zsurf2)
-    zbed_g   = Data.Array(zbed2)
-
-    X3rot    = @zeros(nx,ny,nz)
-    Y3rot    = @zeros(nx,ny,nz)
-    Z3rot    = @zeros(nx,ny,nz)
-    
-    @parallel my_rot_d!(X3rot, Y3rot, Z3rot, Rinv, xc_g, yc_g, zc_g, coords...)
-
     # set phases
     if (me==0) println("- set phases (0-air, 1-ice, 2-bedrock)") end
-    ϕ        = air .* @ones(size(X3rot))
-    @parallel set_phases!(ϕ, X3rot, Y3rot, Z3rot, zsurf_g, zbed_g, -xrmax, -yrmax, dx, dy, ns)
-    @parallel init_ϕi!(ϕ,ϕx,ϕy,ϕz)
-    
-    len_g = sum_g(ϕ.==fluid)
-
+    Rinv     = Data.Array(R')
+    zsurf_g  = Data.Array(zsurf2)
+    zbed_g   = Data.Array(zbed2)
+    ϕ        = air .* @ones(nx,ny,nz)
+    @parallel set_phases!(ϕ, zsurf_g, zbed_g, Rinv, xc[1], yc[1], zc[1], dx, dy, dz, ns, coords...)
+    @parallel init_ϕi!(ϕ, ϕx, ϕy, ϕz)
+    len_g   = sum_g(ϕ.==fluid)
     # visu
-    # if do_visu || do_save
-    #     if !do_visu ENV["GKSwstype"]="nul" end
-    #     if do_save !ispath("../out_visu") && mkdir("../out_visu") end
-    #     nx_v, ny_v, nz_v = (nx-2)*dims[1], (ny-2)*dims[2], (nz-2)*dims[3]
-    #     Vn        = @zeros(nx  ,ny  ,nz  )
-    #     τII       = @zeros(nx-2,ny-2,nz-2)
-    #     Ptv       = @zeros(nx  ,ny  ,nz  )
-    #     Vn_v      = zeros(nx_v, ny_v, nz_v) # global array for visu
-    #     τII_v     = zeros(nx_v, ny_v, nz_v) # global array for visu
-    #     Pt_v      = zeros(nx_v, ny_v, nz_v) # global array for visu
-    #     ϕ_v       = zeros(nx_v, ny_v, nz_v) # global array for visu
-    #     Z3r_v     = zeros(nx_v, ny_v, nz_v) # global array for visu
-    #     X3r_v     = zeros(nx_v, ny_v, nz_v) # global array for visu
-    #     Y3r_v     = zeros(nx_v, ny_v, nz_v) # global array for visu
-    #     Vn_i      = zeros(nx-2, ny-2, nz-2)
-    #     τII_i     = zeros(nx-2, ny-2, nz-2)
-    #     Pt_i      = zeros(nx-2, ny-2, nz-2)
-    #     ϕ_i       = zeros(nx-2, ny-2, nz-2)
-    #     Z3r_i     = zeros(nx-2, ny-2, nz-2)
-    #     X3r_i     = zeros(nx-2, ny-2, nz-2)
-    #     Y3r_i     = zeros(nx-2, ny-2, nz-2)
-    #     # plotting
-    #     fntsz = 16; y_sl = Int(ceil(ny_g()/2))
-    #     xi_g, zi_g = LinRange(0,lx,nx_v), LinRange(0,lz,nz_v) # inner points only
-    #     opts  = (aspect_ratio=1, xlims=(xi_g[1],xi_g[end]), ylims=(zi_g[1],zi_g[end]), yaxis=font(fntsz,"Courier"), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
-    #     opts2 = (linewidth=2, markershape=:circle, markersize=3,yaxis = (:log10, font(fntsz,"Courier")), xaxis=font(fntsz,"Courier"), framestyle=:box, titlefontsize=fntsz, titlefont="Courier")
-    # end
-    if (me==0) println("... done. Starting the real stuff.") end
+    if do_save
+        (me==0) && !ispath("../out_visu") && mkdir("../out_visu")
+        Vn  = @zeros(nx-2,ny-2,nz-2)
+        τII = @zeros(nx-2,ny-2,nz-2)
+        Ptv = @zeros(nx-2,ny-2,nz-2)
+    end
+    (me==0) && println("... done. Starting the real stuff 😎")
     # iteration loop
     err_V=2*ε_V; err_∇V=2*ε_∇V; iter=0; err_evo1=[]; err_evo2=[]
     while !((err_V <= ε_V) && (err_∇V <= ε_∇V)) && (iter <= maxiter)
@@ -292,42 +272,66 @@ end
             if (me==0) @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e, norm_Rz=%1.3e], err_∇V = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, norm_Rz, err_∇V) end
             GC.gc() # force garbage collection
         end
-        # if do_visu && (iter % nviz == 0)
-        #     @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
-        #     @parallel apply_mask!(Vn, τII, Ptv, ϕ)
-        #     ϕ_i   .= inn(ϕ);   gather!(ϕ_i, ϕ_v)
-        #     Vn_i  .= inn(Vn);  gather!(Vn_i, Vn_v)
-        #     τII_i .= τII;      gather!(τII_i, τII_v)
-        #     Pt_i  .= inn(Ptv); gather!(Pt_i, Pt_v)
-        #     if me==0
-        #         p1 = heatmap(xi_g,zi_g,Vn_v[:,y_sl,:]' ; c=:batlow, title="Vn (y=0)", opts...)
-        #         p2 = heatmap(xi_g,zi_g,τII_v[:,y_sl,:]'; c=:batlow, title="τII (y=0)", opts...)
-        #         p3 = heatmap(xi_g,zi_g,Pt_v[:,y_sl,:]' ; c=:viridis,title="Pressure (y=0)", opts...)
-        #         p4 = plot(err_evo2,err_evo1; legend=false, xlabel="# iterations/nx", ylabel="log10(error)", labels="max(error)", opts2...)
-        #         display(plot(p1, p2, p3, p4, size=(8e2,8e2), dpi=200))
-        #     end
-        # end
     end
-    # if do_save
-    #     @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
-    #     @parallel apply_mask!(Vn, τII, Ptv, ϕ)
-    #     st = 1 # downsampling factor
-    #     ϕ_i   .= inn(ϕ);   gather!(ϕ_i, ϕ_v)
-    #     Vn_i  .= inn(Vn);  gather!(Vn_i, Vn_v)
-    #     τII_i .= τII;      gather!(τII_i, τII_v)
-    #     Pt_i  .= inn(Ptv); gather!(Pt_i, Pt_v)
-    #     X3r_i .= inn(X3rot); gather!(X3r_i, X3r_v)
-    #     Y3r_i .= inn(Y3rot); gather!(Y3r_i, Y3r_v)
-    #     Z3r_i .= inn(Z3rot); gather!(Z3r_i, Z3r_v)
-    #     if me==0
-    #         vtk_grid("../out_visu/out_3D_$(nprocs)procs", Array(X3r_v)[1:st:end,1:st:end,1:st:end], Array(Y3r_v)[1:st:end,1:st:end,1:st:end], Array(Z3r_v)[1:st:end,1:st:end,1:st:end]; compress=5) do vtk
-    #             vtk["Vnorm"]    = Array(Vn_v)[1:st:end,1:st:end,1:st:end]
-    #             vtk["TauII"]    = Array(τII_v)[1:st:end,1:st:end,1:st:end]
-    #             vtk["Pressure"] = Array(Pt_v)[1:st:end,1:st:end,1:st:end]
-    #             vtk["Phase"]    = Array(ϕ_v)[1:st:end,1:st:end,1:st:end]
-    #         end
-    #     end
-    # end
+    dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
+    if do_save
+        @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
+        @parallel apply_mask!(Vn, τII, Ptv, ϕ)
+        out_path = "../out_visu"
+        info     = MPI.Info()
+        (me==0) && print("Saving HDF5 file...")
+        h5open(joinpath(out_path, "results.h5"), "w", comm_cart, info) do io
+            # Create dataset
+            # Write local data
+            ix = (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2)
+            iy = (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2)
+            iz = (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2)
+            ϕ_set = create_dataset(io, "/Phi", datatype(eltype(ϕ)), dataspace(dim_g))
+            ϕ_set[ix,iy,iz] = Array(ϕ)[2:end-1,2:end-1,2:end-1]
+            Vn_set = create_dataset(io, "/Vn", datatype(eltype(Vn)), dataspace(dim_g))
+            Vn_set[ix,iy,iz] = Array(Vn)
+            τII_set = create_dataset(io, "/TauII", datatype(eltype(τII)), dataspace(dim_g))
+            τII_set[ix,iy,iz] = Array(τII)
+            Pt_set = create_dataset(io, "/Pt", datatype(eltype(Ptv)), dataspace(dim_g))
+            Pt_set[ix,iy,iz] = Array(Ptv)
+        end
+        (me==0) && println(" done")
+        # write XDMF
+        if me == 0
+            xdoc = XMLDocument()
+            xroot = create_root(xdoc, "Xdmf")
+            set_attribute(xroot, "Version","3.0")
+
+            xdomain = new_child(xroot, "Domain")
+            xgrid   = new_child(xdomain, "Grid")
+            set_attribute(xgrid, "GridType","Uniform")
+            xtopo = new_child(xgrid, "Topology")
+            set_attribute(xtopo, "TopologyType", "3DCoRectMesh")
+            set_attribute(xtopo, "Dimensions", join(reverse(dim_g).+1,' '))
+
+            xgeom = new_child(xgrid, "Geometry")
+            set_attribute(xgeom, "GeometryType", "ORIGIN_DXDYDZ")
+
+            xorig = new_child(xgeom, "DataItem")
+            set_attribute(xorig, "Format", "XML")
+            set_attribute(xorig, "NumberType", "Float")
+            set_attribute(xorig, "Dimensions", "$(length(dim_g)) ")
+            add_text(xorig, join((oz,oy,ox), ' '))
+
+            xdr   = new_child(xgeom, "DataItem")
+            set_attribute(xdr, "Format", "XML")
+            set_attribute(xdr, "NumberType", "Float")
+            set_attribute(xdr, "Dimensions", "$(length(dim_g))")
+            add_text(xdr, join((dz,dy,dx), ' '))
+
+            create_xdmf_attribute(xgrid,joinpath(out_path, "results.h5"),"Phi",dim_g)
+            create_xdmf_attribute(xgrid,joinpath(out_path, "results.h5"),"Vn",dim_g)
+            create_xdmf_attribute(xgrid,joinpath(out_path, "results.h5"),"TauII",dim_g)
+            create_xdmf_attribute(xgrid,joinpath(out_path, "results.h5"),"Pt",dim_g)
+
+            save_file(xdoc, joinpath(out_path, "results.xdmf3"))
+        end
+    end
     finalize_global_grid()
     return
 end

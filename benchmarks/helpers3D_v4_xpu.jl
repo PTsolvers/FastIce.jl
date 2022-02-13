@@ -102,19 +102,6 @@ function my_rot(R, X, Y, Z)
 end
 
 
-@parallel_indices (ix,iy,iz) function my_rot_d!(Xrot, Yrot, Zrot, R, xc, yc, zc, cx, cy, cz)
-    if checkbounds(Bool,Xrot,ix,iy,iz)
-        ixg = ix + cx*(size(Xrot,1)-2)
-        iyg = iy + cy*(size(Xrot,2)-2)
-        izg = iz + cz*(size(Xrot,3)-2)
-        Xrot[ix,iy,iz] = R[1,1]*xc[ixg] + R[1,2]*yc[iyg] + R[1,3]*zc[izg]
-        Yrot[ix,iy,iz] = R[2,1]*xc[ixg] + R[2,2]*yc[iyg] + R[2,3]*zc[izg]
-        Zrot[ix,iy,iz] = R[3,1]*xc[ixg] + R[3,2]*yc[iyg] + R[3,3]*zc[izg]
-    end
-    return
-end
-
-
 "Rotate field `X`, `Y`, `Z` with rotation matrix `R` and return extents."
 function my_rot_minmax(R, X, Y, Z)
     xrot, yrot, zrot = my_rot(R, X, Y, Z)
@@ -136,20 +123,25 @@ end
 
 Define phases as function of surface and bad topo.
 """
-@parallel_indices (ix,iy,iz) function set_phases!(ϕ, x3rot, y3rot, z3rot, zsurf, zbed, ox, oy, dx, dy, ns)
+@parallel_indices (ix,iy,iz) function set_phases!(ϕ, zsurf, zbed, R, ox, oy, oz, dx, dy, dz, ns, cx, cy, cz)
     if checkbounds(Bool,ϕ,ix,iy,iz)
-        ixr = clamp(floor(Int, (x3rot[ix,iy,iz]-ox)/dx*ns) + 1, 1, size(zsurf,1))
-        iyr = clamp(floor(Int, (y3rot[ix,iy,iz]-oy)/dy*ns) + 1, 1, size(zsurf,2))
-        if is_inside_phase(z3rot[ix,iy,iz],zsurf[ixr,iyr])
+        # TODO: figure out the origin translations
+        ixg,iyg,izg = ix + cx*(size(ϕ,1)-2), iy + cy*(size(ϕ,2)-2), iz + cz*(size(ϕ,3)-2)
+        xc,yc,zc    = ox + (ixg-1)*dx, oy + (iyg-1)*dy, oz + (izg-1)*dz
+        xrot        = R[1,1]*xc + R[1,2]*yc + R[1,3]*zc
+        yrot        = R[2,1]*xc + R[2,2]*yc + R[2,3]*zc
+        zrot        = R[3,1]*xc + R[3,2]*yc + R[3,3]*zc
+        ixr         = clamp(floor(Int, (xrot-ox)/dx*ns) + 1, 1, size(zsurf,1))
+        iyr         = clamp(floor(Int, (yrot-oy)/dy*ns) + 1, 1, size(zsurf,2))
+        if is_inside_phase(zrot,zsurf[ixr,iyr])
             ϕ[ix,iy,iz] = fluid
         end
-        if is_inside_phase(z3rot[ix,iy,iz],zbed[ixr,iyr])
+        if is_inside_phase(zrot,zbed[ixr,iyr])
             ϕ[ix,iy,iz] = solid
         end
     end
     return
 end
-
 
 "Apply one explicit diffusion step as smoothing on 2D data."
 @views function smooth2D!(A, B, fact)
