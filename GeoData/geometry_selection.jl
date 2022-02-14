@@ -3,11 +3,11 @@ using DBFTables, DataFrames, Shapefile, Rasters, Plots
 "Helper function to mask, trim and pad bedrock and ice thickness data given a glacier polygon."
 @views mask_trim(rasterDat, poly, pad) = trim(mask(rasterDat; with=poly); pad=pad)
 
-SGI_ID  = "B73/12"
-name    = "ArollaHaut"
+# SGI_ID  = "B73/12"
+# name    = "ArollaHaut"
 
-# SGI_ID  = "B43/03"
-# name    = "Rhone"
+SGI_ID  = "B43/03"
+name    = "Rhone"
 
 # SGI_ID  = "B36/26"
 # name    = "Aletsch"
@@ -23,7 +23,7 @@ name    = "ArollaHaut"
 
 padding = 10
 
-@views function extract_geom(SGI_ID::String, name::String, padding::Int; do_vis=true, do_save=true)
+@views function geom_select(SGI_ID::String, name::String, padding::Int; do_vis=true, do_save=true)
     # find glacier ID
     df  = DataFrame(DBFTables.Table("../data/alps_sgi/swissTLM3D_TLM_GLAMOS.dbf"))
     ID  = df[in([SGI_ID]).(df.SGI),:TLM_BODENB] # and not :UUID field!
@@ -49,7 +49,7 @@ padding = 10
     IceThick_cr = mosaic(first, IceThick_stack)
 
     # crop surface elevation to ice thckness data
-    SurfElev_cr = crop(SurfElev; to=IceThick_cr)
+    SurfElev_cr = Rasters.crop(SurfElev; to=IceThick_cr)
 
     # compute bedrock elevation
     IceThick_cr0 = replace_missing(IceThick_cr, 0.0)
@@ -77,4 +77,4 @@ padding = 10
     return IceThick_cr0, SurfElev_cr, BedElev_cr
 end
 
-@time extract_geom(SGI_ID, name, padding; do_vis=true)
+@time geom_select(SGI_ID, name, padding; do_vis=true)

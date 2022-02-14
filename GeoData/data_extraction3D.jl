@@ -38,10 +38,10 @@ Extract geadata and return elevation maps, rotation matrix and origin.
 - `dat_name::String`: input data file
 """
 @views function extract_geodata(type::DataType, dat_name::String)
-    println("Starting geodata extraction ... ")
+    println("Starting geodata extraction ...")
     println("- load the data")
-    file1     = ("data/alps/IceThick_cr0_$(dat_name).tif")
-    file2     = ("data/alps/BedElev_cr_$(dat_name).tif"  )
+    file1     = ("../data/alps/IceThick_cr0_$(dat_name).tif")
+    file2     = ("../data/alps/BedElev_cr_$(dat_name).tif"  )
     z_thick   = reverse(GeoArrays.read(file1)[:,:,1], dims=2)
     z_bed     = reverse(GeoArrays.read(file2)[:,:,1], dims=2)
     coords    = reverse(GeoArrays.coords(GeoArrays.read(file2)), dims=2)
@@ -73,7 +73,7 @@ Extract geadata and return elevation maps, rotation matrix and origin.
     # rotation matrix from rotation axis and angle
     R  = axis_angle_rotation_matrix(ax,acos(nv[3]))
     println("- save data to ../data/alps/data_$(dat_name).h5")
-    h5open("data/alps/data_$(dat_name).h5", "w") do fid
+    h5open("../data/alps/data_$(dat_name).h5", "w") do fid
         create_group(fid, "glacier")
         fid["glacier/x",compress=3]      = x
         fid["glacier/y",compress=3]      = y
@@ -81,6 +81,8 @@ Extract geadata and return elevation maps, rotation matrix and origin.
         fid["glacier/z_surf",compress=3] = z_surf
         fid["glacier/R",compress=3]      = R
     end
-    println("... done.")
+    println("done.")
     return
 end
+
+@time extract_geodata(Float64, "Rhone")
