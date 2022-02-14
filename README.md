@@ -9,6 +9,8 @@ Mechanical viscous steady-state flow with stress-free surface over Alpine topogr
 
 <img src="docs/images/rhone3D_1022x1022x766.png" alt="Steady-state Rhone glacier in 3D" width="800">
 
+Multi-XPU ice flow solver and [GeoData helpers](GeoData). Here resolving steady viscous ice flow for the Rhone glacier in th Swiss Alps on 1022x1022x766 grid points on 8 Nvidia Tesla A100 server _Superzack_, hosted at VAW, ETH Zurich.
+
 ## Steady glacier 2D
 
 > [`SteadyStateGlacier2D.jl`](scripts/SteadyStateGlacier2D.jl) code
