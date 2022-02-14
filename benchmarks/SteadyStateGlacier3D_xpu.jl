@@ -152,7 +152,7 @@ end
     dim      = (2,2,2)          # MPI dims
     ns       = 4                # number of oversampling per cell
     out_path = "../out_visu"
-    out_name = "result"
+    out_name = "results"
     # IGG initialisation
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3]) 
     # define domain
@@ -252,7 +252,7 @@ end
         dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
         @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
         @parallel apply_mask!(Vn, τII, Ptv, ϕ)
-        out_h5 = joinpath(out_path,out_name)*"h5"
+        out_h5 = joinpath(out_path,out_name)*".h5"
         I = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
                                (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
                                (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
