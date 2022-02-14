@@ -1,5 +1,4 @@
 const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
-const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 7
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 ###
 using ParallelStencil
@@ -9,9 +8,9 @@ using ParallelStencil.FiniteDifferences3D
 else
     @init_parallel_stencil(Threads, Float64, 3)
 end
-using ImplicitGlobalGrid,Printf,Statistics,LinearAlgebra,Random,LightXML
+using ImplicitGlobalGrid,Printf,Statistics,LinearAlgebra,Random
 import MPI
-using HDF5
+using HDF5,LightXML
 
 norm_g(A) = (sum2_l = sum(A.^2); sqrt(MPI.Allreduce(sum2_l, MPI.SUM, MPI.COMM_WORLD)))
 sum_g(A)  = (sum_l  = sum(A); MPI.Allreduce(sum_l, MPI.SUM, MPI.COMM_WORLD))
@@ -149,9 +148,11 @@ end
 @views function Stokes3D(dem)
     # inputs
     # nx,ny,nz = 511,511,383
-    nx,ny,nz = 127,127,95
-    dim      = (2,2,2)
-    ns       = 4
+    nx,ny,nz = 127,127,95       # local resolution
+    dim      = (2,2,2)          # MPI dims
+    ns       = 4                # number of oversampling per cell
+    out_path = "../out_visu"
+    out_name = "result"
     # IGG initialisation
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3]) 
     # define domain
@@ -170,7 +171,7 @@ end
     tsc      = μs0/psc
     vsc      = lz/tsc
     ## dimensionally dependent
-    ρgv         = ρg0*R'*[0,0,1]
+    ρgv      = ρg0*R'*[0,0,1]
     ρgx,ρgy,ρgz = ρgv
     # numerics
     maxiter  = 50nz_g()     # maximum number of pseudo-transient iterations
@@ -206,7 +207,7 @@ end
     Vy       = @zeros(nx  ,ny+1,nz  )
     Vz       = @zeros(nx  ,ny  ,nz+1)
     # set phases
-    if (me==0) println("- set phases (0-air, 1-ice, 2-bedrock)") end
+    if (me==0) print("Set phases (0-air, 1-ice, 2-bedrock)...") end
     Rinv     = Data.Array(R')
     # supersampled grid
     nr_box       = dem.domain
@@ -219,12 +220,12 @@ end
     len_g = sum_g(ϕ.==fluid)
     # visu
     if do_save
-        (me==0) && !ispath("../out_visu") && mkdir("../out_visu")
+        (me==0) && !ispath(out_path) && mkdir(out_path)
         Vn  = @zeros(nx-2,ny-2,nz-2)
         τII = @zeros(nx-2,ny-2,nz-2)
         Ptv = @zeros(nx-2,ny-2,nz-2)
     end
-    (me==0) && println("... done. Starting the real stuff 😎")
+    (me==0) && println(" done. Starting the real stuff 😎")
     # iteration loop
     err_V=2*ε_V; err_∇V=2*ε_∇V; iter=0; err_evo1=[]; err_evo2=[]
     while !((err_V <= ε_V) && (err_∇V <= ε_∇V)) && (iter <= maxiter)
@@ -251,18 +252,18 @@ end
         dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
         @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
         @parallel apply_mask!(Vn, τII, Ptv, ϕ)
-        out_name = "../out_visu/result.h5"
+        out_h5 = joinpath(out_path,out_name)*"h5"
         I = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
                                (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
                                (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
         fields = Dict("Vn"=>Vn,"TauII"=>τII,"Pr"=>Ptv,"Phi"=>ϕ[2:end-1,2:end-1,2:end-1])
-        (me==0) && print("saving HDF5 file...")
-        write_h5(out_name,fields,comm_cart,MPI.Info(),dim_g,I)
+        (me==0) && print("Saving HDF5 file...")
+        write_h5(out_h5,fields,comm_cart,MPI.Info(),dim_g,I)
         (me==0) && println(" done")
         # write XDMF
         if me == 0
-            print("saving XDMF file...")
-            write_xdmf("../out_visu/result.xdmf3",out_name,fields,(xc[1],yc[1],zc[1]),(dx,dy,dz),dim_g)
+            print("Saving XDMF file...")
+            write_xdmf(joinpath(out_path,out_name)*".xdmf3",out_h5,fields,(xc[1],yc[1],zc[1]),(dx,dy,dz),dim_g)
             println(" done")
         end
     end
