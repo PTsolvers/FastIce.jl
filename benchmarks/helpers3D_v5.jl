@@ -1,3 +1,5 @@
+using Interpolations
+
 "Axis-aligned bounding box"
 struct AABB{T<:Real}
     xmin::T; xmax::T
@@ -78,9 +80,10 @@ rotation(dem::DataElevation)       = dem.rotation
 
 "Get elevation data at specified coordinates"
 function evaluate(dem::DataElevation, x::AbstractVector, y::AbstractVector)
-    itp_bed  = interpolate( (dem.x,dem.y), dem.z_bed , Gridded(Linear()) )
-    itp_surf = interpolate( (dem.x,dem.y), dem.z_surf, Gridded(Linear()) )
-    return itp_bed.(x,y), itp_surf.(x,y)
+    x1d, y1d = dem.x[:,1], dem.y[1,:]
+    itp_bed  = interpolate( (x1d,y1d), dem.z_bed , Gridded(Linear()) )
+    itp_surf = interpolate( (x1d,y1d), dem.z_surf, Gridded(Linear()) )
+    return [itp_bed(_x,_y) for _x in x, _y in y], [itp_surf(_x,_y) for _x in x, _y in y]
 end
 
 

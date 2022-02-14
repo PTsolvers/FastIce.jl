@@ -1,8 +1,8 @@
 function write_h5(path,fields,comm,info,dim_g,I)
     h5open(path, "w", comm, info) do io
-        for name,field ∈ fields
-            dset    = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(dim_g))
-            dset[I] = Array(field)
+        for (name,field) ∈ fields
+            dset               = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(dim_g))
+            dset[I.indices...] = Array(field)
         end
     end
 end
@@ -36,7 +36,7 @@ function write_xdmf(path,h5_path,fields,origin,spacing,dim_g)
     set_attribute(xdr, "Dimensions", "$(length(dim_g))")
     add_text(xdr, join((dz,dy,dx), ' '))
 
-    for name,_ ∈ fields
+    for (name,_) ∈ fields
         create_xdmf_attribute(xgrid,h5_path,name,dim_g)
     end
 

@@ -9,7 +9,7 @@ using ParallelStencil.FiniteDifferences3D
 else
     @init_parallel_stencil(Threads, Float64, 3)
 end
-using ImplicitGlobalGrid,Printf,Statistics,LinearAlgebra,Random,UnPack,LightXML
+using ImplicitGlobalGrid,Printf,Statistics,LinearAlgebra,Random,LightXML
 import MPI
 using HDF5
 
@@ -92,6 +92,38 @@ end
     return
 end
 
+
+"Check if index is inside phase."
+function is_inside_phase(z3rot,ztopo)
+    return z3rot < ztopo
+end
+
+
+"""
+    set_phases!(ϕ, x3rot, y3rot, z3rot, zsurf, zbed, ox, oy, dx, dy, ns)
+
+Define phases as function of surface and bad topo.
+"""
+@parallel_indices (ix,iy,iz) function set_phases!(ϕ,zsurf,zbed,R,ox,oy,oz,osx,osy,dx,dy,dz,dsx,dsy,cx,cy,cz)
+    if checkbounds(Bool,ϕ,ix,iy,iz)
+        # TODO: figure out the origin translations
+        ixg,iyg,izg = ix + cx*(size(ϕ,1)-2), iy + cy*(size(ϕ,2)-2), iz + cz*(size(ϕ,3)-2)
+        xc,yc,zc    = ox + (ixg-1)*dx, oy + (iyg-1)*dy, oz + (izg-1)*dz
+        xrot        = R[1,1]*xc + R[1,2]*yc + R[1,3]*zc
+        yrot        = R[2,1]*xc + R[2,2]*yc + R[2,3]*zc
+        zrot        = R[3,1]*xc + R[3,2]*yc + R[3,3]*zc
+        ixr         = clamp(floor(Int, (xrot-osx)/dsx) + 1, 1, size(zsurf,1))
+        iyr         = clamp(floor(Int, (yrot-osy)/dsy) + 1, 1, size(zsurf,2))
+        if is_inside_phase(zrot,zsurf[ixr,iyr])
+            ϕ[ix,iy,iz] = fluid
+        end
+        if is_inside_phase(zrot,zbed[ixr,iyr])
+            ϕ[ix,iy,iz] = solid
+        end
+    end
+    return
+end
+
 @parallel_indices (ix,iy,iz) function init_ϕi!(ϕ,ϕx,ϕy,ϕz)
     if ix <= size(ϕx,1) && iy <= size(ϕx,2) && iz <= size(ϕx,3)
         ϕx[ix,iy,iz] = air
@@ -116,7 +148,8 @@ end
 
 @views function Stokes3D(dem)
     # inputs
-    nx,ny,nz = 511,511,383
+    # nx,ny,nz = 511,511,383
+    nx,ny,nz = 127,127,95
     dim      = (2,2,2)
     ns       = 4
     # IGG initialisation
@@ -127,6 +160,7 @@ end
     xv,yv,zv = create_grid(domain,(nx_g()+1,ny_g()+1,nz_g()+1))
     xc,yc,zc = av.((xv,yv,zv))
     dx,dy,dz = lx/nx_g(),ly/ny_g(),lz/nz_g()
+    R        = rotation(dem)
     # physics
     ## dimensionally independent
     μs0      = 1.0               # matrix viscosity [Pa*s]
@@ -175,10 +209,12 @@ end
     if (me==0) println("- set phases (0-air, 1-ice, 2-bedrock)") end
     Rinv     = Data.Array(R')
     # supersampled grid
-    xc_ss,yc_ss  = LinRange(xc[1],xc[end],ns*length(xc)),LinRange(yc[1],yc[end],ns*length(yc))
+    nr_box       = dem.domain
+    xc_ss,yc_ss  = LinRange(nr_box.xmin,nr_box.xmax,ns*length(xc)),LinRange(nr_box.ymin,nr_box.ymax,ns*length(yc))
+    dsx,dsy      = xc_ss[2] - xc_ss[1], yc_ss[2] - yc_ss[1]
     z_bed,z_surf = Data.Array.(evaluate(dem, xc_ss, yc_ss))
     ϕ            = air.*@ones(nx,ny,nz)
-    @parallel set_phases!(ϕ,z_surf,z_bed,Rinv,xc[1],yc[1],zc[1],dx,dy,dz,ns,coords...)
+    @parallel set_phases!(ϕ,z_surf,z_bed,Rinv,xc[1],yc[1],zc[1],xc_ss[1],yc_ss[1],dx,dy,dz,dsx,dsy,coords...)
     @parallel init_ϕi!(ϕ, ϕx, ϕy, ϕz)
     len_g = sum_g(ϕ.==fluid)
     # visu
@@ -219,7 +255,7 @@ end
         I = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
                                (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
                                (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
-        fields = Dict("Vn"=>Vn,"TauII"=>τII,"Pr"=>Pv,"Phi"=>ϕ[2:end-1,2:end-1])
+        fields = Dict("Vn"=>Vn,"TauII"=>τII,"Pr"=>Ptv,"Phi"=>ϕ[2:end-1,2:end-1,2:end-1])
         (me==0) && print("saving HDF5 file...")
         write_h5(out_name,fields,comm_cart,MPI.Info(),dim_g,I)
         (me==0) && println(" done")
