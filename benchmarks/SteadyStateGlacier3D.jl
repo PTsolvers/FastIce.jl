@@ -221,6 +221,6 @@ end
 # preprocessing
 # extract_geodata("Rhone"; do_rotate=true)
 
-inputs = preprocess("../data/alps/data_Rhone.h5"; resx=128, resy=128, fact_nz=2, ns=8)
+inputs = preprocess("../data/alps/data_Rhone_v0.h5"; resx=128, resy=128, fact_nz=2, ns=8)
 
 @time Stokes3D(inputs)

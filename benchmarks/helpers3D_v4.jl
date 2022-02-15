@@ -237,7 +237,7 @@ Extract geadata and return elevation maps, rotation matrix and origin.
          ax[2]*ax[1]*(1-cos(θ))     cos(θ) + ax[2]^2*(1-cos(θ)) -ax[1]*sin(θ)
         -ax[2]*sin(θ)               ax[1]*sin(θ)                       cos(θ)]
 
-    println("- save data to ../data/alps/data_$(dat_name).h5")
+    println("- save data to ../data/alps/data_$(dat_name)_v0.h5")
     
     h5open("../data/alps/data_$(dat_name).h5", "w") do fid
         create_group(fid, "glacier")
