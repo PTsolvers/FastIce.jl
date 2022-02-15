@@ -35,8 +35,8 @@ end
 "Create AABB enclosing both box1 and box2"
 function union(box1::AABB, box2::AABB)
     return AABB(min(box1.xmin,box2.xmin),max(box1.xmax,box2.xmax),
-    min(box1.ymin,box2.ymin),max(box1.ymax,box2.ymax),
-    min(box1.zmin,box2.zmin),max(box1.zmax,box2.zmax))
+                min(box1.ymin,box2.ymin),max(box1.ymax,box2.ymax),
+                min(box1.zmin,box2.zmin),max(box1.zmax,box2.zmax))
 end
 
 
