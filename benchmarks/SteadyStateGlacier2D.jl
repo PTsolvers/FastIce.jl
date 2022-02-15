@@ -53,8 +53,8 @@ end
 end
 
 @parallel function preprocess_visu!(Vn, τII, Vx, Vy, τxx, τyy, τxy)
-    @all(Vn)  = (@av_xa(Vx)*@av_xa(Vx) + @av_ya(Vy)*@av_ya(Vy)).^0.5
-    @all(τII) = (0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy).*@inn(τyy)) .+ @av(τxy).*@av(τxy)).^0.5
+    @all(Vn)  = (@av_xa(Vx)*@av_xa(Vx) + @av_ya(Vy)*@av_ya(Vy))^0.5
+    @all(τII) = (0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy)) + @av(τxy)*@av(τxy))^0.5
     return
 end
 
@@ -154,6 +154,6 @@ end
 # ---------------------
 
 # preprocessing
-inputs = preprocess("../data/arolla51.txt"; resx=256, do_rotate=true, fact_ny=5)
+inputs = preprocess("../data/arolla2D/arolla51.txt"; resx=256, do_rotate=true, fact_ny=5)
 
 @time Stokes2D(inputs)
