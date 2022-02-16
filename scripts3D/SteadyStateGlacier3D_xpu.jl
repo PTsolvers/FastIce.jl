@@ -97,12 +97,6 @@ function is_inside_phase(z3rot,ztopo)
     return z3rot < ztopo
 end
 
-
-"""
-    set_phases!(ϕ, x3rot, y3rot, z3rot, zsurf, zbed, ox, oy, dx, dy, ns)
-
-Define phases as function of surface and bad topo.
-"""
 @parallel_indices (ix,iy,iz) function set_phases!(ϕ,zsurf,zbed,R,ox,oy,oz,osx,osy,dx,dy,dz,dsx,dsy,cx,cy,cz)
     if checkbounds(Bool,ϕ,ix,iy,iz)
         # TODO: figure out the origin translations

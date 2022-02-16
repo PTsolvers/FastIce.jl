@@ -60,8 +60,27 @@ struct DataElevation{T, M<:AbstractMatrix{T}} <: AbstractElevation{T}
     rotated_domain::AABB{T}
 end
 
+"Synthetic data on grid"
+struct SyntheticElevation{T, M<:AbstractMatrix{T}} <: AbstractElevation{T}
+    x::M; y::M; z_bed::M; z_surf::M
+    rotation::M
+    domain::AABB{T}
+    rotated_domain::AABB{T}
+end
+
 
 function DataElevation(x,y,z_bed,z_surf,R)
+    # get non-rotated domain
+    domain = AABB(extrema(x)...,extrema(y)...,minimum(min.(z_bed,z_surf)),maximum(max.(z_bed,z_surf)))
+    # rotate bed and surface
+    bed_extents  = AABB(rotate_minmax(x, y, z_bed , R)...)
+    surf_extents = AABB(rotate_minmax(x, y, z_surf, R)...)
+    # get rotated domain
+    rotated_domain = union(bed_extents, surf_extents)
+    return DataElevation(x,y,z_bed,z_surf,R,domain,rotated_domain)
+end
+
+function SyntheticElevation(x,y,z_bed,z_surf,R)
     # get non-rotated domain
     domain = AABB(extrema(x)...,extrema(y)...,minimum(min.(z_bed,z_surf)),maximum(max.(z_bed,z_surf)))
     # rotate bed and surface
@@ -98,6 +117,42 @@ function load_elevation(path::AbstractString)
     close(fid)
     return DataElevation(x,y,z_bed,z_surf,R)
 end
+
+
+
+
+function generate_z_surf(x,y,gl)
+    return (gl*gl - (x+0.1*gl)*(x+0.1*gl))
+end
+
+function generate_z_bed(x,y,lx,ly,amp,ω,tanβ,el)
+    return amp*sin(ω*x/lx)*sin(ω*y/ly) + tanβ*x + el + y^2/ly
+end
+
+"Get elevation data at specified coordinates"
+function evaluate(dem::SyntheticElevation, x::AbstractVector, y::AbstractVector)
+    x1d, y1d = dem.x[:,1], dem.y[1,:]
+    itp_bed  = interpolate( (x1d,y1d), dem.z_bed , Gridded(Linear()) )
+    itp_surf = interpolate( (x1d,y1d), dem.z_surf, Gridded(Linear()) )
+    return [itp_bed(_x,_y) for _x in x, _y in y], [itp_surf(_x,_y) for _x in x, _y in y]
+end
+
+
+function generate_elevation(slope,frequency,...)
+    # gl,el,tanβ,ω,amp,lx,ly,lz
+    z_bed  = generate_z_bed(x,y,z,lx,ly,amp,ω,tanβ,el)
+    z_surf = generate_z_surf(x,y,z,gl)
+    R      = [1 0 0; 0 1 0; 0 0 1]
+    return SyntheticElevation(x,y,z_bed,z_surf,R)
+end
+
+
+
+
+
+
+
+
 
 
 """
