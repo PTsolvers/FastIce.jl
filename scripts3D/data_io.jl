@@ -1,4 +1,5 @@
 function write_h5(path,fields,comm,info,dim_g,I)
+    # h5open(path, "w") do io
     h5open(path, "w", comm, info) do io
         for (name,field) ∈ fields
             dset               = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(dim_g))

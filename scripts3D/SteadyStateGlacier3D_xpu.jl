@@ -1,4 +1,4 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 ###
 using ParallelStencil
@@ -141,10 +141,11 @@ end
 
 @views function Stokes3D(dem)
     # inputs
-    # nx,ny,nz = 511,511,383
-    nx,ny,nz = 127,127,95       # local resolution
-    dim      = (2,2,2)          # MPI dims
-    ns       = 4                # number of oversampling per cell
+    # nx,ny,nz = 511,511,383      # local resolution
+    # nx,ny,nz = 127,127,95       # local resolution
+    nx,ny,nz = 63,63,47         # local resolution
+    dim      = (1,1,1)          # MPI dims
+    ns       = 2                # number of oversampling per cell
     out_path = "../out_visu"
     out_name = "results"
     # IGG initialisation
@@ -265,4 +266,5 @@ end
     return
 end
 
-Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
+# Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
+Stokes3D(generate_elevation(2.0,2.0,1/25,10π,tan(-π/12),0.1,0.9))

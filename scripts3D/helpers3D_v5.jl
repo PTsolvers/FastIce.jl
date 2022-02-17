@@ -60,27 +60,8 @@ struct DataElevation{T, M<:AbstractMatrix{T}} <: AbstractElevation{T}
     rotated_domain::AABB{T}
 end
 
-"Synthetic data on grid"
-struct SyntheticElevation{T, M<:AbstractMatrix{T}} <: AbstractElevation{T}
-    x::M; y::M; z_bed::M; z_surf::M
-    rotation::M
-    domain::AABB{T}
-    rotated_domain::AABB{T}
-end
-
 
 function DataElevation(x,y,z_bed,z_surf,R)
-    # get non-rotated domain
-    domain = AABB(extrema(x)...,extrema(y)...,minimum(min.(z_bed,z_surf)),maximum(max.(z_bed,z_surf)))
-    # rotate bed and surface
-    bed_extents  = AABB(rotate_minmax(x, y, z_bed , R)...)
-    surf_extents = AABB(rotate_minmax(x, y, z_surf, R)...)
-    # get rotated domain
-    rotated_domain = union(bed_extents, surf_extents)
-    return DataElevation(x,y,z_bed,z_surf,R,domain,rotated_domain)
-end
-
-function SyntheticElevation(x,y,z_bed,z_surf,R)
     # get non-rotated domain
     domain = AABB(extrema(x)...,extrema(y)...,minimum(min.(z_bed,z_surf)),maximum(max.(z_bed,z_surf)))
     # rotate bed and surface
@@ -119,15 +100,35 @@ function load_elevation(path::AbstractString)
 end
 
 
+#### New stuff ==================
 
-
-function generate_z_surf(x,y,gl)
-    return (gl*gl - (x+0.1*gl)*(x+0.1*gl))
+"Synthetic data on grid"
+struct SyntheticElevation{T, M<:AbstractMatrix{T}} <: AbstractElevation{T}
+    x::M; y::M; z_bed::M; z_surf::M
+    rotation::M
+    domain::AABB{T}
+    rotated_domain::AABB{T}
 end
 
-function generate_z_bed(x,y,lx,ly,amp,ω,tanβ,el)
-    return amp*sin(ω*x/lx)*sin(ω*y/ly) + tanβ*x + el + y^2/ly
+
+function SyntheticElevation(x,y,z_bed,z_surf,R)
+    # get non-rotated domain
+    domain = AABB(extrema(x)...,extrema(y)...,minimum(min.(z_bed,z_surf)),maximum(max.(z_bed,z_surf)))
+    #= DEBUG could be uncommented if one also wants to rotate synthetic domain
+    # rotate bed and surface
+    bed_extents  = AABB(rotate_minmax(x, y, z_bed , R)...)
+    surf_extents = AABB(rotate_minmax(x, y, z_surf, R)...)
+    # get rotated domain
+    rotated_domain = union(bed_extents, surf_extents)
+    return SyntheticElevation(x,y,z_bed,z_surf,R,domain,rotated_domain)
+    =#
+    return SyntheticElevation(x,y,z_bed,z_surf,R,domain,domain)
 end
+
+domain(dem::SyntheticElevation)         = dem.domain
+rotated_domain(dem::SyntheticElevation) = dem.rotated_domain
+rotation(dem::SyntheticElevation)       = dem.rotation
+
 
 "Get elevation data at specified coordinates"
 function evaluate(dem::SyntheticElevation, x::AbstractVector, y::AbstractVector)
@@ -138,21 +139,23 @@ function evaluate(dem::SyntheticElevation, x::AbstractVector, y::AbstractVector)
 end
 
 
-function generate_elevation(slope,frequency,...)
-    # gl,el,tanβ,ω,amp,lx,ly,lz
-    z_bed  = generate_z_bed(x,y,z,lx,ly,amp,ω,tanβ,el)
-    z_surf = generate_z_surf(x,y,z,gl)
-    R      = [1 0 0; 0 1 0; 0 0 1]
+generate_z_surf(x,y,gl) = (gl*gl - (x+0.1*gl)*(x+0.1*gl))
+generate_z_bed(x,y,lx,ly,amp,ω,tanβ,el) = amp*sin(ω*x/lx)*sin(ω*y/ly) + tanβ*x + el + y^2/ly
+
+
+"Generate synthetic elevation"
+function generate_elevation(lx,ly,amp,ω,tanβ,el,gl;nx=100,ny=100)
+    dx, dy = lx/nx, ly/ny
+    x1, y1 = LinRange(-(lx-dx)/2,(lx-dx)/2,nx), LinRange(-(ly-dy)/2,(ly-dy)/2,ny)
+    x      =      x1 .+ 0 .* y1'
+    y      = 0 .* x1 .+      y1'
+    z_bed  = generate_z_bed.(x,y,lx,ly,amp,ω,tanβ,el)
+    z_surf = generate_z_surf.(x,y,gl)
+    R      = [1. 0. 0.; 0. 1. 0.; 0. 0. 1.]
     return SyntheticElevation(x,y,z_bed,z_surf,R)
 end
 
-
-
-
-
-
-
-
+#### New stuff ==================
 
 
 """
