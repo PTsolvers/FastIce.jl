@@ -51,6 +51,9 @@ end
 "Abstract type representing bedrock and ice elevation"
 abstract type AbstractElevation{T<:Real} end
 
+rotated_domain(dem::AbstractElevation) = domain(dem)
+rotation(dem::AbstractElevation)       = [1. 0. 0.; 0. 1. 0.; 0. 0. 1.]
+
 
 "Elevation data on grid"
 struct DataElevation{T, M<:AbstractMatrix{T}} <: AbstractElevation{T}
@@ -87,7 +90,7 @@ function evaluate(dem::DataElevation, x::AbstractVector, y::AbstractVector)
 end
 
 
-"Load elevation data from HDF5 file"
+"Load elevation data from HDF5 file."
 function load_elevation(path::AbstractString)
     fid    = h5open(path, "r")
     x      = read(fid,"glacier/x")
@@ -100,11 +103,38 @@ function load_elevation(path::AbstractString)
 end
 
 
-"""
-    gpu_res(resol, t)
+"Synthetic elevation data on grid."
+struct SyntheticElevation{T, B, S} <: AbstractElevation{T}
+    z_bed::B; z_surf::S
+    domain::AABB{T}
+end
 
-Round the number of grid points that is optimal for GPUs.
+domain(dem::SyntheticElevation) = dem.domain
+
+"Get synthetic elevation data at specified coordinates."
+function evaluate(dem::SyntheticElevation, x::AbstractVector, y::AbstractVector)
+    return [dem.z_bed(_x,_y) for _x in x, _y in y], [dem.z_surf(_x,_y) for _x in x, _y in y]
+end
+
+
+generate_z_surf(x,y,gl) = (gl*gl - (x+0.1*gl)*(x+0.1*gl))
+generate_z_bed(x,y,lx,ly,amp,ω,tanβ,el) = amp*sin(ω*x/lx)*sin(ω*y/ly) + tanβ*x + el + y^2/ly
+
+
 """
+    generate_elevation(lx,ly,zminmax,amp,ω,tanβ,el,gl)
+
+Generate synthetic elevation data for `lx`, `ly` and `zminmax=(zmin,zmax)` domain.
+"""
+function generate_elevation(lx,ly,zminmax,amp,ω,tanβ,el,gl)
+    domain = AABB(-lx/2, lx/2, -ly/2, ly/2, zminmax[1], zminmax[2])
+    z_bed  = (x,y) -> generate_z_bed(x,y,lx,ly,amp,ω,tanβ,el)
+    z_surf = (x,y) -> generate_z_surf(x,y,gl)
+    return SyntheticElevation(z_bed,z_surf,domain)
+end
+
+
+"Round the number of grid points that is optimal for GPUs."
 function gpu_res(resol, t)
     resol = resol > t ? resol : t
     shift = resol % t
