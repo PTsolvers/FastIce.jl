@@ -175,7 +175,7 @@ end
     nt       = 100           # number of time steps
     ns       = 2             # number of oversampling per cell
     out_path = "../out_visu"
-    out_name = "results"
+    out_name = "results2D"
     nsave    = 10
     # define domain
     domain   = dilate(rotated_domain(dem), (0.05, 0.05))
