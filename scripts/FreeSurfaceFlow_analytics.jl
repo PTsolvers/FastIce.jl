@@ -15,7 +15,9 @@ import ParallelStencil: INDICES
 ix,iy = INDICES[1], INDICES[2]
 ixi,iyi = :($ix+1), :($iy+1)
 
-@enum Flag air fluid solid
+const air   = 0.0
+const fluid = 1.0
+const solid = 2.0
 
 macro fm(A)      esc(:( $A[$ix,$iy] == fluid )) end
 macro fmxy_xi(A) esc(:( !(($A[$ix,$iy] == air && $A[$ix,$iy+1] == air) || ($A[$ix+1,$iy] == air && $A[$ix+1,$iy+1] == air)) )) end
@@ -140,7 +142,7 @@ end
     Ry        = @zeros(nx-2,ny-1)
     Vx        = @zeros(nx+1,ny  )
     Vy        = @zeros(nx  ,ny+1)
-    ϕ         = fill(air,nx,ny)
+    ϕ         = air*@ones(nx,ny)
     Vx_v      = copy(Vx) # visu
     Vy_v      = copy(Vy) # visu
     Pt_v      = copy(Pt) # visu
