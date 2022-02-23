@@ -166,7 +166,7 @@ end
     ρgx,ρgy,ρgz = ρgv
     # numerics
     maxiter  = 50nz_g()     # maximum number of pseudo-transient iterations
-    nchk     = 2*nz_g()     # error checking frequency
+    nchk     = 5*nz_g()     # error checking frequency
     b_width  = (8,4,4)      # boundary width
     ε_V      = 1e-8         # nonlinear absolute tolerance for momentum
     ε_∇V     = 1e-8         # nonlinear absolute tolerance for divergence
