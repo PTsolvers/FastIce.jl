@@ -31,7 +31,6 @@ macro av_yii(A) esc(:( 0.5*($A[$ixi,$iyi] + $A[$ixi  ,$iyi+1  ]) )) end
 macro fm(A)   esc(:( $A[$ix,$iy] == fluid )) end
 macro fmxy(A) esc(:( !($A[$ix,$iy] == air || $A[$ix+1,$iy] == air || $A[$ix,$iy+1] == air || $A[$ix+1,$iy+1] == air) )) end
 
-
 @parallel_indices (ix,iy) function compute_EII!(EII, Vx, Vy, ϕ, dx, dy)
     nfluid = 0
     exy    = 0.0; exx = 0.0; eyy = 0.0
@@ -87,8 +86,6 @@ macro fm_yi(A) esc(:( ($A[$ixi,$iy] == fluid) && ($A[$ixi,$iy+1] == fluid) )) en
 
 macro dτ_ρ_mech_ax() esc(:( vpdτ_mech*max_lxy/Re_mech/@av_xi(μs) )) end
 macro dτ_ρ_mech_ay() esc(:( vpdτ_mech*max_lxy/Re_mech/@av_yi(μs) )) end
-
-macro fa(A)   esc(:( $A[$ix,$iy] == air )) end
 
 @parallel function compute_V_T_μ!(Vx, Vy, T, μs, Pt, τxx, τyy, τxy, EII, T_o, qTx, qTy, ϕ, μs0, ρgx, ρgy, Ta, Q_R, T0, dt, npow, γ, vpdτ_mech, max_lxy, Re_mech, dτ_ρ_heat, dx, dy)
     @inn(Vx) = @sm_xi(ϕ)*( @inn(Vx) + @dτ_ρ_mech_ax()*(@d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) )
