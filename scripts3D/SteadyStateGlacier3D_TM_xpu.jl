@@ -38,21 +38,93 @@ macro fmxy(A) esc(:( !($A[$ix,$iy,$izi] == air || $A[$ix+1,$iy,$izi] == air || $
 macro fmxz(A) esc(:( !($A[$ix,$iyi,$iz] == air || $A[$ix+1,$iyi,$iz] == air || $A[$ix,$iyi,$iz+1] == air || $A[$ix+1,$iyi,$iz+1] == air) )) end
 macro fmyz(A) esc(:( !($A[$ixi,$iy,$iz] == air || $A[$ixi,$iy+1,$iz] == air || $A[$ixi,$iy,$iz+1] == air || $A[$ixi,$iy+1,$iz+1] == air) )) end
 
-@parallel function compute_EII!(EII, Vx, Vy, Vz, ϕ, dx, dy, dz)
-
-
+@parallel_indices (ix,iy,iz) function compute_EII!(EII, Vx, Vy, Vz, ϕ, dx, dy, dz)
+    nfluid_xy = 0; nfluid_xz = 0; nfluid_yz = 0; 
+    exy = 0.0; exz = 0.0; eyz = 0.0; exx = 0.0; eyy = 0.0; ezz = 0.0
+    if ix <= size(EII,1)-2 && iy <= size(EII,2)-2 && iz <= size(EII,3)-2
+        if ϕ[ix,iy,iz+1] == fluid && ϕ[ix+1,iy,iz+1] == fluid && ϕ[ix,iy+1,iz+1] == fluid && ϕ[ix+1,iy+1,iz+1] == fluid
+            nfluid_xy += 1
+            exy    += (Vx[ix+1,iy+1,iz+1] - Vx[ix+1,iy,iz+1])/dy + (Vy[ix+1,iy+1,iz+1] - Vy[ix,iy+1,iz+1])/dx
+        end
+        if ϕ[ix+1,iy,iz+1] == fluid && ϕ[ix+2,iy,iz+1] == fluid && ϕ[ix+1,iy+1,iz+1] == fluid && ϕ[ix+2,iy+1,iz+1] == fluid
+            nfluid_xy += 1
+            exy    += (Vx[ix+2,iy+1,iz+1] - Vx[ix+2,iy,iz+1])/dy + (Vy[ix+2,iy+1,iz+1] - Vy[ix+1,iy+1,iz+1])/dx
+        end
+        if ϕ[ix,iy+1,iz+1] == fluid && ϕ[ix+1,iy+1,iz+1] == fluid && ϕ[ix,iy+2,iz+1] == fluid && ϕ[ix+1,iy+2,iz+1] == fluid
+            nfluid_xy += 1
+            exy    += (Vx[ix+1,iy+2,iz+1] - Vx[ix+1,iy+1,iz+1])/dy + (Vy[ix+1,iy+2,iz+1] - Vy[ix,iy+2,iz+1])/dx
+        end
+        if ϕ[ix+1,iy+1,iz+1] == fluid && ϕ[ix+2,iy+1,iz+1] == fluid && ϕ[ix+1,iy+2,iz+1] == fluid && ϕ[ix+2,iy+2,iz+1] == fluid
+            nfluid_xy += 1
+            exy    += (Vx[ix+2,iy+2,iz+1] - Vx[ix+2,iy+1,iz+1])/dy + (Vy[ix+2,iy+2,iz+1] - Vy[ix+1,iy+2,iz+1])/dx
+        end
+        # ----------------------------------------------------------------------------------------------------
+        if ϕ[ix,iy+1,iz] == fluid && ϕ[ix+1,iy+1,iz] == fluid && ϕ[ix,iy+1,iz+1] == fluid && ϕ[ix+1,iy+1,iz+1] == fluid
+            nfluid_xz += 1
+            exz    += (Vx[ix+1,iy+1,iz+1] - Vx[ix+1,iy+1,iz])/dz + (Vz[ix+1,iy+1,iz+1] - Vz[ix,iy+1,iz+1])/dx
+        end
+        if ϕ[ix+1,iy+1,iz] == fluid && ϕ[ix+2,iy+1,iz] == fluid && ϕ[ix+1,iy+1,iz+1] == fluid && ϕ[ix+2,iy+1,iz+1] == fluid
+            nfluid_xz += 1
+            exz    += (Vx[ix+2,iy+1,iz+1] - Vx[ix+2,iy+1,iz])/dz + (Vz[ix+2,iy+1,iz+1] - Vz[ix+1,iy+1,iz+1])/dx
+        end
+        if ϕ[ix,iy+1,iz+1] == fluid && ϕ[ix+1,iy+1,iz+1] == fluid && ϕ[ix,iy+1,iz+2] == fluid && ϕ[ix+1,iy+1,iz+2] == fluid
+            nfluid_xz += 1
+            exz    += (Vx[ix+1,iy+1,iz+2] - Vx[ix+1,iy+1,iz+1])/dz + (Vz[ix+1,iy+1,iz+2] - Vz[ix,iy+1,iz+2])/dx
+        end
+        if ϕ[ix+1,iy+1,iz+1] == fluid && ϕ[ix+2,iy+1,iz+1] == fluid && ϕ[ix+1,iy+1,iz+2] == fluid && ϕ[ix+2,iy+1,iz+2] == fluid
+            nfluid_xz += 1
+            exz    += (Vx[ix+2,iy+1,iz+2] - Vx[ix+2,iy+1,iz+1])/dz + (Vz[ix+2,iy+1,iz+2] - Vz[ix+1,iy+1,iz+2])/dx
+        end
+        # ----------------------------------------------------------------------------------------------------
+        if ϕ[ix+1,iy,iz] == fluid && ϕ[ix+1,iy+1,iz] == fluid && ϕ[ix+1,iy,iz+1] == fluid && ϕ[ix+1,iy+1,iz+1] == fluid
+            nfluid_yz += 1
+            eyz    += (Vy[ix+1,iy+1,iz+1] - Vy[ix+1,iy+1,iz])/dz + (Vz[ix+1,iy+1,iz+1] - Vz[ix+1,iy,iz+1])/dy
+        end
+        if ϕ[ix+1,iy+1,iz] == fluid && ϕ[ix+1,iy+2,iz] == fluid && ϕ[ix+1,iy+1,iz+1] == fluid && ϕ[ix+1,iy+2,iz+1] == fluid
+            nfluid_yz += 1
+            eyz    += (Vy[ix+1,iy+2,iz+1] - Vy[ix+1,iy+2,iz])/dz + (Vz[ix+1,iy+2,iz+1] - Vz[ix+1,iy+1,iz+1])/dy
+        end
+        if ϕ[ix+1,iy,iz+1] == fluid && ϕ[ix+1,iy+1,iz+1] == fluid && ϕ[ix+1,iy,iz+2] == fluid && ϕ[ix+1,iy+1,iz+2] == fluid
+            nfluid_yz += 1
+            eyz    += (Vy[ix+1,iy+1,iz+2] - Vy[ix+1,iy+1,iz+1])/dz + (Vz[ix+1,iy+1,iz+2] - Vz[ix+1,iy,iz+2])/dy
+        end
+        if ϕ[ix+1,iy+1,iz+1] == fluid && ϕ[ix+1,iy+2,iz+1] == fluid && ϕ[ix+1,iy+1,iz+2] == fluid && ϕ[ix+1,iy+2,iz+2] == fluid
+            nfluid_yz += 1
+            eyz    += (Vy[ix+1,iy+2,iz+2] - Vy[ix+1,iy+2,iz+1])/dz + (Vz[ix+1,iy+2,iz+2] - Vz[ix+1,iy+1,iz+2])/dy
+        end
+        if (nfluid_xy > 0.0)  exy /= 2.0*nfluid_xy  end
+        if (nfluid_xz > 0.0)  exz /= 2.0*nfluid_xz  end
+        if (nfluid_yz > 0.0)  eyz /= 2.0*nfluid_yz  end
+        exx = (Vx[ix+2,iy+1,iz+1] - Vx[ix+1,iy+1,iz+1])/dx
+        eyy = (Vy[ix+1,iy+2,iz+1] - Vy[ix+1,iy+1,iz+1])/dy
+        ezz = (Vz[ix+1,iy+1,iz+2] - Vz[ix+1,iy+1,iz+1])/dz
+        EII[ix+1,iy+1,iz+1] = (ϕ[ix+1,iy+1,iz+1] == fluid)*sqrt(0.5*(exx*exx + eyy*eyy + ezz*ezz) + exy*exy + exz*exz + eyz*eyz)
+    end
     return
 end
 
-@parallel function compute_P_τ!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, Vx, Vy, Vz, ϕ, r, μ_veτ, Gdτ, dx, dy, dz)
+macro Gdτ()          esc(:(vpdτ_mech*Re_mech*@all(μs)/max_lxyz/(r+2.0)    )) end
+macro Gdτ_av_xyi()   esc(:(vpdτ_mech*Re_mech*@av_xyi(μs)/max_lxyz/(r+2.0) )) end
+macro Gdτ_av_xzi()   esc(:(vpdτ_mech*Re_mech*@av_xzi(μs)/max_lxyz/(r+2.0) )) end
+macro Gdτ_av_yzi()   esc(:(vpdτ_mech*Re_mech*@av_yzi(μs)/max_lxyz/(r+2.0) )) end
+macro μ_veτ()        esc(:(1.0/(1.0/@Gdτ()    + 1.0/@all(μs))             )) end
+macro μ_veτ_av_xyi() esc(:(1.0/(1.0/@Gdτ_av_xyi() + 1.0/@av_xyi(μs))      )) end
+macro μ_veτ_av_xzi() esc(:(1.0/(1.0/@Gdτ_av_xzi() + 1.0/@av_xzi(μs))      )) end
+macro μ_veτ_av_yzi() esc(:(1.0/(1.0/@Gdτ_av_yzi() + 1.0/@av_yzi(μs))      )) end
+
+@parallel function compute_P_τ_qT!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, qTx, qTy, qTz, Vx, Vy, Vz, μs, ϕ, T, vpdτ_mech, Re_mech, r, max_lxyz, χ, θr_dτ, dx, dy, dz)
     @all(∇V)  = @fm(ϕ)*(@d_xa(Vx)/dx + @d_ya(Vy)/dy + @d_za(Vz)/dz)
-    @all(Pt)  = @fm(ϕ)*(@all(Pt) - r*Gdτ*@all(∇V))    
-    @all(τxx) = @fm(ϕ)*2.0*μ_veτ*(@d_xa(Vx)/dx + @all(τxx)/Gdτ/2.0)
-    @all(τyy) = @fm(ϕ)*2.0*μ_veτ*(@d_ya(Vy)/dy + @all(τyy)/Gdτ/2.0)
-    @all(τzz) = @fm(ϕ)*2.0*μ_veτ*(@d_za(Vz)/dz + @all(τzz)/Gdτ/2.0)
-    @all(τxy) = @fmxy(ϕ)*2.0*μ_veτ*(0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) + @all(τxy)/Gdτ/2.0)
-    @all(τxz) = @fmxz(ϕ)*2.0*μ_veτ*(0.5*(@d_zi(Vx)/dz + @d_xi(Vz)/dx) + @all(τxz)/Gdτ/2.0)
-    @all(τyz) = @fmyz(ϕ)*2.0*μ_veτ*(0.5*(@d_zi(Vy)/dz + @d_yi(Vz)/dy) + @all(τyz)/Gdτ/2.0)
+    @all(Pt)  = @fm(ϕ)*(@all(Pt) - r*@Gdτ()*@all(∇V))    
+    @all(τxx) = @fm(ϕ)*2.0*@μ_veτ()*(@d_xa(Vx)/dx + @all(τxx)/@Gdτ()/2.0)
+    @all(τyy) = @fm(ϕ)*2.0*@μ_veτ()*(@d_ya(Vy)/dy + @all(τyy)/@Gdτ()/2.0)
+    @all(τzz) = @fm(ϕ)*2.0*@μ_veτ()*(@d_za(Vz)/dz + @all(τzz)/@Gdτ()/2.0)
+    @all(τxy) = @fmxy(ϕ)*2.0*@μ_veτ_av_xyi()*(0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) + @all(τxy)/@Gdτ_av_xyi()/2.0)
+    @all(τxz) = @fmxz(ϕ)*2.0*@μ_veτ_av_xzi()*(0.5*(@d_zi(Vx)/dz + @d_xi(Vz)/dx) + @all(τxz)/@Gdτ_av_xzi()/2.0)
+    @all(τyz) = @fmyz(ϕ)*2.0*@μ_veτ_av_yzi()*(0.5*(@d_zi(Vy)/dz + @d_yi(Vz)/dy) + @all(τyz)/@Gdτ_av_yzi()/2.0)
+    # thermo
+    @inn_x(qTx) = (@inn_x(qTx) * θr_dτ - χ*@d_xa(T)/dx) / (θr_dτ + 1.0)
+    @inn_y(qTy) = (@inn_y(qTy) * θr_dτ - χ*@d_ya(T)/dy) / (θr_dτ + 1.0)
+    @inn_z(qTz) = (@inn_z(qTz) * θr_dτ - χ*@d_za(T)/dz) / (θr_dτ + 1.0)
     return
 end
 
@@ -64,37 +136,43 @@ macro fm_xi(A) esc(:( ($A[$ix,$iyi,$izi] == fluid) && ($A[$ix+1,$iyi,$izi] == fl
 macro fm_yi(A) esc(:( ($A[$ixi,$iy,$izi] == fluid) && ($A[$ixi,$iy+1,$izi] == fluid) )) end
 macro fm_zi(A) esc(:( ($A[$ixi,$iyi,$iz] == fluid) && ($A[$ixi,$iyi,$iz+1] == fluid) )) end
 
-@parallel function compute_V!(Vx, Vy, Vz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dτ_ρ, dx, dy, dz)
-    @inn(Vx) = @sm_xi(ϕ)*( @inn(Vx) + dτ_ρ*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) )
-    @inn(Vy) = @sm_yi(ϕ)*( @inn(Vy) + dτ_ρ*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy) )
-    @inn(Vz) = @sm_zi(ϕ)*( @inn(Vz) + dτ_ρ*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz) )
+macro dτ_ρ_mech_ax() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_xi(μs) )) end
+macro dτ_ρ_mech_ay() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_yi(μs) )) end
+macro dτ_ρ_mech_az() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_zi(μs) )) end
+
+macro fa(A)   esc(:( $A[$ix,$iy] == air )) end
+
+@parallel function compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, μs0, ρgx, ρgy, ρgz, Ta, Q_R, T0, dt, npow, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
+    @inn(Vx) = @sm_xi(ϕ)*( @inn(Vx) + @dτ_ρ_mech_ax()*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) )
+    @inn(Vy) = @sm_yi(ϕ)*( @inn(Vy) + @dτ_ρ_mech_ay()*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy) )
+    @inn(Vz) = @sm_zi(ϕ)*( @inn(Vz) + @dτ_ρ_mech_az()*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz) )
+    # thermo
+    @all(T)  = (@all(T) + dτ_ρ_heat*(@all(T_o)/dt - @d_xa(qTx)/dx - @d_ya(qTy)/dy - @d_za(qTz)/dz + 2.0*@all(μs)*@all(EII)))/(1.0 + dτ_ρ_heat/dt)
+    @all(μs) = (1.0-γ)*@all(μs) + γ*(( @all(EII)^(1.0/npow-1.0) * exp(-Q_R*(1.0 - T0/@all(T))) )^(-1) + 1.0/μs0)^(-1)
     return
 end
 
-@parallel function compute_Res!(Rx, Ry, Rz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dx, dy, dz)
+@parallel function compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, dt, dx, dy, dz)
     @all(Rx) = @sm_xi(ϕ)*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx)
     @all(Ry) = @sm_yi(ϕ)*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy)
     @all(Rz) = @sm_zi(ϕ)*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz)
+    # thermo
+    @all(RT) = -(@all(T) - @all(T_o))/dt - (@d_xa(qTx)/dx + @d_ya(qTy)/dy + @d_za(qTz)/dz) + 2.0*@all(μs)*@all(EII)
     return
 end
 
-@parallel function preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
+@parallel function preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
     # all arrays of size (nx-2,ny-2,nz-2)
     @all(Vn)  = sqrt(@av_xii(Vx)*@av_xii(Vx) + @av_yii(Vy)*@av_yii(Vy) + @av_zii(Vz)*@av_zii(Vz))
     @all(τII) = sqrt(0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy) + @inn(τzz)*@inn(τzz)) + @av_xya(τxy)*@av_xya(τxy) + @av_xza(τxz)*@av_xza(τxz) + @av_yza(τyz)*@av_yza(τyz))
-    @all(Ptv) = @inn(Pt)
     return
 end
 
-@parallel_indices (ix,iy,iz) function apply_mask!(Vn, τII, Ptv, EIIv, Tv, μsv, ϕ)
+@parallel_indices (ix,iy,iz) function apply_mask!(Vn, τII, ϕ)
     if checkbounds(Bool,Vn,ix,iy,iz)
         if ϕ[ix+1,iy+1,iz+1] != fluid
             Vn[ix,iy,iz]  = NaN
-            Ptv[ix,iy,iz] = NaN
             τII[ix,iy,iz] = NaN
-            EIIv[ix,iy]   = NaN
-            # Tv[ix,iy]     = NaN
-            μsv[ix,iy]    = NaN
         end
     end
     return
@@ -149,23 +227,24 @@ end
 
 @views function Stokes3D(dem)
     # inputs
-    # nx,ny,nz = 511,511,383      # local resolution
-    # nx,ny,nz = 127,127,95       # local resolution
-    nx,ny,nz = 63,63,47         # local resolution
-    nt       = 100              # number of timesteps
-    dim      = (1,1,1)          # MPI dims
-    ns       = 2                # number of oversampling per cell
-    out_path = "../out_visu"
-    out_name = "results"
+    # nx,ny,nz  = 511,511,383      # local resolution
+    # nx,ny,nz  = 127,127,95       # local resolution
+    nx,ny,nz  = 63,63,31         # local resolution
+    nt        = 100              # number of timesteps
+    dim       = (1,1,2)          # MPI dims
+    ns        = 2                # number of oversampling per cell
+    out_path  = "../out_visu"
+    out_name  = "results"
+    nsave     = 10
     # IGG initialisation
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3]) 
     # define domain
-    domain   = dilate(rotated_domain(dem), (0.05, 0.05, 0.05))
-    lx,ly,lz = extents(domain)
-    xv,yv,zv = create_grid(domain,(nx_g()+1,ny_g()+1,nz_g()+1))
-    xc,yc,zc = av.((xv,yv,zv))
-    dx,dy,dz = lx/nx_g(),ly/ny_g(),lz/nz_g()
-    R        = rotation(dem)
+    domain    = dilate(rotated_domain(dem), (0.05, 0.05, 0.05))
+    lx,ly,lz  = extents(domain)
+    xv,yv,zv  = create_grid(domain,(nx_g()+1,ny_g()+1,nz_g()+1))
+    xc,yc,zc  = av.((xv,yv,zv))
+    dx,dy,dz  = lx/nx_g(),ly/ny_g(),lz/nz_g()
+    R         = rotation(dem)
     # physics
     ## dimensionally independent
     μs0       = 1.0               # matrix viscosity [Pa*s]
@@ -194,7 +273,7 @@ end
     ε_V       = 1e-6         # nonlinear absolute tolerance for momentum
     ε_∇V      = 1e-6         # nonlinear absolute tolerance for divergence
     ε_T       = 1e-8         # nonlinear absolute tolerance for temperature
-    CFL_mech  = 0.8/sqrt(3)  # stability condition
+    CFL_mech  = 0.5/sqrt(3)  # stability condition
     CFL_heat  = 0.95/sqrt(3) # stability condition
     Re_mech   = 2π           # Reynolds number                     (numerical parameter #1)
     r_mech    = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
@@ -203,8 +282,8 @@ end
     max_lxyz  = 0.25lz
     vpdτ_mech = min(dx,dy,dz)*CFL_mech
     vpdτ_heat = min(dx,dy,dz)*CFL_heat
-    dτ_ρ_heat = vpdτ_heat*max_lxy/Re_heat/χ
-    θr_dτ     = max_lxy/vpdτ_heat/Re_heat
+    dτ_ρ_heat = vpdτ_heat*max_lxyz/Re_heat/χ
+    θr_dτ     = max_lxyz/vpdτ_heat/Re_heat
     # allocation
     Pt        = @zeros(nx  ,ny  ,nz  )
     ∇V        = @zeros(nx  ,ny  ,nz  )
@@ -247,28 +326,24 @@ end
         (me==0) && !ispath(out_path) && mkdir(out_path)
         Vn   = @zeros(nx-2,ny-2,nz-2)
         τII  = @zeros(nx-2,ny-2,nz-2)
-        Ptv  = @zeros(nx-2,ny-2,nz-2)
-        Tv   = @zeros(nx-2,ny-2,nz-2)
-        EIIv = @zeros(nx-2,ny-2,nz-2)
-        μsv  = @zeros(nx-2,ny-2,nz-2)
     end
     (me==0) && println(" done. Starting the real stuff 😎")
     # time loop
     for it = 1:nt
-        @printf("# it = %d\n", it)
+        if (me==0) @printf("# it = %d\n", it) end
         T_o .= T
         # iteration loop
         err_V=2*ε_V; err_∇V=2*ε_∇V; err_T=2*ε_T; iter=0; err_evo1=[]; err_evo2=[]
         while !((err_V <= ε_V) && (err_∇V <= ε_∇V) && (err_T <= ε_T)) && (iter <= maxiter)
             @parallel compute_EII!(EII, Vx, Vy, Vz, ϕ, dx, dy, dz)
-            @parallel compute_P_τ!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, Vx, Vy, Vz, ϕ, r, μ_veτ, Gdτ, dx, dy, dz)
+            @parallel compute_P_τ_qT!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, qTx, qTy, qTz, Vx, Vy, Vz, μs, ϕ, T, vpdτ_mech, Re_mech, r_mech, max_lxyz, χ, θr_dτ, dx, dy, dz)
             @hide_communication b_width begin
-                @parallel compute_V!(Vx, Vy, Vz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dτ_ρ, dx, dy, dz)
-                update_halo!(Vx,Vy,Vz)
+                @parallel compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, μs0, ρgx, ρgy, ρgz, Ta, Q_R, T0, dt, npow, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
+                update_halo!(Vx,Vy,Vz,qTx,qTy,qTz,μs)
             end
             iter += 1
             if iter % nchk == 0
-                @parallel compute_Res!(Rx, Ry, Rz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dx, dy, dz)
+                @parallel compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, dt, dx, dy, dz)
                 norm_Rx = norm_g(Rx)/psc*lz/sqrt(len_g)
                 norm_Ry = norm_g(Ry)/psc*lz/sqrt(len_g)
                 norm_Rz = norm_g(Rz)/psc*lz/sqrt(len_g)
@@ -282,15 +357,15 @@ end
                 GC.gc() # force garbage collection
             end
         end
-        if do_save
+        if do_save && (it % nsave == 0)
             dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
-            @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
-            @parallel apply_mask!(Vn, τII, Ptv, EIIv, Tv, μsv, ϕ)
+            @parallel preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
+            @parallel apply_mask!(Vn, τII, ϕ)
             out_h5 = joinpath(out_path,out_name)*".h5"
             I = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
-            (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
-            (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
-            fields = Dict("Vn"=>Vn,"TauII"=>τII,"Pr"=>Ptv,"Phi"=>ϕ[2:end-1,2:end-1,2:end-1])
+                                   (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
+                                   (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
+            fields = Dict("ϕ"=>inn(ϕ),"Vn"=>Vn,"τII"=>τII,"Pr"=>inn(Pt),"EII"=>inn(EII),"T"=>inn(T),"μ"=>inn(μs))
             (me==0) && print("Saving HDF5 file...")
             write_h5(out_h5,fields,dim_g,I,comm_cart,MPI.Info()) # comm_cart,MPI.Info() are varargs
             (me==0) && println(" done")
