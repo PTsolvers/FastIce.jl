@@ -90,12 +90,12 @@ macro dτ_ρ_mech_ay() esc(:( vpdτ_mech*max_lxy/Re_mech/@av_yi(μs) )) end
 
 macro fa(A)   esc(:( $A[$ix,$iy] == air )) end
 
-@parallel function compute_V_T!(Vx, Vy, T, μs, Pt, τxx, τyy, τxy, EII, T_o, qTx, qTy, ϕ, μs0, ρgx, ρgy, Ta, Q_R, T0, dt, npow, vpdτ_mech, max_lxy, Re_mech, dτ_ρ_heat, dx, dy)
+@parallel function compute_V_T!(Vx, Vy, T, μs, Pt, τxx, τyy, τxy, EII, T_o, qTx, qTy, ϕ, μs0, ρgx, ρgy, Ta, Q_R, T0, dt, npow, γ, vpdτ_mech, max_lxy, Re_mech, dτ_ρ_heat, dx, dy)
     @inn(Vx) = @sm_xi(ϕ)*( @inn(Vx) + @dτ_ρ_mech_ax()*(@d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) )
     @inn(Vy) = @sm_yi(ϕ)*( @inn(Vy) + @dτ_ρ_mech_ay()*(@d_yi(τyy)/dy + @d_xa(τxy)/dx - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy) )
     # thermo
     @all(T)  = (@all(T) + dτ_ρ_heat*(@all(T_o)/dt - @d_xa(qTx)/dx - @d_ya(qTy)/dy + 2.0*@all(μs)*@all(EII)))/(1.0 + dτ_ρ_heat/dt)
-    @all(μs) = (( @all(EII)^(1.0/npow-1.0) * exp(-Q_R*(1.0 - T0/@all(T))) )^(-1) + 1.0/μs0)^(-1)
+    @all(μs) = (1.0-γ)*@all(μs) + γ*(( @all(EII)^(1.0/npow-1.0) * exp(-Q_R*(1.0 - T0/@all(T))) )^(-1) + 1.0/μs0)^(-1)
     return
 end
 
@@ -207,6 +207,7 @@ end
     # numerics
     maxiter   = 100ny        # maximum number of pseudo-transient iterations
     nchk      = 4*ny         # error checking frequency
+    γ         = 1e-1
     ε_V       = 1e-6         # nonlinear absolute tolerance for momentum
     ε_∇V      = 1e-6         # nonlinear absolute tolerance for divergence
     ε_T       = 1e-8         # nonlinear absolute tolerance for temperature
@@ -272,7 +273,7 @@ end
         while !((err_V <= ε_V) && (err_∇V <= ε_∇V) && (err_T <= ε_T)) && (iter <= maxiter)
             @parallel compute_EII!(EII, Vx, Vy, ϕ, dx, dy)
             @parallel compute_P_τ_qT!(∇V, Pt, τxx, τyy, τxy, qTx, qTy, Vx, Vy, μs, ϕ, T, vpdτ_mech, Re_mech, r_mech, max_lxy, χ, θr_dτ, dx, dy)
-            @parallel compute_V_T!(Vx, Vy, T, μs, Pt, τxx, τyy, τxy, EII, T_o, qTx, qTy, ϕ, μs0, ρgx, ρgy, Ta, Q_R, T0, dt, npow, vpdτ_mech, max_lxy, Re_mech, dτ_ρ_heat, dx, dy)
+            @parallel compute_V_T!(Vx, Vy, T, μs, Pt, τxx, τyy, τxy, EII, T_o, qTx, qTy, ϕ, μs0, ρgx, ρgy, Ta, Q_R, T0, dt, npow, γ, vpdτ_mech, max_lxy, Re_mech, dτ_ρ_heat, dx, dy)
             iter += 1
             if iter % nchk == 0
                 @parallel compute_Res!(Rx, Ry, RT, Pt, τxx, τyy, τxy, T, T_o, qTx, qTy, EII, μs, ϕ, ρgx, ρgy, dt, dx, dy)
