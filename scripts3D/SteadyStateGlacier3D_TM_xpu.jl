@@ -1,4 +1,4 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 ###
 using ParallelStencil
@@ -225,13 +225,38 @@ end
     return
 end
 
+@parallel_indices (iy,iz) function bc_x!(A)
+    A[  1, iy,  iz] = A[    2,   iy,   iz]
+    A[end, iy,  iz] = A[end-1,   iy,   iz]
+    return
+end
+
+@parallel_indices (ix,iz) function bc_y!(A)
+    A[ ix,  1,  iz] = A[   ix,    2,   iz]
+    A[ ix,end,  iz] = A[   ix,end-1,   iz]
+    return
+end
+
+@parallel_indices (ix,iy) function bc_z!(A)
+    A[ ix,  iy,  1] = A[   ix,   iy,    2]
+    A[ ix,  iy,end] = A[   ix,   iy,end-1]
+    return
+end
+
+function apply_bc!(A)
+    @parallel (1:size(A,2), 1:size(A,3)) bc_x!(A)
+    @parallel (1:size(A,1), 1:size(A,3)) bc_y!(A)
+    @parallel (1:size(A,1), 1:size(A,2)) bc_z!(A)
+    return
+end
+
 @views function Stokes3D(dem)
     # inputs
     # nx,ny,nz  = 511,511,383      # local resolution
-    # nx,ny,nz  = 127,127,95       # local resolution
-    nx,ny,nz  = 63,63,31         # local resolution
+    nx,ny,nz  = 127,127,95       # local resolution
+    # nx,ny,nz  = 63,63,47         # local resolution
     nt        = 100              # number of timesteps
-    dim       = (1,1,2)          # MPI dims
+    dim       = (2,2,2)          # MPI dims
     ns        = 2                # number of oversampling per cell
     out_path  = "../out_visu"
     out_name  = "results"
@@ -266,20 +291,20 @@ end
     dt        = 1e-2*tsc
     Ta        = T0+0*ΔT
     # numerics
-    maxiter   = 50nz_g()      # maximum number of pseudo-transient iterations
-    nchk      = 2*nz_g()      # error checking frequency
+    maxiter   = 100*nz_g()    # maximum number of pseudo-transient iterations
+    nchk      = 6*nz_g()      # error checking frequency
     b_width   = (8,4,4)       # boundary width
     γ         = 1e-1
-    ε_V       = 1e-6         # nonlinear absolute tolerance for momentum
-    ε_∇V      = 1e-6         # nonlinear absolute tolerance for divergence
-    ε_T       = 1e-8         # nonlinear absolute tolerance for temperature
-    CFL_mech  = 0.5/sqrt(3)  # stability condition
-    CFL_heat  = 0.95/sqrt(3) # stability condition
-    Re_mech   = 2π           # Reynolds number                     (numerical parameter #1)
-    r_mech    = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
+    ε_V       = 1e-6          # nonlinear absolute tolerance for momentum
+    ε_∇V      = 1e-6          # nonlinear absolute tolerance for divergence
+    ε_T       = 1e-8          # nonlinear absolute tolerance for temperature
+    CFL_mech  = 0.5/sqrt(3)   # stability condition
+    CFL_heat  = 0.95/sqrt(3)  # stability condition
+    Re_mech   = 2π            # Reynolds number                     (numerical parameter #1)
+    r_mech    = 1.0           # Bulk to shear elastic modulus ratio (numerical parameter #2)
     Re_heat   = π + sqrt(π^2 + lx^2/χ/dt)  # Reynolds number for heat conduction (numerical parameter #1)
     # preprocessing
-    max_lxyz  = 0.25lz
+    max_lxyz  = 0.35lz
     vpdτ_mech = min(dx,dy,dz)*CFL_mech
     vpdτ_heat = min(dx,dy,dz)*CFL_heat
     dτ_ρ_heat = vpdτ_heat*max_lxyz/Re_heat/χ
@@ -308,8 +333,8 @@ end
     qTx       = @zeros(nx+1,ny  ,nz  )
     qTy       = @zeros(nx  ,ny+1,nz  )
     qTz       = @zeros(nx  ,ny  ,nz+1)
-    μs        = μs0 .* @ones(nx  ,ny  ,nz  )
-    T         = T0  .* @ones(nx  ,ny  ,nz  )
+    μs        = 1e1μs0 .* @ones(nx,ny,nz)
+    T         =    T0  .* @ones(nx,ny,nz)
     # set phases
     if (me==0) print("Set phases (0-air, 1-ice, 2-bedrock)...") end
     Rinv         = Data.Array(R')
@@ -336,10 +361,15 @@ end
         err_V=2*ε_V; err_∇V=2*ε_∇V; err_T=2*ε_T; iter=0; err_evo1=[]; err_evo2=[]
         while !((err_V <= ε_V) && (err_∇V <= ε_∇V) && (err_T <= ε_T)) && (iter <= maxiter)
             @parallel compute_EII!(EII, Vx, Vy, Vz, ϕ, dx, dy, dz)
-            @parallel compute_P_τ_qT!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, qTx, qTy, qTz, Vx, Vy, Vz, μs, ϕ, T, vpdτ_mech, Re_mech, r_mech, max_lxyz, χ, θr_dτ, dx, dy, dz)
+            apply_bc!(EII)
+            @hide_communication b_width begin
+                @parallel compute_P_τ_qT!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, qTx, qTy, qTz, Vx, Vy, Vz, μs, ϕ, T, vpdτ_mech, Re_mech, r_mech, max_lxyz, χ, θr_dτ, dx, dy, dz)
+                update_halo!(qTx,qTy,qTz,EII)
+            end
             @hide_communication b_width begin
                 @parallel compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, μs0, ρgx, ρgy, ρgz, Ta, Q_R, T0, dt, npow, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
-                update_halo!(Vx,Vy,Vz,qTx,qTy,qTz,μs)
+                apply_bc!(μs)
+                update_halo!(Vx,Vy,Vz,μs)
             end
             iter += 1
             if iter % nchk == 0

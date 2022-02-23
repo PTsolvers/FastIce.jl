@@ -169,6 +169,24 @@ end
     return
 end
 
+@parallel_indices (iy) function bc_x!(A)
+    A[1  , iy] = A[2    , iy]
+    A[end, iy] = A[end-1, iy]
+    return
+end
+
+@parallel_indices (ix) function bc_y!(A)
+    A[ix, 1  ] = A[ix, 2    ]
+    A[ix, end] = A[ix, end-1]
+    return
+end
+
+function apply_bc!(A)
+    @parallel (1:size(A,2)) bc_x!(A)
+    @parallel (1:size(A,1)) bc_y!(A)
+    return
+end
+
 @views function Stokes2D(dem)
     # inputs
     nx,ny     = 63,63         # local resolution
@@ -239,8 +257,8 @@ end
     T_o       = @zeros(nx  ,ny  )
     qTx       = @zeros(nx+1,ny  )
     qTy       = @zeros(nx  ,ny+1)
-    μs        = 1e2*μs0 .* @ones(nx  ,ny  )
-    T         = T0  .* @ones(nx  ,ny  )
+    μs        = 1e2*μs0 .* @ones(nx,ny)
+    T         =     T0  .* @ones(nx,ny)
     # set phases
     print("Set phases (0-air, 1-ice, 2-bedrock)...")
     Rinv      = Data.Array(R')
@@ -272,8 +290,10 @@ end
         err_V=2*ε_V; err_∇V=2*ε_∇V; err_T=2*ε_T; iter=0; err_evo1=[]; err_evo2=[]
         while !((err_V <= ε_V) && (err_∇V <= ε_∇V) && (err_T <= ε_T)) && (iter <= maxiter)
             @parallel compute_EII!(EII, Vx, Vy, ϕ, dx, dy)
+            apply_bc!(EII)
             @parallel compute_P_τ_qT!(∇V, Pt, τxx, τyy, τxy, qTx, qTy, Vx, Vy, μs, ϕ, T, vpdτ_mech, Re_mech, r_mech, max_lxy, χ, θr_dτ, dx, dy)
             @parallel compute_V_T_μ!(Vx, Vy, T, μs, Pt, τxx, τyy, τxy, EII, T_o, qTx, qTy, ϕ, μs0, ρgx, ρgy, Ta, Q_R, T0, dt, npow, γ, vpdτ_mech, max_lxy, Re_mech, dτ_ρ_heat, dx, dy)
+            apply_bc!(μs)
             iter += 1
             if iter % nchk == 0
                 @parallel compute_Res!(Rx, Ry, RT, Pt, τxx, τyy, τxy, T, T_o, qTx, qTy, EII, μs, ϕ, ρgx, ρgy, dt, dx, dy)
