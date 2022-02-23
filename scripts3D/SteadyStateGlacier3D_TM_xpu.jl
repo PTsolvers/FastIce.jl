@@ -107,7 +107,7 @@ macro Gdτ()          esc(:(vpdτ_mech*Re_mech*@all(μs)/max_lxyz/(r+2.0)    )) 
 macro Gdτ_av_xyi()   esc(:(vpdτ_mech*Re_mech*@av_xyi(μs)/max_lxyz/(r+2.0) )) end
 macro Gdτ_av_xzi()   esc(:(vpdτ_mech*Re_mech*@av_xzi(μs)/max_lxyz/(r+2.0) )) end
 macro Gdτ_av_yzi()   esc(:(vpdτ_mech*Re_mech*@av_yzi(μs)/max_lxyz/(r+2.0) )) end
-macro μ_veτ()        esc(:(1.0/(1.0/@Gdτ()    + 1.0/@all(μs))             )) end
+macro μ_veτ()        esc(:(1.0/(1.0/@Gdτ()        + 1.0/@all(μs))         )) end
 macro μ_veτ_av_xyi() esc(:(1.0/(1.0/@Gdτ_av_xyi() + 1.0/@av_xyi(μs))      )) end
 macro μ_veτ_av_xzi() esc(:(1.0/(1.0/@Gdτ_av_xzi() + 1.0/@av_xzi(μs))      )) end
 macro μ_veτ_av_yzi() esc(:(1.0/(1.0/@Gdτ_av_yzi() + 1.0/@av_yzi(μs))      )) end
@@ -139,8 +139,6 @@ macro fm_zi(A) esc(:( ($A[$ixi,$iyi,$iz] == fluid) && ($A[$ixi,$iyi,$iz+1] == fl
 macro dτ_ρ_mech_ax() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_xi(μs) )) end
 macro dτ_ρ_mech_ay() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_yi(μs) )) end
 macro dτ_ρ_mech_az() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_zi(μs) )) end
-
-macro fa(A)   esc(:( $A[$ix,$iy] == air )) end
 
 @parallel function compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, μs0, ρgx, ρgy, ρgz, Ta, Q_R, T0, dt, npow, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
     @inn(Vx) = @sm_xi(ϕ)*( @inn(Vx) + @dτ_ρ_mech_ax()*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) )
@@ -185,7 +183,6 @@ end
 
 @parallel_indices (ix,iy,iz) function set_phases!(ϕ,zsurf,zbed,R,ox,oy,oz,osx,osy,dx,dy,dz,dsx,dsy,cx,cy,cz)
     if checkbounds(Bool,ϕ,ix,iy,iz)
-        # TODO: figure out the origin translations
         ixg,iyg,izg = ix + cx*(size(ϕ,1)-2), iy + cy*(size(ϕ,2)-2), iz + cz*(size(ϕ,3)-2)
         xc,yc,zc    = ox + (ixg-1)*dx, oy + (iyg-1)*dy, oz + (izg-1)*dz
         xrot        = R[1,1]*xc + R[1,2]*yc + R[1,3]*zc
@@ -253,14 +250,14 @@ end
 @views function Stokes3D(dem)
     # inputs
     # nx,ny,nz  = 511,511,383      # local resolution
-    nx,ny,nz  = 127,127,95       # local resolution
-    # nx,ny,nz  = 63,63,47         # local resolution
-    nt        = 100              # number of timesteps
-    dim       = (2,2,2)          # MPI dims
+    # nx,ny,nz  = 127,127,95       # local resolution
+    nx,ny,nz  = 63,63,47         # local resolution
+    nt        = 1                # number of timesteps
+    dim       = (1,1,1)          # MPI dims
     ns        = 2                # number of oversampling per cell
     out_path  = "../out_visu"
-    out_name  = "results"
-    nsave     = 10
+    out_name  = "results3D_TM"
+    nsave     = 1
     # IGG initialisation
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3]) 
     # define domain
@@ -352,10 +349,10 @@ end
         Vn   = @zeros(nx-2,ny-2,nz-2)
         τII  = @zeros(nx-2,ny-2,nz-2)
     end
-    (me==0) && println(" done. Starting the real stuff 😎")
+    (me==0) && println(" done. Starting the real stuff 🚀")
     # time loop
     for it = 1:nt
-        if (me==0) @printf("# it = %d\n", it) end
+        if (me==0) @printf("➡ it = %d\n", it) end
         T_o .= T
         # iteration loop
         err_V=2*ε_V; err_∇V=2*ε_∇V; err_T=2*ε_T; iter=0; err_evo1=[]; err_evo2=[]

@@ -1,4 +1,4 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 ###
 using ParallelStencil
@@ -72,19 +72,17 @@ end
     return
 end
 
-@parallel function preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
+@parallel function preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
     # all arrays of size (nx-2,ny-2,nz-2)
     @all(Vn)  = sqrt(@av_xii(Vx)*@av_xii(Vx) + @av_yii(Vy)*@av_yii(Vy) + @av_zii(Vz)*@av_zii(Vz))
     @all(τII) = sqrt(0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy) + @inn(τzz)*@inn(τzz)) + @av_xya(τxy)*@av_xya(τxy) + @av_xza(τxz)*@av_xza(τxz) + @av_yza(τyz)*@av_yza(τyz))
-    @all(Ptv) = @inn(Pt)
     return
 end
 
-@parallel_indices (ix,iy,iz) function apply_mask!(Vn, τII, Ptv, ϕ)
+@parallel_indices (ix,iy,iz) function apply_mask!(Vn, τII, ϕ)
     if checkbounds(Bool,Vn,ix,iy,iz)
         if ϕ[ix+1,iy+1,iz+1] != fluid
              Vn[ix,iy,iz] = NaN
-            Ptv[ix,iy,iz] = NaN
             τII[ix,iy,iz] = NaN
         end
     end
@@ -98,7 +96,6 @@ end
 
 @parallel_indices (ix,iy,iz) function set_phases!(ϕ,zsurf,zbed,R,ox,oy,oz,osx,osy,dx,dy,dz,dsx,dsy,cx,cy,cz)
     if checkbounds(Bool,ϕ,ix,iy,iz)
-        # TODO: figure out the origin translations
         ixg,iyg,izg = ix + cx*(size(ϕ,1)-2), iy + cy*(size(ϕ,2)-2), iz + cz*(size(ϕ,3)-2)
         xc,yc,zc    = ox + (ixg-1)*dx, oy + (iyg-1)*dy, oz + (izg-1)*dz
         xrot        = R[1,1]*xc + R[1,2]*yc + R[1,3]*zc
@@ -146,7 +143,7 @@ end
     dim      = (1,1,1)          # MPI dims
     ns       = 2                # number of oversampling per cell
     out_path = "../out_visu"
-    out_name = "results"
+    out_name = "results3D_M"
     # IGG initialisation
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3]) 
     # define domain
@@ -173,11 +170,11 @@ end
     b_width  = (8,4,4)      # boundary width
     ε_V      = 1e-8         # nonlinear absolute tolerance for momentum
     ε_∇V     = 1e-8         # nonlinear absolute tolerance for divergence
-    CFL      = 0.95/sqrt(3) # stability condition
+    CFL      = 0.9/sqrt(3)  # stability condition
     Re       = 2π           # Reynolds number                     (numerical parameter #1)
     r        = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
     # preprocessing
-    max_lxyz = 0.25lz
+    max_lxyz = 0.35lz
     Vpdτ     = min(dx,dy,dz)*CFL
     dτ_ρ     = Vpdτ*max_lxyz/Re/μs0
     Gdτ      = Vpdτ^2/dτ_ρ/(r+2.0)
@@ -217,9 +214,8 @@ end
         (me==0) && !ispath(out_path) && mkdir(out_path)
         Vn  = @zeros(nx-2,ny-2,nz-2)
         τII = @zeros(nx-2,ny-2,nz-2)
-        Ptv = @zeros(nx-2,ny-2,nz-2)
     end
-    (me==0) && println(" done. Starting the real stuff 😎")
+    (me==0) && println(" done. Starting the real stuff 🚀")
     # iteration loop
     err_V=2*ε_V; err_∇V=2*ε_∇V; iter=0; err_evo1=[]; err_evo2=[]
     while !((err_V <= ε_V) && (err_∇V <= ε_∇V)) && (iter <= maxiter)
@@ -244,13 +240,13 @@ end
     end
     if do_save
         dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
-        @parallel preprocess_visu!(Vn, τII, Ptv, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, Pt)
-        @parallel apply_mask!(Vn, τII, Ptv, ϕ)
+        @parallel preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
+        @parallel apply_mask!(Vn, τII, ϕ)
         out_h5 = joinpath(out_path,out_name)*".h5"
         I = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
                                (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
                                (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
-        fields = Dict("Vn"=>Vn,"TauII"=>τII,"Pr"=>Ptv,"Phi"=>ϕ[2:end-1,2:end-1,2:end-1])
+        fields = Dict("ϕ"=>inn(ϕ),"Vn"=>Vn,"τII"=>τII,"Pr"=>inn(Pt))
         (me==0) && print("Saving HDF5 file...")
         write_h5(out_h5,fields,dim_g,I,comm_cart,MPI.Info()) # comm_cart,MPI.Info() are varargs
         (me==0) && println(" done")
