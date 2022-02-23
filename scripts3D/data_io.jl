@@ -13,8 +13,6 @@ function write_h5(path,fields,dim_g,I,args...)
 end
 
 function write_xdmf(path,h5_path,fields,origin,spacing,dim_g)
-    ox,oy,oz = origin
-    dx,dy,dz = spacing
     xdoc = XMLDocument()
     xroot = create_root(xdoc, "Xdmf")
     set_attribute(xroot, "Version","3.0")
@@ -33,13 +31,13 @@ function write_xdmf(path,h5_path,fields,origin,spacing,dim_g)
     set_attribute(xorig, "Format", "XML")
     set_attribute(xorig, "NumberType", "Float")
     set_attribute(xorig, "Dimensions", "$(length(dim_g)) ")
-    add_text(xorig, join((oz,oy,ox), ' '))
+    add_text(xorig, join(reverse(origin), ' '))
 
     xdr = new_child(xgeom, "DataItem")
     set_attribute(xdr, "Format", "XML")
     set_attribute(xdr, "NumberType", "Float")
     set_attribute(xdr, "Dimensions", "$(length(dim_g))")
-    add_text(xdr, join((dz,dy,dx), ' '))
+    add_text(xdr, join(reverse(spacing), ' '))
 
     for (name,_) ∈ fields
         create_xdmf_attribute(xgrid,h5_path,name,dim_g)
