@@ -252,12 +252,12 @@ end
     # nx,ny,nz  = 511,511,383      # local resolution
     # nx,ny,nz  = 127,127,95       # local resolution
     nx,ny,nz  = 63,63,47         # local resolution
-    nt        = 1                # number of timesteps
-    dim       = (1,1,1)          # MPI dims
+    nt        = 10                # number of timesteps
+    dim       = (2,2,2)          # MPI dims
     ns        = 2                # number of oversampling per cell
     out_path  = "../out_visu"
     out_name  = "results3D_TM"
-    nsave     = 1
+    nsave     = 2
     # IGG initialisation
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3]) 
     # define domain
@@ -285,7 +285,7 @@ end
     ρgx,ρgy,ρgz = ρgv
     χ         = 1e-3*ly^2/tsc # m^2/s = ly^3 * ρg0 / μs0
     T0        = T0_δT*ΔT
-    dt        = 1e-2*tsc
+    dt        = 5e-3*tsc
     Ta        = T0+0*ΔT
     # numerics
     maxiter   = 100*nz_g()    # maximum number of pseudo-transient iterations
@@ -350,7 +350,8 @@ end
         τII  = @zeros(nx-2,ny-2,nz-2)
     end
     (me==0) && println(" done. Starting the real stuff 🚀")
-    # time loop
+    # time 
+    ts = Float64[]; tt = 0.0; h5_names = String[]; isave = 1
     for it = 1:nt
         if (me==0) @printf("➡ it = %d\n", it) end
         T_o .= T
@@ -384,23 +385,26 @@ end
                 GC.gc() # force garbage collection
             end
         end
+        tt += dt
         if do_save && (it % nsave == 0)
             dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
             @parallel preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
             @parallel apply_mask!(Vn, τII, ϕ)
-            out_h5 = joinpath(out_path,out_name)*".h5"
+            out_h5 = joinpath(out_path,out_name)*"_$isave.h5"
             I = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
                                    (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
                                    (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
             fields = Dict("ϕ"=>inn(ϕ),"Vn"=>Vn,"τII"=>τII,"Pr"=>inn(Pt),"EII"=>inn(EII),"T"=>inn(T),"μ"=>inn(μs))
+            push!(ts,tt); push!(h5_names,out_h5)
             (me==0) && print("Saving HDF5 file...")
             write_h5(out_h5,fields,dim_g,I,comm_cart,MPI.Info()) # comm_cart,MPI.Info() are varargs
             (me==0) && println(" done")
             # write XDMF
             if me == 0
                 print("Saving XDMF file...")
-                write_xdmf(joinpath(out_path,out_name)*".xdmf3",out_h5,fields,(xc[1],yc[1],zc[1]),(dx,dy,dz),dim_g)
+                write_xdmf(joinpath(out_path,out_name)*".xdmf3",h5_names,fields,(xc[1],yc[1],zc[1]),(dx,dy,dz),dim_g,ts)
                 println(" done")
+                isave += 1
             end
         end
     end
@@ -409,4 +413,4 @@ end
 end
 
 # Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
-Stokes3D(generate_elevation(2.0,2.0,(-0.25,0.82),1/25,10π,tan(-π/12),0.1,0.9))
+Stokes3D(generate_elevation(2.0,2.0,(-0.25,0.85),1/25,10π,tan(-π/12),0.1,0.9))

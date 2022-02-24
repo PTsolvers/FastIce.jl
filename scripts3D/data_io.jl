@@ -1,14 +1,17 @@
 function write_h5(path,fields,dim_g,I,args...)
     if HDF5.has_parallel()
-        io = h5open(path, "w", args...)
+        # io = h5open(path, "w", args...)
     else
-        io = h5open(path, "w")
+        if (length(args)>0)  @warn("HDF5 has no parallel support.")  end
+        # io = h5open(path, "w")
     end
-    for (name,field) ∈ fields
-        dset               = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(dim_g))
-        dset[I.indices...] = Array(field)
+    h5open(path, "w", args...) do io
+        for (name,field) ∈ fields
+            dset               = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(dim_g))
+            dset[I.indices...] = Array(field)
+        end
     end
-    close(io)
+    # close(io)
     return
 end
 
