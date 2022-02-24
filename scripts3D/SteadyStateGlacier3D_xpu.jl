@@ -166,7 +166,7 @@ end
     ρgx,ρgy,ρgz = ρgv
     # numerics
     maxiter  = 50nz_g()     # maximum number of pseudo-transient iterations
-    nchk     = 5*nz_g()     # error checking frequency
+    nchk     = 2*nz_g()     # error checking frequency
     b_width  = (8,4,4)      # boundary width
     ε_V      = 1e-8         # nonlinear absolute tolerance for momentum
     ε_∇V     = 1e-8         # nonlinear absolute tolerance for divergence
@@ -262,4 +262,4 @@ end
 end
 
 # Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
-Stokes3D(generate_elevation(2.0,2.0,(-0.25,0.82),1/25,10π,tan(-π/12),0.1,0.9))
+Stokes3D(generate_elevation(2.0,2.0,(-0.25,0.85),1/25,10π,tan(-π/12),0.1,0.9))
