@@ -2,6 +2,7 @@ function write_h5(path,fields,dim_g,I,args...)
     if HDF5.has_parallel()
         io = h5open(path, "w", args...)
     else
+        if (length(args)>0)  @warn("HDF5 has no parallel support.")  end
         io = h5open(path, "w")
     end
     for (name,field) ∈ fields
