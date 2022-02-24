@@ -57,7 +57,6 @@ function write_xdmf(path,h5_names,fields,origin,spacing,dim_g,timesteps)
     return
 end
 
-
 function write_xdmf(path,h5_path,fields,origin,spacing,dim)
     xdoc = XMLDocument()
     xroot = create_root(xdoc, "Xdmf")

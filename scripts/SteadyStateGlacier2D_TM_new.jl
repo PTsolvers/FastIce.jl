@@ -31,7 +31,6 @@ macro av_yii(A) esc(:( 0.5*($A[$ixi,$iyi] + $A[$ixi  ,$iyi+1  ]) )) end
 macro fm(A)   esc(:( $A[$ix,$iy] == fluid )) end
 macro fmxy(A) esc(:( !($A[$ix,$iy] == air || $A[$ix+1,$iy] == air || $A[$ix,$iy+1] == air || $A[$ix+1,$iy+1] == air) )) end
 
-
 @parallel_indices (ix,iy) function compute_EII!(EII, Vx, Vy, ϕ, dx, dy)
     nfluid = 0
     exy    = 0.0; exx = 0.0; eyy = 0.0
