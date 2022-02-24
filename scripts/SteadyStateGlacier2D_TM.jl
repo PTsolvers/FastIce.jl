@@ -189,7 +189,7 @@ end
 @views function Stokes2D(dem)
     # inputs
     nx,ny     = 127, 127      # local resolution
-    nt        = 1000          # number of time steps
+    nt        = 200           # number of time steps
     ns        = 2             # number of oversampling per cell
     out_path  = "../out_visu"
     out_name  = "results2D_TM"
