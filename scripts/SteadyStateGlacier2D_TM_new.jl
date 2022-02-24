@@ -169,8 +169,8 @@ end
 
 @views function Stokes2D(dem)
     # inputs
-    nx,ny    = 63,63         # local resolution
-    nt       = 100           # number of time steps
+    nx,ny    = 127,127       # local resolution
+    nt       = 1000          # number of time steps
     ns       = 2             # number of oversampling per cell
     out_path = "../out_visu"
     out_name = "results2D"
@@ -199,7 +199,7 @@ end
     ρgx,ρgy  = ρgv
     χ        = 1e-3*ly^2/tsc # m^2/s = ly^3 * ρg0 / μs0
     T0       = T0_δT*ΔT
-    dt       = 1e-2*tsc
+    dt       = 5e-3*tsc
     Ta       = T0+0*ΔT
     # numerics
     maxiter  = 50ny         # maximum number of pseudo-transient iterations
@@ -213,7 +213,7 @@ end
     r_mech   = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
     Re_heat  = π + sqrt(π^2 + lx^2/χ/dt)  # Reynolds number for heat conduction (numerical parameter #1)
     # preprocessing
-    max_lxy = 0.25ly
+    max_lxy = 0.75ly
     vpdτ_mech = min(dx,dy)*CFL_mech
     vpdτ_heat = min(dx,dy)*CFL_heat
     dτ_ρ_heat = vpdτ_heat*max_lxy/Re_heat/χ
@@ -260,7 +260,8 @@ end
         μsv  = @zeros(nx-2,ny-2)
     end
     println(" done. Starting the real stuff 😎")
-    # time loop
+    # time 
+    ts = Float64[]; tt = 0.0; h5_names = String[]; isave = 1
     for it = 1:nt
         @printf("# it = %d\n", it)
         T_o .= T
@@ -284,19 +285,22 @@ end
                 @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e], err_∇V = %1.3e, err_T = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, err_∇V, err_T)
             end
         end
+        tt += dt
         if do_save && (it % nsave == 0)
             @parallel preprocess_visu!(Vn, τII, Ptv, EIIv, Tv, μsv, Vx, Vy, τxx, τyy, τxy, Pt, EII, T, μs)
             @parallel apply_mask!(Vn, τII, Ptv, EIIv, Tv, μsv, ϕ)
-            out_h5 = joinpath(out_path,out_name)*".h5"
+            out_h5 = joinpath(out_path,out_name)*"_$isave.h5"
             I = CartesianIndices(( 1:nx-2, 1:ny-2 ))
             fields = Dict("Phi"=>ϕ[2:end-1,2:end-1],"Vn"=>Vn,"τII"=>τII,"Pr"=>Ptv,"EII"=>EIIv,"T"=>Tv,"μ"=>μsv)
+            push!(ts,tt); push!(h5_names,out_h5)
             print("Saving HDF5 file...")
             write_h5(out_h5,fields,(nx-2,ny-2),I) # comm_cart,MPI.Info() are varargs
             println(" done")
             # write XDMF
             print("Saving XDMF file...")
-            write_xdmf(joinpath(out_path,out_name)*".xdmf3",out_h5,fields,(xc[1],yc[1]),(dx,dy),(nx-2,ny-2))
+            write_xdmf(joinpath(out_path,out_name)*".xdmf3",h5_names,fields,(xc[1],yc[1]),(dx,dy),(nx-2,ny-2),ts)
             println(" done")
+            isave += 1
         end
     end
     return
