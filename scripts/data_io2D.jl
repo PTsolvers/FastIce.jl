@@ -1,15 +1,13 @@
 function write_h5(path,fields,dim_g,I,args...)
-    if HDF5.has_parallel()
-        io = h5open(path, "w", args...)
-    else
-        if (length(args)>0)  @warn("HDF5 has no parallel support.")  end
-        io = h5open(path, "w")
+    if !HDF5.has_parallel() && (length(args)>0)
+        @warn("HDF5 has no parallel support.")
     end
-    for (name,field) ∈ fields
-        dset               = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(dim_g))
-        dset[I.indices...] = Array(field)
+    h5open(path, "w", args...) do io
+        for (name,field) ∈ fields
+            dset               = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(dim_g))
+            dset[I.indices...] = Array(field)
+        end
     end
-    close(io)
     return
 end
 
@@ -102,6 +100,6 @@ function create_xdmf_attribute(xgrid,h5_path,name,dim)
     set_attribute(xdata, "NumberType", "Float")
     set_attribute(xdata, "Precision", "8")
     set_attribute(xdata, "Dimensions", join(reverse(dim), ' '))
-    add_text(xdata, "$h5_path:/$name")
+    add_text(xdata, "$(h5_path):/$name")
     return xattr
 end

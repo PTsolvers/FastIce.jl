@@ -1,6 +1,6 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
-const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 7
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
+const gpu_id  = haskey(ENV, "GPU_ID" ) ? parse(Int , ENV["GPU_ID" ]) : 7
 ###
 using ParallelStencil
 using ParallelStencil.FiniteDifferences2D
@@ -188,7 +188,7 @@ end
 
 @views function Stokes2D(dem)
     # inputs
-    nx,ny     = 127, 127      # local resolution
+    nx,ny     = 255, 255      # local resolution
     nt        = 200           # number of time steps
     ns        = 2             # number of oversampling per cell
     out_path  = "../out_visu"
@@ -321,7 +321,7 @@ end
             println(" done")
             # write XDMF
             print("Saving XDMF file...")
-            write_xdmf(joinpath(out_path,out_name)*".xdmf3",h5_names,fields,(xc[1],yc[1]),(dx,dy),(nx-2,ny-2),ts)
+            write_xdmf(joinpath(out_path,out_name)*".xdmf3",h5_names,fields,(xc[2],yc[2]),(dx,dy),(nx-2,ny-2),ts)
             println(" done")
             isave += 1
         end
