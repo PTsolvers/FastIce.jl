@@ -145,7 +145,8 @@ end
     out_path = "../out_visu"
     out_name = "results3D_M"
     # IGG initialisation
-    me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3]) 
+    me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3])
+    info     = MPI.Info()
     # define domain
     domain   = dilate(rotated_domain(dem), (0.05, 0.05, 0.05))
     lx,ly,lz = extents(domain)
@@ -248,12 +249,12 @@ end
                                (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
         fields = Dict("ϕ"=>inn(ϕ),"Vn"=>Vn,"τII"=>τII,"Pr"=>inn(Pt))
         (me==0) && print("Saving HDF5 file...")
-        write_h5(out_h5,fields,dim_g,I,comm_cart,MPI.Info()) # comm_cart,MPI.Info() are varargs
+        write_h5(out_h5,fields,dim_g,I,comm_cart,info) # comm_cart,MPI.Info() are varargs
         (me==0) && println(" done")
         # write XDMF
         if me == 0
             print("Saving XDMF file...")
-            write_xdmf(joinpath(out_path,out_name)*".xdmf3",out_h5,fields,(xc[1],yc[1],zc[1]),(dx,dy,dz),dim_g)
+            write_xdmf(joinpath(out_path,out_name)*".xdmf3",out_h5,fields,(xc[2],yc[2],zc[2]),(dx,dy,dz),dim_g)
             println(" done")
         end
     end

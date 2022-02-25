@@ -250,16 +250,17 @@ end
 @views function Stokes3D(dem)
     # inputs
     # nx,ny,nz  = 511,511,383      # local resolution
-    # nx,ny,nz  = 127,127,95       # local resolution
-    nx,ny,nz  = 63,63,47         # local resolution
-    nt        = 10                # number of timesteps
+    nx,ny,nz  = 127,127,95       # local resolution
+    # nx,ny,nz  = 63,63,47         # local resolution
+    nt        = 500                # number of timesteps
     dim       = (2,2,2)          # MPI dims
     ns        = 2                # number of oversampling per cell
     out_path  = "../out_visu"
     out_name  = "results3D_TM"
-    nsave     = 2
+    nsave     = 10
     # IGG initialisation
-    me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3]) 
+    me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3])
+    info      = MPI.Info()
     # define domain
     domain    = dilate(rotated_domain(dem), (0.05, 0.05, 0.05))
     lx,ly,lz  = extents(domain)
@@ -283,7 +284,7 @@ end
     ## dimensionally dependent
     ρgv       = ρg0*R'*[0,0,1]
     ρgx,ρgy,ρgz = ρgv
-    χ         = 1e-3*ly^2/tsc # m^2/s = ly^3 * ρg0 / μs0
+    χ         = 1e-2*ly^2/tsc # m^2/s = ly^3 * ρg0 / μs0
     T0        = T0_δT*ΔT
     dt        = 5e-3*tsc
     Ta        = T0+0*ΔT
@@ -397,15 +398,15 @@ end
             fields = Dict("ϕ"=>inn(ϕ),"Vn"=>Vn,"τII"=>τII,"Pr"=>inn(Pt),"EII"=>inn(EII),"T"=>inn(T),"μ"=>inn(μs))
             push!(ts,tt); push!(h5_names,out_h5)
             (me==0) && print("Saving HDF5 file...")
-            write_h5(out_h5,fields,dim_g,I,comm_cart,MPI.Info()) # comm_cart,MPI.Info() are varargs
+            write_h5(out_h5,fields,dim_g,I,comm_cart,info) # comm_cart,MPI.Info() are varargs
             (me==0) && println(" done")
             # write XDMF
-            if me == 0
+            if me==0
                 print("Saving XDMF file...")
-                write_xdmf(joinpath(out_path,out_name)*".xdmf3",h5_names,fields,(xc[1],yc[1],zc[1]),(dx,dy,dz),dim_g,ts)
+                write_xdmf(joinpath(out_path,out_name)*".xdmf3",h5_names,fields,(xc[2],yc[2],zc[2]),(dx,dy,dz),dim_g,ts)
                 println(" done")
-                isave += 1
             end
+            isave += 1
         end
     end
     finalize_global_grid()
