@@ -398,7 +398,7 @@ end
             fields = Dict("ϕ"=>inn(ϕ),"Vn"=>Vn,"τII"=>τII,"Pr"=>inn(Pt),"EII"=>inn(EII),"T"=>inn(T),"μ"=>inn(μs))
             push!(ts,tt); push!(h5_names,out_h5)
             (me==0) && print("Saving HDF5 file...")
-            write_h5(out_h5,fields,dim_g,I,comm_cart,info) # comm_cart,MPI.Info() are varargs
+            write_h5(out_h5,fields,dim_g,I,comm_cart,info) # comm_cart,MPI.Info() are varargs to exclude if using non-parallel HDF5 lib
             (me==0) && println(" done")
             # write XDMF
             if me==0

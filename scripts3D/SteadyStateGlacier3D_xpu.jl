@@ -249,7 +249,7 @@ end
                                (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
         fields = Dict("ϕ"=>inn(ϕ),"Vn"=>Vn,"τII"=>τII,"Pr"=>inn(Pt))
         (me==0) && print("Saving HDF5 file...")
-        write_h5(out_h5,fields,dim_g,I,comm_cart,info) # comm_cart,MPI.Info() are varargs
+        write_h5(out_h5,fields,dim_g,I,comm_cart,info) # comm_cart,MPI.Info() are varargs to exclude if using non-parallel HDF5 lib
         (me==0) && println(" done")
         # write XDMF
         if me == 0
