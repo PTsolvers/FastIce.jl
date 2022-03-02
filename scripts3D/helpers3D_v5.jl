@@ -117,7 +117,8 @@ function evaluate(dem::SyntheticElevation, x::AbstractVector, y::AbstractVector)
 end
 
 
-generate_z_surf(x,y,gl) = (gl*gl - (x+0.1*gl)*(x+0.1*gl))
+# generate_z_surf(x,y,gl) = (gl*gl - (x+0.2*gl)*(x+0.2*gl)*0.85^2 - (y*gl)*(y*gl)*0.7^2)
+generate_z_surf(x,y,gl) = gl^2 - ((x+0.2*gl)*0.85)^2 - ((y*gl)*0.5)^2
 generate_z_bed(x,y,lx,ly,amp,ω,tanβ,el) = amp*sin(ω*x/lx)*sin(ω*y/ly) + tanβ*x + el + y^2/ly
 
 

@@ -25,14 +25,14 @@ function write_xdmf(path,h5_names,fields,origin,spacing,dim_g,timesteps)
         xgrid   = new_child(xcollection, "Grid")
         set_attribute(xgrid, "GridType","Uniform")
         xtopo = new_child(xgrid, "Topology")
-        set_attribute(xtopo, "TopologyType", "3DCoRectMesh")
+        set_attribute(xtopo, "TopologyType", "2DCoRectMesh")
         set_attribute(xtopo, "Dimensions", join(reverse(dim_g).+1,' '))
 
         xtime = new_child(xgrid, "Time")
         set_attribute(xtime, "Value", "$tt")
 
         xgeom = new_child(xgrid, "Geometry")
-        set_attribute(xgeom, "GeometryType", "ORIGIN_DXDYDZ")
+        set_attribute(xgeom, "GeometryType", "ORIGIN_DXDY")
 
         xorig = new_child(xgeom, "DataItem")
         set_attribute(xorig, "Format", "XML")
@@ -56,7 +56,7 @@ function write_xdmf(path,h5_names,fields,origin,spacing,dim_g,timesteps)
     return
 end
 
-function write_xdmf(path,h5_path,fields,origin,spacing,dim_g)
+function write_xdmf(path,h5_path,fields,origin,spacing,dim)
     xdoc = XMLDocument()
     xroot = create_root(xdoc, "Xdmf")
     set_attribute(xroot, "Version","3.0")
@@ -65,32 +65,32 @@ function write_xdmf(path,h5_path,fields,origin,spacing,dim_g)
     xgrid   = new_child(xdomain, "Grid")
     set_attribute(xgrid, "GridType","Uniform")
     xtopo = new_child(xgrid, "Topology")
-    set_attribute(xtopo, "TopologyType", "3DCoRectMesh")
-    set_attribute(xtopo, "Dimensions", join(reverse(dim_g).+1,' '))
+    set_attribute(xtopo, "TopologyType", "2DCoRectMesh")
+    set_attribute(xtopo, "Dimensions", join(reverse(dim).+1,' '))
 
     xgeom = new_child(xgrid, "Geometry")
-    set_attribute(xgeom, "GeometryType", "ORIGIN_DXDYDZ")
+    set_attribute(xgeom, "GeometryType", "ORIGIN_DXDY")
 
     xorig = new_child(xgeom, "DataItem")
     set_attribute(xorig, "Format", "XML")
     set_attribute(xorig, "NumberType", "Float")
-    set_attribute(xorig, "Dimensions", "$(length(dim_g)) ")
+    set_attribute(xorig, "Dimensions", "$(length(dim)) ")
     add_text(xorig, join(reverse(origin), ' '))
 
     xdr = new_child(xgeom, "DataItem")
     set_attribute(xdr, "Format", "XML")
     set_attribute(xdr, "NumberType", "Float")
-    set_attribute(xdr, "Dimensions", "$(length(dim_g))")
+    set_attribute(xdr, "Dimensions", "$(length(dim))")
     add_text(xdr, join(reverse(spacing), ' '))
 
     for (name,_) ∈ fields
-        create_xdmf_attribute(xgrid,h5_path,name,dim_g)
+        create_xdmf_attribute(xgrid,h5_path,name,dim)
     end
     save_file(xdoc, path)
     return
 end
 
-function create_xdmf_attribute(xgrid,h5_path,name,dim_g)
+function create_xdmf_attribute(xgrid,h5_path,name,dim)
     # TODO: solve type and precision
     xattr = new_child(xgrid, "Attribute")
     set_attribute(xattr, "Name", name)
@@ -99,7 +99,7 @@ function create_xdmf_attribute(xgrid,h5_path,name,dim_g)
     set_attribute(xdata, "Format", "HDF")
     set_attribute(xdata, "NumberType", "Float")
     set_attribute(xdata, "Precision", "8")
-    set_attribute(xdata, "Dimensions", join(reverse(dim_g), ' '))
+    set_attribute(xdata, "Dimensions", join(reverse(dim), ' '))
     add_text(xdata, "$(h5_path):/$name")
     return xattr
 end
