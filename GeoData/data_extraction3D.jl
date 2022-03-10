@@ -31,7 +31,7 @@ end
 """
     extract_geodata(type::DataType, dat_name::String)
 
-Extract geadata and return elevation maps, rotation matrix and origin.
+Extract geadata and return bedrock and surface elevation maps, spatial coords and bounding-box rotation matrix.
 
 # Arguments
 - `type::DataType`: desired data type for elevation data

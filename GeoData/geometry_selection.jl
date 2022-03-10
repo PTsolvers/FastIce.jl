@@ -1,3 +1,5 @@
+using Pkg
+Pkg.activate(".")
 using DBFTables, DataFrames, Shapefile, Rasters, Plots
 
 "Helper function to mask, trim and pad bedrock and ice thickness data given a glacier polygon."
@@ -21,9 +23,21 @@ name    = "Rhone"
 # SGI_ID  = "B73/14"
 # name    = "Arolla"
 
-padding = 10
+"""
+    geom_select(SGI_ID::String, name::String; padding::Int=10, do_vis=true, do_save=true)
 
-@views function geom_select(SGI_ID::String, name::String, padding::Int; do_vis=true, do_save=true)
+Select ice thickness, surface and bedrock elevation data for a given Alpine glacier based on SGI ID.
+
+# Arguments
+- `SGI_ID::String`: desired data type for elevation data
+- `name::String`: input data file
+
+# Optional keyword args
+- `padding::Int=10`: padding around the glacier geometry
+- `do_vis=true`: do visualisation
+- `do_save=true`: save output to HDF5
+"""
+@views function geom_select(SGI_ID::String, name::String; padding::Int=10, do_vis=true, do_save=true)
     # find glacier ID
     df  = DataFrame(DBFTables.Table("../data/alps_sgi/swissTLM3D_TLM_GLAMOS.dbf"))
     ID  = df[in([SGI_ID]).(df.SGI),:TLM_BODENB] # and not :UUID field!
@@ -77,4 +91,4 @@ padding = 10
     return IceThick_cr0, SurfElev_cr, BedElev_cr
 end
 
-@time geom_select(SGI_ID, name, padding; do_vis=true)
+@time geom_select(SGI_ID, name)
