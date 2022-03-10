@@ -1,6 +1,8 @@
 # GeoData
 Helper functions to select Alpine glacier geometry based on [SGI catalogue data ID](data/SwissGlacierThickness2020.pdf) and to preprocess related elevation data.
 
+<img src="docs/images/fig_Rhone.png" alt="Rhone glacier data" width="600">
+
 ## Workflow
 ### Geometry selection
 First run the [geometry_selection.jl](GeoData/geometry_selection.jl) script to extract, for a given glacier outline, the following data which will be saved as GeoTif (`.tif`):
