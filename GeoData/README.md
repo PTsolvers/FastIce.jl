@@ -1,7 +1,7 @@
 # GeoData
-Helper functions to select Alpine glacier geometry based on [SGI catalogue data ID](data/SwissGlacierThickness2020.pdf) and to preprocess related elevation data.
+Helper functions to select Alpine glacier geometry based on [SGI catalogue data ID](../data/SwissGlacierThickness2020.pdf) and to preprocess related elevation data.
 
-<img src="docs/images/fig_Rhone.png" alt="Rhone glacier data" width="600">
+<img src="../docs/images/fig_Rhone.png" alt="Rhone glacier data" width="600">
 
 ## Workflow
 ### Geometry selection
