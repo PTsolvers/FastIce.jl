@@ -1,7 +1,8 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : false
+const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 ###
 using ParallelStencil
+using ParallelStencil.FiniteDifferences2D
 @static if USE_GPU
     @init_parallel_stencil(CUDA, Float64, 2)
 else
@@ -57,22 +58,23 @@ macro μ_veτ()    esc(:(1.0/(1.0/@Gdτ()    + 1.0/@all(μs))         )) end
 macro μ_veτ_av() esc(:(1.0/(1.0/@Gdτ_av() + 1.0/@av(μs))          )) end
 
 @parallel_indices (ix,iy) function compute_P_τ_qT!(∇V, Pt, τxx, τyy, τxy, qTx, qTy, Vx, Vy, μs, ϕ, T, vpdτ_mech, Re_mech, r, max_lxy, χ, θr_dτ, dx, dy)
-        @in_phase ϕ fluid begin
-            @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy
-            @all(Pt)  = @all(Pt) - r*@Gdτ()*@all(∇V)
-            @all(τxx) = 2.0*@μ_veτ()*(@d_xa(Vx)/dx + @all(τxx)/@Gdτ()/2.0)
-            @all(τyy) = 2.0*@μ_veτ()*(@d_ya(Vy)/dy + @all(τyy)/@Gdτ()/2.0)
-        end
-        @in_phases_xy ϕ fluid fluid fluid fluid begin
-            @all(τxy) = 2.0*@μ_veτ_av()*(0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) + @all(τxy)/@Gdτ_av()/2.0)
-        end
-        # thermo
-        @within_x ϕ begin
-            @inn_x(qTx) = (@inn_x(qTx) * θr_dτ - χ*@d_xa(T)/dx) / (θr_dτ + 1.0)
-        end
-        @within_y ϕ begin
-            @inn_y(qTy) = (@inn_y(qTy) * θr_dτ - χ*@d_ya(T)/dy) / (θr_dτ + 1.0)
-        end
+    @define_indices ix iy
+    @in_phase ϕ fluid begin
+        @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy
+        @all(Pt)  = @all(Pt) - r*@Gdτ()*@all(∇V)
+        @all(τxx) = 2.0*@μ_veτ()*(@d_xa(Vx)/dx + @all(τxx)/@Gdτ()/2.0)
+        @all(τyy) = 2.0*@μ_veτ()*(@d_ya(Vy)/dy + @all(τyy)/@Gdτ()/2.0)
+    end
+    @in_phases_xy ϕ fluid fluid fluid fluid begin
+        @all(τxy) = 2.0*@μ_veτ_av()*(0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx) + @all(τxy)/@Gdτ_av()/2.0)
+    end
+    # thermo
+    @within_x ϕ begin
+        @inn_x(qTx) = (@inn_x(qTx) * θr_dτ - χ*@d_xa(T)/dx) / (θr_dτ + 1.0)
+    end
+    @within_y ϕ begin
+        @inn_y(qTy) = (@inn_y(qTy) * θr_dτ - χ*@d_ya(T)/dy) / (θr_dτ + 1.0)
+    end
     return
 end
 
@@ -83,6 +85,7 @@ macro dτ_ρ_mech_ax() esc(:( vpdτ_mech*max_lxy/Re_mech/@av_xi(μs) )) end
 macro dτ_ρ_mech_ay() esc(:( vpdτ_mech*max_lxy/Re_mech/@av_yi(μs) )) end
 
 @parallel_indices (ix,iy) function compute_V_T!(Vx, Vy, T, μs, Pt, τxx, τyy, τxy, EII, T_o, qTx, qTy, ϕ, μs0, ρgx, ρgy, Ta, Q_R, T0, dt, vpdτ_mech, max_lxy, Re_mech, dτ_ρ_heat, dx, dy)
+    @define_indices ix iy
     @not_in_phases_xi ϕ solid solid begin
         @inn(Vx) = @inn(Vx) + @dτ_ρ_mech_ax()*(@d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx)
     end
@@ -98,6 +101,7 @@ macro dτ_ρ_mech_ay() esc(:( vpdτ_mech*max_lxy/Re_mech/@av_yi(μs) )) end
 end
 
 @parallel_indices (ix,iy) function compute_Res!(Rx, Ry, RT, Pt, τxx, τyy, τxy, T, T_o, qTx, qTy, EII, μs, ϕ, ρgx, ρgy, dt, dx, dy)
+    @define_indices ix iy
     @not_in_phases_xi ϕ solid solid begin
         @all(Rx) = @d_xi(τxx)/dx + @d_ya(τxy)/dy - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx
     end
@@ -115,6 +119,7 @@ macro av_xii(A) esc(:( 0.5*($A[ix+1,iy+1] + $A[ix+2,iy+1]) )) end
 macro av_yii(A) esc(:( 0.5*($A[ix+1,iy+1] + $A[ix+1,iy+2]) )) end
 
 @parallel_indices (ix,iy) function preprocess_visu!(Vn, τII, Ptv, EIIv, Tv, μsv, Vx, Vy, τxx, τyy, τxy, Pt, EII, T, μs)
+    @define_indices ix iy
     if ix <= size(τxy,1)-1 && iy <= size(τxy,2)-1
         # all arrays of size (nx-2,ny-2)
         @all(Vn)   = sqrt(@av_xii(Vx)*@av_xii(Vx) + @av_yii(Vy)*@av_yii(Vy))
