@@ -5,7 +5,7 @@ Helper functions to select Alpine glacier geometry based on [SGI catalogue data 
 
 ## Workflow
 ### Geometry selection
-First run the [geometry_selection.jl](GeoData/geometry_selection.jl) script to extract, for a given glacier outline, the following data which will be saved as GeoTif (`.tif`):
+First run the [geometry_selection.jl](geometry_selection.jl) script to extract, for a given glacier outline, the following data which will be saved as GeoTif (`.tif`):
 - Ice thickness
 - Surface elevation
 - Bedrock elevation
@@ -24,7 +24,7 @@ The `alps_sgi` folder size is about 6 GB and can be [downloaded here (dropbox)](
 The `geom_select` function takes as argument the glacier `SGI_ID` and the corresponding name `name`. As keyword args, one can modify `padding`, and switch-off viualisation `do_vis=false` or saving `do_save=false`. Type `? geom_select` in the REPL for more details.
 
 ### Data extraction
-The [data_extraction.jl](GeoData/data_extraction.jl) function extracts geadata and returns bedrock and surface elevation maps, spatial coords and bounding-box rotation matrix, taking as input the ice thickness and bedrock elevation data generated in the previous step.
+The [data_extraction.jl](data_extraction.jl) function extracts geadata and returns bedrock and surface elevation maps, spatial coords and bounding-box rotation matrix, taking as input the ice thickness and bedrock elevation data generated in the previous step.
 
 This step outputs an HDF5 file conataining, e.g., the following fields to be further used as input for numerical simulation:
 ```julia-repl
