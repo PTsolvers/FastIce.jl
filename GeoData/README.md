@@ -19,7 +19,7 @@ The `geom_select` function expects the following data to be available in a `data
 - swissTLM3D_TLM_BODENBEDECKUNG_west.shp
 - swissTLM3D_TLM_GLAMOS.dbf
 
-The `alps_sgi` folder size is about 6 GB and can be [downloaded here (dropbox)](https://www.dropbox.com/s/3htehzra9bv6j75/alps_sgi.zip?dl=0). Upon download, unzip and place it in the `data` folder. The Sources
+The `alps_sgi` folder size is about 6 GB and can be [downloaded here (dropbox)](https://www.dropbox.com/s/3htehzra9bv6j75/alps_sgi.zip?dl=0). Upon download, unzip and place it in the `data` folder. _See [Sources](#sources) for references._
 
 The `geom_select` function takes as argument the glacier `SGI_ID` and the corresponding name `name`. As keyword args, one can modify `padding`, and switch-off viualisation `do_vis=false` or saving `do_save=false`. Type `? geom_select` in the REPL for more details.
 
@@ -40,8 +40,8 @@ This step outputs an HDF5 file conataining, e.g., the following fields to be fur
 ## Sources
 The sources of the files contained in the Dropbox folder for download are:
 - [Swisstopo swissTLM3D](https://www.swisstopo.admin.ch/en/geodata/landscape/tlm3d.html#download)
-  - swissTLM3D_TLM_*.dbf ([swisstlm3d_2022-03_2056_5728.shp.zip](https://data.geo.admin.ch/ch.swisstopo.swisstlm3d/swisstlm3d_2022-03/swisstlm3d_2022-03_2056_5728.shp.zip) - located in `TLM_BB` upon unzip)
+  - swissTLM3D_TLM_*.dbf | [swisstlm3d_2022-03_2056_5728.shp.zip](https://data.geo.admin.ch/ch.swisstopo.swisstlm3d/swisstlm3d_2022-03/swisstlm3d_2022-03_2056_5728.shp.zip) (located in `TLM_BB` upon unzip)
 
 - [Swiss Glacier Thickness – Release 2020 (ETH Research Collection)](https://www.research-collection.ethz.ch/handle/20.500.11850/434697)
-  - IceThickness.tif ([04_IceThickness_SwissAlps.zip (ZIP, 1.605Gb)](https://www.research-collection.ethz.ch/bitstream/handle/20.500.11850/434697/04_IceThickness_SwissAlps.zip?sequence=10&isAllowed=y))
-  - SwissALTI3D_r2019.tif ([08_SurfaceElevation_SwissAlps.zip (ZIP, 1.837Gb)](https://www.research-collection.ethz.ch/bitstream/handle/20.500.11850/434697/08_SurfaceElevation_SwissAlps.zip?sequence=41&isAllowed=y))
+  - IceThickness.tif | [04_IceThickness_SwissAlps.zip (ZIP, 1.605Gb)](https://www.research-collection.ethz.ch/bitstream/handle/20.500.11850/434697/04_IceThickness_SwissAlps.zip?sequence=10&isAllowed=y)
+  - SwissALTI3D_r2019.tif | [08_SurfaceElevation_SwissAlps.zip (ZIP, 1.837Gb)](https://www.research-collection.ethz.ch/bitstream/handle/20.500.11850/434697/08_SurfaceElevation_SwissAlps.zip?sequence=41&isAllowed=y)
