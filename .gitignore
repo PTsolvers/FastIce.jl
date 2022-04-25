@@ -24,7 +24,6 @@ docs/site/
 Manifest.toml
 .DS_Store
 .vscode
-figs/
 out_visu/
 gitignore/
 data/alps_sgi/
