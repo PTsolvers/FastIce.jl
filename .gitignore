@@ -26,4 +26,5 @@ Manifest.toml
 .vscode
 out_visu/
 gitignore/
+data/alps/
 data/alps_sgi/
