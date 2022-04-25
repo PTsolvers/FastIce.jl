@@ -1,7 +1,7 @@
 # FastIce.jl
 Parallel (multi-)XPU iterative fast ice flow solvers
 
-:book: For **GeoData** (input) handling, refer to [GeoData/README](GeoData/README.md).
+:book: For **GeoData** (input) handling, refer to [GeoData/README](GeoData).
 
 ## Steady glacier 3D M multi-XPU
 
