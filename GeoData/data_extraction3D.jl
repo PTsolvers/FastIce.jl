@@ -85,4 +85,80 @@ Extract geadata and return bedrock and surface elevation maps, spatial coords an
     return
 end
 
-@time extract_geodata(Float64, "Rhone")
+"""
+    extract_geodata(type::DataType, dat_name::String)
+
+Extract geadata and return bedrock and surface elevation maps, spatial coords and bounding-box rotation matrix.
+
+# Arguments
+- `type::DataType`: desired data type for elevation data
+- `dat_in::String`: input data file
+"""
+function extract_bm_data(type::DataType, dat_in::String; downscale::Int=20)
+# DEBUG: why is @views super slow?
+    if dat_in == "Antarctica"
+        dat_name = "BedMachineAntarctica_2020-07-15_v02"
+    elseif dat_in == "Greenland"
+        dat_name = "BedMachineGreenland-2021-04-20"
+    else
+        error("unknown input data")
+    end
+    
+    println("Starting BedMachine $(dat_in) data extraction ...")
+    println("- load the data")
+
+    filename = if !isfile("../data/bedmachine_src/$(dat_name).nc")
+        error("No $(dat_name).nc file in ../data/bedmachine_src/ folder. See https://sites.uci.edu/morlighem/dataproducts/ for download details.")
+    else
+        "../data/bedmachine_src/$(dat_name).nc"
+    end
+    
+    bm = NCDataset(filename)
+    z_thick   = reverse(bm[:thickness][1:downscale:end,1:downscale:end], dims=2)
+    z_bed     = reverse(bm[:bed][1:downscale:end,1:downscale:end], dims=2)
+    mask_     = reverse(bm[:mask][1:downscale:end,1:downscale:end], dims=2)
+    (x,y)     = (bm[:x][1:downscale:end], reverse(bm[:y][1:downscale:end]))
+    xmin,xmax = extrema(x)
+    ymin,ymax = extrema(y)
+    # center data in x,y plane
+    x       .-= 0.5*(xmin + xmax)
+    y       .-= 0.5*(ymin + ymax)
+    # TODO: a step here could be rotation of the (x,y) plane using bounding box (rotating calipers)
+    # define and apply masks
+    # flag_values   = [0, 1, 2, 3, 4]
+    # flag_meanings = ocean, ice_free_land grounded_ice floating_ice lake_vostok
+    if dat_in == "Antarctica"
+        mask_t = (mask_.==2) .| (mask_.==4) # keep grounded_ice and lake_vostok
+        mask_b = (mask_.==0) .| (mask_.==3) # set bedrock to 0 for ocean and floating_ice
+    elseif dat_in == "Greenland"
+        mask_t = (mask_.==2) # keep grounded_ice and lake_vostok
+        mask_b = (mask_.==0) .| (mask_.==3) .| (mask_.==4) # set bedrock to 0 for ocean and floating_ice and non-Greenland land
+    end
+    z_thick[mask_t.==0] .= 0
+    z_bed[mask_b.!=0]   .= 0 
+    z_thick   = convert(Matrix{type}, z_thick)
+    z_bed     = convert(Matrix{type}, z_bed)
+    # ground data in z axis
+    # z_bed .-= minimum(z_bed) # TODO: decide whether to centre in z or not
+    # ice surface elevation and average between bed and ice
+    z_surf    = z_bed .+ z_thick
+    R  = [1. 0. 0.; 0. 1. 0.; 0. 0. 1.]
+    # display(heatmap(x,y,z_bed',aspect_ratio=1)); error("stop")
+    println("- save data to ../data/bedmachine/data_$(dat_in).h5")
+    isdir("../data/bedmachine")==false && mkdir("../data/bedmachine")
+    h5open("../data/bedmachine/data_$(dat_in).h5", "w") do fid
+        create_group(fid, "glacier")
+        fid["glacier/x",compress=3]      = x
+        fid["glacier/y",compress=3]      = y
+        fid["glacier/z_bed",compress=3]  = z_bed
+        fid["glacier/z_surf",compress=3] = z_surf
+        fid["glacier/R",compress=3]      = R
+    end
+    println("done.")
+    return
+end
+
+# @time extract_geodata(Float64, "Rhone")
+
+@time extract_bm_data(Float64, "Antarctica"; downscale=2)
+# @time extract_bm_data(Float64, "Greenland"; downscale=2)
