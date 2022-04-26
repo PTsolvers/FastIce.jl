@@ -1,4 +1,4 @@
-using Statistics, GeoArrays, Interpolations, LinearAlgebra, HDF5
+using Statistics, GeoArrays, NCDatasets, Interpolations, LinearAlgebra, HDF5
 
 "Filter out all values of `A` based on `mask`."
 function my_filter(A, mask)
@@ -86,13 +86,14 @@ Extract geadata and return bedrock and surface elevation maps, spatial coords an
 end
 
 """
-    extract_geodata(type::DataType, dat_name::String)
+    extract_bm_data(type::DataType, dat_in::String; downscale::Int=20)
 
-Extract geadata and return bedrock and surface elevation maps, spatial coords and bounding-box rotation matrix.
+Extract BedMachine geadata and return bedrock and surface elevation maps and spatial coords. Bounding-box rotation matrix is I.
 
 # Arguments
 - `type::DataType`: desired data type for elevation data
-- `dat_in::String`: input data file
+- `dat_in::String`: input data file name
+- `downscale::Int`: data downscale, default to 20
 """
 function extract_bm_data(type::DataType, dat_in::String; downscale::Int=20)
 # DEBUG: why is @views super slow?
@@ -117,7 +118,7 @@ function extract_bm_data(type::DataType, dat_in::String; downscale::Int=20)
     z_thick   = reverse(bm[:thickness][1:downscale:end,1:downscale:end], dims=2)
     z_bed     = reverse(bm[:bed][1:downscale:end,1:downscale:end], dims=2)
     mask_     = reverse(bm[:mask][1:downscale:end,1:downscale:end], dims=2)
-    (x,y)     = (bm[:x][1:downscale:end], reverse(bm[:y][1:downscale:end]))
+    (x,y)     = (convert(Vector{type},bm[:x][1:downscale:end]), convert(Vector{type},reverse(bm[:y][1:downscale:end])))
     xmin,xmax = extrema(x)
     ymin,ymax = extrema(y)
     # center data in x,y plane
@@ -160,5 +161,5 @@ end
 
 # @time extract_geodata(Float64, "Rhone")
 
-@time extract_bm_data(Float64, "Antarctica"; downscale=2)
-# @time extract_bm_data(Float64, "Greenland"; downscale=2)
+# @time extract_bm_data(Float64, "Antarctica"; downscale=2)
+@time extract_bm_data(Float64, "Greenland"; downscale=2)
