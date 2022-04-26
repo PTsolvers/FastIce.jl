@@ -118,7 +118,8 @@ function extract_bm_data(type::DataType, dat_in::String; downscale::Int=20)
     z_thick   = reverse(bm[:thickness][1:downscale:end,1:downscale:end], dims=2)
     z_bed     = reverse(bm[:bed][1:downscale:end,1:downscale:end], dims=2)
     mask_     = reverse(bm[:mask][1:downscale:end,1:downscale:end], dims=2)
-    (x,y)     = (convert(Vector{type},bm[:x][1:downscale:end]), convert(Vector{type},reverse(bm[:y][1:downscale:end])))
+    (xv,yv)   = (convert(Vector{type},bm[:x][1:downscale:end]),convert(Vector{type},reverse(bm[:y][1:downscale:end])))
+    (x,y)     = ([x_ for x_=xv, y_=yv],[y_ for x_=xv, y_=yv])
     xmin,xmax = extrema(x)
     ymin,ymax = extrema(y)
     # center data in x,y plane
@@ -161,5 +162,5 @@ end
 
 # @time extract_geodata(Float64, "Rhone")
 
-# @time extract_bm_data(Float64, "Antarctica"; downscale=2)
-@time extract_bm_data(Float64, "Greenland"; downscale=2)
+@time extract_bm_data(Float64, "Antarctica"; downscale=4)
+# @time extract_bm_data(Float64, "Greenland"; downscale=4)
