@@ -17,6 +17,10 @@ sum_g(A)  = (sum_l  = sum(A); MPI.Allreduce(sum_l, MPI.SUM, MPI.COMM_WORLD))
 
 @views inn(A) = A[2:end-1,2:end-1,2:end-1]
 @views av(A)  = convert(eltype(A),0.5)*(A[1:end-1]+A[2:end])
+@views function smooth2D!(A2, A, fact)
+    A2[2:end-1,2:end-1] .= A[2:end-1,2:end-1] .+ 1.0./4.1./fact.*( (A[3:end,2:end-1].-2.0.*A[2:end-1,2:end-1].+A[1:end-2,2:end-1]).+(A[2:end-1,3:end].-2.0.*A[2:end-1,2:end-1].+A[2:end-1,1:end-2]) )
+    return
+end
 
 include(joinpath(@__DIR__, "helpers3D_v5.jl"))
 include(joinpath(@__DIR__, "data_io.jl"     ))
@@ -139,11 +143,14 @@ end
     # inputs
     # nx,ny,nz = 511,511,383      # local resolution
     # nx,ny,nz = 127,127,95       # local resolution
-    nx,ny,nz = 63,63,47         # local resolution
+    nx,ny,nz = 255,255,11         # local resolution
     dim      = (1,1,1)          # MPI dims
     ns       = 2                # number of oversampling per cell
+    nsm      = 5                # number of surface data smoothing steps
     out_path = "../out_visu"
-    out_name = "results3D_M"
+    # out_name = "results3D_M"
+    out_name = "results3D_M_greenland"
+    # out_name = "results3D_M_antarctica"
     # IGG initialisation
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3])
     info     = MPI.Info()
@@ -154,6 +161,8 @@ end
     xc,yc,zc = av.((xv,yv,zv))
     dx,dy,dz = lx/nx_g(),ly/ny_g(),lz/nz_g()
     R        = rotation(dem)
+    (me==0) && println("lx, ly, lz = $lx, $ly, $lz")
+    (me==0) && println("dx, dy, dz = $dx, $dy, $dz")
     # physics
     ## dimensionally independent
     μs0      = 1.0               # matrix viscosity [Pa*s]
@@ -166,7 +175,7 @@ end
     ρgv      = ρg0*R'*[0,0,1]
     ρgx,ρgy,ρgz = ρgv
     # numerics
-    maxiter  = 50nz_g()     # maximum number of pseudo-transient iterations
+    maxiter  = 10*50*nz_g()    # maximum number of pseudo-transient iterations
     nchk     = 2*nz_g()     # error checking frequency
     b_width  = (8,4,4)      # boundary width
     ε_V      = 1e-8         # nonlinear absolute tolerance for momentum
@@ -175,7 +184,7 @@ end
     Re       = 2π           # Reynolds number                     (numerical parameter #1)
     r        = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
     # preprocessing
-    max_lxyz = 0.35lz
+    max_lxyz = 1.0*lz#0.35*lz
     Vpdτ     = min(dx,dy,dz)*CFL
     dτ_ρ     = Vpdτ*max_lxyz/Re/μs0
     Gdτ      = Vpdτ^2/dτ_ρ/(r+2.0)
@@ -199,7 +208,7 @@ end
     Vy       = @zeros(nx  ,ny+1,nz  )
     Vz       = @zeros(nx  ,ny  ,nz+1)
     # set phases
-    if (me==0) print("Set phases (0-air, 1-ice, 2-bedrock)...") end
+    (me==0) && print("Set phases (0-air, 1-ice, 2-bedrock)...")
     Rinv     = Data.Array(R')
     # supersampled grid
     nr_box       = dem.domain
@@ -207,6 +216,14 @@ end
     dsx,dsy      = xc_ss[2] - xc_ss[1], yc_ss[2] - yc_ss[1]
     z_bed,z_surf = Data.Array.(evaluate(dem, xc_ss, yc_ss))
     ϕ            = air.*@ones(nx,ny,nz)
+    z_bed2  = copy(z_bed)
+    z_surf2 = copy(z_surf)
+    for ism = 1:nsm
+        smooth2D!(z_bed2, z_bed, 1.0)
+        smooth2D!(z_surf2, z_surf, 1.0)
+        z_bed, z_bed2 = z_bed2, z_bed
+        z_surf, z_surf2 = z_surf2, z_surf
+    end
     @parallel set_phases!(ϕ,z_surf,z_bed,Rinv,xc[1],yc[1],zc[1],xc_ss[1],yc_ss[1],dx,dy,dz,dsx,dsy,coords...)
     @parallel init_ϕi!(ϕ, ϕx, ϕy, ϕz)
     len_g = sum_g(ϕ.==fluid)
@@ -250,6 +267,7 @@ end
         fields = Dict("ϕ"=>inn(ϕ),"Vn"=>Vn,"τII"=>τII,"Pr"=>inn(Pt))
         (me==0) && print("Saving HDF5 file...")
         write_h5(out_h5,fields,dim_g,I,comm_cart,info) # comm_cart,MPI.Info() are varargs to exclude if using non-parallel HDF5 lib
+        # write_h5(out_h5,fields,dim_g,I) # comm_cart,MPI.Info() are varargs to exclude if using non-parallel HDF5 lib
         (me==0) && println(" done")
         # write XDMF
         if me == 0
@@ -263,4 +281,8 @@ end
 end
 
 # Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
-Stokes3D(generate_elevation(2.0,2.0,(-0.25,0.85),1/25,10π,tan(-π/12),0.1,0.9))
+
+Stokes3D(load_elevation("../data/bedmachine/data_Greenland.h5"))
+# Stokes3D(load_elevation("../data/bedmachine/data_Antarctica.h5"))
+
+# Stokes3D(generate_elevation(2.0,2.0,(-0.25,0.85),1/25,10π,tan(-π/12),0.1,0.9))
