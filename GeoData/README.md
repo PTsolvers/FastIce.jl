@@ -30,8 +30,8 @@ The `extract_bm_data` function ([data_extraction3D.jl](data_extraction3D.jl) scr
 
 ### Data extraction
 The [data_extraction3D.jl](data_extraction3D.jl) script contains two functions to extract geadata from:
-1. Alpine glacier ([previous step](geometry-selection)), see `extract_geodata` function;
-2. Reading in NetCDF files from BedMachine, see `extract_bm_data` function. 
+1. Alpine glacier ([previous step](#geometry-selection)), see `extract_geodata` function;
+2. Reading in NetCDF files from BedMachine ([previous step](#bedmachine-data)), see `extract_bm_data` function. 
 
 These functions return bedrock and surface elevation maps, spatial coordinates and bounding-box rotation matrix, taking as input the ice thickness and bedrock elevation data. Type `? extract_geodata` or `? extract_bm_data` in the REPL for more details.
 
