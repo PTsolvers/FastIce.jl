@@ -6,6 +6,14 @@ function my_filter(A, mask)
 end
 
 
+"Trim 2D input array mased on first and last occurance of !=val of mask"
+function my_trim2D(mask, val; pad=10)
+    xmin, xmax = findfirst(!isequal(val),sum(mask,dims=2))[1], findlast(!isequal(val),sum(mask,dims=2))[1]
+    ymin, ymax = findfirst(!isequal(val),sum(mask,dims=1))[2], findlast(!isequal(val),sum(mask,dims=1))[2]      
+    return max(xmin-pad,1), min(xmax+pad,size(mask,1)), max(ymin-pad,1), min(ymax+pad,size(mask,2))
+end
+
+
 """
     lsq_fit(mask, zavg, xv2, yv2)
 
@@ -86,16 +94,17 @@ Extract geadata and return bedrock and surface elevation maps, spatial coords an
 end
 
 """
-    extract_bm_data(type::DataType, dat_in::String; downscale::Int=20)
+    extract_bm_data(type::DataType, dat_in::String; downscale::Int=20, pad::Int=50)
 
-Extract BedMachine geadata and return bedrock and surface elevation maps and spatial coords. Bounding-box rotation matrix is I.
+Extract BedMachine geadata and return bedrock and surface elevation maps and spatial coords. Bounding-box rotation matrix is I. See https://sites.uci.edu/morlighem/dataproducts/ for BedMachine download details.
 
 # Arguments
 - `type::DataType`: desired data type for elevation data
 - `dat_in::String`: input data file name
 - `downscale::Int`: data downscale, default to 20
+- `pad::Int50`: padding around trimmed BedMachine data
 """
-function extract_bm_data(type::DataType, dat_in::String; downscale::Int=20)
+function extract_bm_data(type::DataType, dat_in::String; downscale::Int=20, pad::Int=50)
 # DEBUG: why is @views super slow?
     if dat_in == "Antarctica"
         dat_name = "BedMachineAntarctica_2020-07-15_v02"
@@ -115,10 +124,16 @@ function extract_bm_data(type::DataType, dat_in::String; downscale::Int=20)
     end
     
     bm = NCDataset(filename)
+    mask_     = reverse(bm[:mask][1:downscale:end,1:downscale:end], dims=2)
     z_thick   = reverse(bm[:thickness][1:downscale:end,1:downscale:end], dims=2)
     z_bed     = reverse(bm[:bed][1:downscale:end,1:downscale:end], dims=2)
-    mask_     = reverse(bm[:mask][1:downscale:end,1:downscale:end], dims=2)
     (xv,yv)   = (convert(Vector{type},bm[:x][1:downscale:end]),convert(Vector{type},reverse(bm[:y][1:downscale:end])))
+    # trim
+    (x1, xE, y1, yE) = my_trim2D(mask_, 0; pad=pad)
+    mask_     = mask_[x1:xE,y1:yE]
+    z_thick   = z_thick[x1:xE,y1:yE]
+    z_bed     = z_bed[x1:xE,y1:yE]
+    (xv,yv)   = (xv[x1:xE],yv[y1:yE])
     (x,y)     = ([x_ for x_=xv, y_=yv],[y_ for x_=xv, y_=yv])
     xmin,xmax = extrema(x)
     ymin,ymax = extrema(y)
@@ -162,5 +177,5 @@ end
 
 # @time extract_geodata(Float64, "Rhone")
 
-@time extract_bm_data(Float64, "Antarctica"; downscale=4)
-# @time extract_bm_data(Float64, "Greenland"; downscale=4)
+# @time extract_bm_data(Float64, "Antarctica"; downscale=4, pad=50)
+@time extract_bm_data(Float64, "Greenland"; downscale=4, pad=50)

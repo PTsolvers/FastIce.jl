@@ -24,7 +24,11 @@ The `alps_sgi` folder size is about 6 GB and can be [downloaded here (Dropbox)](
 The `geom_select` function takes as argument the glacier `SGI_ID` and the corresponding name `name`. As keyword args, one can modify `padding`, and switch-off viualisation `do_vis=false` or saving `do_save=false`. Type `? geom_select` in the REPL for more details.
 
 ### Data extraction
-The [data_extraction.jl](data_extraction.jl) function extracts geadata and returns bedrock and surface elevation maps, spatial coords and bounding-box rotation matrix, taking as input the ice thickness and bedrock elevation data generated in the previous step.
+The [data_extraction3D.jl](data_extraction3D.jl) script contains two functions to extracts geadata from:
+1. the previous step, see `extract_geodata` function;
+2. Reading in NetCDF files from BedMachine, see `extract_bm_data` function. See [this section](#bedmachine-greenland-and-antarctica-data) for additional details.
+
+These functions return bedrock and surface elevation maps, spatial coords and bounding-box rotation matrix, taking as input the ice thickness and bedrock elevation data. Type `? extract_geodata` or `? extract_bm_data` in the REPL for more details.
 
 This step outputs an HDF5 file conataining, e.g., the following fields to be further used as input for numerical simulation:
 ```julia-repl
@@ -37,11 +41,16 @@ This step outputs an HDF5 file conataining, e.g., the following fields to be fur
    └─ 🔢 z_surf
 ```
 
+### BedMachine Greenland and Antarctica data
+The `extract_bm_data` function ([data_extraction3D.jl](data_extraction3D.jl) script) expects the BedMachine NetCDF data files to be present in `/data/bedmachine_src` folder. See https://sites.uci.edu/morlighem/dataproducts/ for bedMachine download details.
+
 ## Sources
-The sources of the files contained in the Dropbox folder for download are:
+The sources of the files contained in the Dropbox folder available for download are:
 - [Swisstopo swissTLM3D](https://www.swisstopo.admin.ch/en/geodata/landscape/tlm3d.html#download)
   - swissTLM3D_TLM_*.dbf | [swisstlm3d_2022-03_2056_5728.shp.zip](https://data.geo.admin.ch/ch.swisstopo.swisstlm3d/swisstlm3d_2022-03/swisstlm3d_2022-03_2056_5728.shp.zip) (located in `TLM_BB/` upon unzip)
 
 - [Swiss Glacier Thickness – Release 2020 (ETH Research Collection)](https://www.research-collection.ethz.ch/handle/20.500.11850/434697)
   - IceThickness.tif | [04_IceThickness_SwissAlps.zip (ZIP, 1.605Gb)](https://www.research-collection.ethz.ch/bitstream/handle/20.500.11850/434697/04_IceThickness_SwissAlps.zip?sequence=10&isAllowed=y)
   - SwissALTI3D_r2019.tif | [08_SurfaceElevation_SwissAlps.zip (ZIP, 1.837Gb)](https://www.research-collection.ethz.ch/bitstream/handle/20.500.11850/434697/08_SurfaceElevation_SwissAlps.zip?sequence=41&isAllowed=y)
+
+- [BedMachine](https://sites.uci.edu/morlighem/dataproducts/)
