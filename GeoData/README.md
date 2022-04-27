@@ -1,4 +1,4 @@
-# GeoData
+# 🌎 GeoData
 Helper functions to select Alpine glacier geometry based on [SGI catalogue data ID](https://www.research-collection.ethz.ch/handle/20.500.11850/434697) ([click here for direct download](https://www.research-collection.ethz.ch/bitstream/handle/20.500.11850/434697/00_TablesIllustrations%28updatedversion%29.pdf?sequence=39&isAllowed=y)) and to preprocess related elevation data.
 
 <img src="docs/images/fig_Rhone.png" alt="Rhone glacier data" width="600">
