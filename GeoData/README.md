@@ -3,6 +3,8 @@ Helper functions to select Alpine glacier geometry based on [SGI catalogue data 
 
 <img src="docs/images/fig_Rhone.png" alt="Rhone glacier data" width="600">
 
+Contains also helper functions to extract [BedMachine Greenland and Antarctica data](https://sites.uci.edu/morlighem/dataproducts/) in order to process related elevation data.
+
 ## Workflow
 ### Geometry selection
 First run the [geometry_selection.jl](geometry_selection.jl) script to extract, for a given glacier outline, the following data which will be saved as GeoTif (`.tif`):
@@ -23,14 +25,17 @@ The `alps_sgi` folder size is about 6 GB and can be [downloaded here (Dropbox)](
 
 The `geom_select` function takes as argument the glacier `SGI_ID` and the corresponding name `name`. As keyword args, one can modify `padding`, and switch-off viualisation `do_vis=false` or saving `do_save=false`. Type `? geom_select` in the REPL for more details.
 
+### BedMachine data
+The `extract_bm_data` function ([data_extraction3D.jl](data_extraction3D.jl) script) expects the BedMachine NetCDF data files to be present in `/data/bedmachine_src` folder. The `bedmachine_src` folder can be [downloaded here (Dropbox)](https://www.dropbox.com/s/qn836lzxexapfvx/bedmachine_src.zip?dl=0). Upon download, unzip and place it in the `data` folder. See https://sites.uci.edu/morlighem/dataproducts/ for related details and direct downloads from the official repository.
+
 ### Data extraction
-The [data_extraction3D.jl](data_extraction3D.jl) script contains two functions to extracts geadata from:
-1. the previous step, see `extract_geodata` function;
-2. Reading in NetCDF files from BedMachine, see `extract_bm_data` function. See [this section](#bedmachine-greenland-and-antarctica-data) for additional details.
+The [data_extraction3D.jl](data_extraction3D.jl) script contains two functions to extract geadata from:
+1. Alpine glacier ([previous step](geometry-selection)), see `extract_geodata` function;
+2. Reading in NetCDF files from BedMachine, see `extract_bm_data` function. 
 
-These functions return bedrock and surface elevation maps, spatial coords and bounding-box rotation matrix, taking as input the ice thickness and bedrock elevation data. Type `? extract_geodata` or `? extract_bm_data` in the REPL for more details.
+These functions return bedrock and surface elevation maps, spatial coordinates and bounding-box rotation matrix, taking as input the ice thickness and bedrock elevation data. Type `? extract_geodata` or `? extract_bm_data` in the REPL for more details.
 
-This step outputs an HDF5 file conataining, e.g., the following fields to be further used as input for numerical simulation:
+This step outputs an HDF5 file containing, e.g., the following fields to be further used as input for numerical simulation:
 ```julia-repl
 🗂️ HDF5.File: ../data/alps/data_Rhone.h5
 └─ 📂 glacier
@@ -40,9 +45,6 @@ This step outputs an HDF5 file conataining, e.g., the following fields to be fur
    ├─ 🔢 z_bed
    └─ 🔢 z_surf
 ```
-
-### BedMachine Greenland and Antarctica data
-The `extract_bm_data` function ([data_extraction3D.jl](data_extraction3D.jl) script) expects the BedMachine NetCDF data files to be present in `/data/bedmachine_src` folder. See https://sites.uci.edu/morlighem/dataproducts/ for bedMachine download details.
 
 ## Sources
 The sources of the files contained in the Dropbox folder available for download are:
