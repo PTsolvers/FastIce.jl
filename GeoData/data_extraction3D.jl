@@ -1,3 +1,5 @@
+using Pkg
+Pkg.activate(".")
 using Statistics, GeoArrays, NCDatasets, Interpolations, LinearAlgebra, HDF5
 
 "Filter out all values of `A` based on `mask`."
@@ -29,6 +31,7 @@ function lsq_fit(x,y,z)
 end
 
 
+"Rotation matrix for given angle and axis."
 function axis_angle_rotation_matrix(ax, θ)
     return [cos(θ)+ax[1]^2*(1-cos(θ)) ax[1]*ax[2]*(1-cos(θ))       ax[2]*sin(θ)
             ax[2]*ax[1]*(1-cos(θ))    cos(θ) + ax[2]^2*(1-cos(θ)) -ax[1]*sin(θ)
@@ -175,7 +178,7 @@ function extract_bm_data(type::DataType, dat_in::String; downscale::Int=20, pad:
     return
 end
 
-# @time extract_geodata(Float64, "Rhone")
+@time extract_geodata(Float64, "Rhone")
 
 # @time extract_bm_data(Float64, "Antarctica"; downscale=4, pad=50)
-@time extract_bm_data(Float64, "Greenland"; downscale=4, pad=50)
+# @time extract_bm_data(Float64, "Greenland"; downscale=4, pad=50)
