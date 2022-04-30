@@ -1,3 +1,5 @@
+#!/bin/bash
+
 module load julia openmpi cuda hdf5
 
 export JULIA_HDF5_PATH=$HDF5_ROOT
