@@ -65,14 +65,14 @@ macro fm_zi(A) esc(:( ($A[$ixi,$iyi,$iz] == fluid) && ($A[$ixi,$iyi,$iz+1] == fl
 @parallel function compute_V!(Vx, Vy, Vz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dτ_ρ, dx, dy, dz)
     @inn(Vx) = @sm_xi(ϕ)*( @inn(Vx) + dτ_ρ*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) )
     @inn(Vy) = @sm_yi(ϕ)*( @inn(Vy) + dτ_ρ*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy) )
-    @inn(Vz) = @sm_zi(ϕ)*( @inn(Vz) + dτ_ρ*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz) )
+    @inn(Vz) = @sm_zi(ϕ)*( @inn(Vz) + dτ_ρ*(@d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz) )
     return
 end
 
 @parallel function compute_Res!(Rx, Ry, Rz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dx, dy, dz)
     @all(Rx) = @sm_xi(ϕ)*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx)
     @all(Ry) = @sm_yi(ϕ)*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy)
-    @all(Rz) = @sm_zi(ϕ)*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz)
+    @all(Rz) = @sm_zi(ϕ)*(@d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz)
     return
 end
 
@@ -143,13 +143,13 @@ end
     # inputs
     # nx,ny,nz = 511,511,383      # local resolution
     # nx,ny,nz = 127,127,95       # local resolution
-    nx,ny,nz = 255,255,11         # local resolution
+    nx,ny,nz = 63,63,47         # local resolution
     dim      = (1,1,1)          # MPI dims
     ns       = 2                # number of oversampling per cell
     nsm      = 5                # number of surface data smoothing steps
     out_path = "../out_visu"
-    # out_name = "results3D_M"
-    out_name = "results3D_M_greenland"
+    out_name = "results3D_M_rhone"
+    # out_name = "results3D_M_greenland"
     # out_name = "results3D_M_antarctica"
     # IGG initialisation
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3])
@@ -175,7 +175,7 @@ end
     ρgv      = ρg0*R'*[0,0,1]
     ρgx,ρgy,ρgz = ρgv
     # numerics
-    maxiter  = 10*50*nz_g()    # maximum number of pseudo-transient iterations
+    maxiter  = 50*nz_g()    # maximum number of pseudo-transient iterations
     nchk     = 2*nz_g()     # error checking frequency
     b_width  = (8,4,4)      # boundary width
     ε_V      = 1e-8         # nonlinear absolute tolerance for momentum
@@ -184,7 +184,7 @@ end
     Re       = 2π           # Reynolds number                     (numerical parameter #1)
     r        = 1.0          # Bulk to shear elastic modulus ratio (numerical parameter #2)
     # preprocessing
-    max_lxyz = 1.0*lz#0.35*lz
+    max_lxyz = 0.35*lz
     Vpdτ     = min(dx,dy,dz)*CFL
     dτ_ρ     = Vpdτ*max_lxyz/Re/μs0
     Gdτ      = Vpdτ^2/dτ_ρ/(r+2.0)
@@ -280,9 +280,9 @@ end
     return
 end
 
-# Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
+Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
 
-Stokes3D(load_elevation("../data/bedmachine/data_Greenland.h5"))
+# Stokes3D(load_elevation("../data/bedmachine/data_Greenland.h5"))
 # Stokes3D(load_elevation("../data/bedmachine/data_Antarctica.h5"))
 
 # Stokes3D(generate_elevation(2.0,2.0,(-0.25,0.85),1/25,10π,tan(-π/12),0.1,0.9))

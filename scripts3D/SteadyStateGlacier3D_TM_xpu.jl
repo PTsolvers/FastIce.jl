@@ -143,7 +143,7 @@ macro dτ_ρ_mech_az() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_zi(μs) )) end
 @parallel function compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, μs0, ρgx, ρgy, ρgz, Ta, Q_R, T0, dt, npow, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
     @inn(Vx) = @sm_xi(ϕ)*( @inn(Vx) + @dτ_ρ_mech_ax()*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) )
     @inn(Vy) = @sm_yi(ϕ)*( @inn(Vy) + @dτ_ρ_mech_ay()*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy) )
-    @inn(Vz) = @sm_zi(ϕ)*( @inn(Vz) + @dτ_ρ_mech_az()*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz) )
+    @inn(Vz) = @sm_zi(ϕ)*( @inn(Vz) + @dτ_ρ_mech_az()*(@d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz) )
     # thermo
     @all(T)  = (@all(T) + dτ_ρ_heat*(@all(T_o)/dt - @d_xa(qTx)/dx - @d_ya(qTy)/dy - @d_za(qTz)/dz + 2.0*@all(μs)*@all(EII)))/(1.0 + dτ_ρ_heat/dt)
     @all(μs) = (1.0-γ)*@all(μs) + γ*(( @all(EII)^(1.0/npow-1.0) * exp(-Q_R*(1.0 - T0/@all(T))) )^(-1) + 1.0/μs0)^(-1)
@@ -153,7 +153,7 @@ end
 @parallel function compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, dt, dx, dy, dz)
     @all(Rx) = @sm_xi(ϕ)*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx)
     @all(Ry) = @sm_yi(ϕ)*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy)
-    @all(Rz) = @sm_zi(ϕ)*(@d_zi(τzz)/dy + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz)
+    @all(Rz) = @sm_zi(ϕ)*(@d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz)
     # thermo
     @all(RT) = -(@all(T) - @all(T_o))/dt - (@d_xa(qTx)/dx + @d_ya(qTy)/dy + @d_za(qTz)/dz) + 2.0*@all(μs)*@all(EII)
     return
