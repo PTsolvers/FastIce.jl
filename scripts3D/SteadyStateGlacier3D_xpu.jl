@@ -280,9 +280,9 @@ end
     return
 end
 
-Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
+# Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
 
 # Stokes3D(load_elevation("../data/bedmachine/data_Greenland.h5"))
 # Stokes3D(load_elevation("../data/bedmachine/data_Antarctica.h5"))
 
-# Stokes3D(generate_elevation(2.0,2.0,(-0.25,0.85),1/25,10π,tan(-π/12),0.1,0.9))
+Stokes3D(generate_elevation(10.0,10.0,(0.0,1.0),0.0,0π,tan(-π/35),0.5,1.0))
