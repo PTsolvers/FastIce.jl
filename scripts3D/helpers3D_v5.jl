@@ -118,8 +118,8 @@ end
 
 
 # generate_z_surf(x,y,gl) = (gl*gl - (x+0.2*gl)*(x+0.2*gl)*0.85^2 - (y*gl)*(y*gl)*0.7^2)
-generate_z_surf(x,y,gl) = gl - ((x+1.0*gl)^2 + y^2)/gl/30.0
-generate_z_bed(x,y,lx,ly,amp,ω,tanβ,el) = amp*sin(ω*x/lx)*sin(ω*y/ly) + tanβ*x + el + 0.5*y^2/ly
+generate_z_surf(x,y) = 1.0 - ((1.3*x + 0.25)^2 + (0.5*y)^2)
+generate_z_bed(x,y,amp,ω,tanβ,el) = amp*sin(ω*x)*sin(ω*y) + tanβ*x + el + (1.5*y)^2
 
 
 """
@@ -129,8 +129,8 @@ Generate synthetic elevation data for `lx`, `ly` and `zminmax=(zmin,zmax)` domai
 """
 function generate_elevation(lx,ly,zminmax,amp,ω,tanβ,el,gl)
     domain = AABB(-lx/2, lx/2, -ly/2, ly/2, zminmax[1], zminmax[2])
-    z_bed  = (x,y) -> generate_z_bed(x,y,lx,ly,amp,ω,tanβ,el)
-    z_surf = (x,y) -> generate_z_surf(x,y,gl)
+    z_bed  = (x,y) -> (zminmax[2] - zminmax[1])*generate_z_bed(x/lx,y/ly,amp,ω,tanβ,el)
+    z_surf = (x,y) -> gl*generate_z_surf(x/lx,y/ly)
     return SyntheticElevation(z_bed,z_surf,domain)
 end
 
