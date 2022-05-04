@@ -56,3 +56,10 @@ The sources of the files contained in the Dropbox folder available for download 
   - SwissALTI3D_r2019.tif | [08_SurfaceElevation_SwissAlps.zip (ZIP, 1.837Gb)](https://www.research-collection.ethz.ch/bitstream/handle/20.500.11850/434697/08_SurfaceElevation_SwissAlps.zip?sequence=41&isAllowed=y)
 
 - [BedMachine](https://sites.uci.edu/morlighem/dataproducts/)
+
+## Extra
+The Dropbox `alps_sgi` and `bedmachine_src` zip files can be fetched, respectively, via `wget` as following:
+```
+wget https://www.dropbox.com/s/3htehzra9bv6j75/alps_sgi.zip
+wget https://www.dropbox.com/s/qn836lzxexapfvx/bedmachine_src.zip
+```
