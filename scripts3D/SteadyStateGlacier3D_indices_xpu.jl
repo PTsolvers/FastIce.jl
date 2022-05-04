@@ -5,7 +5,6 @@ using ParallelStencil
 using ParallelStencil.FiniteDifferences3D
 @static if USE_GPU
     @init_parallel_stencil(CUDA, Float64, 3)
-    CUDA.device!(1)
 else
     @init_parallel_stencil(Threads, Float64, 3)
 end
