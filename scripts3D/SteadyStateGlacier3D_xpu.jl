@@ -272,7 +272,7 @@ end
         # write XDMF
         if me == 0
             print("Saving XDMF file...")
-            write_xdmf(joinpath(out_path,out_name)*".xdmf3",out_h5,fields,(xc[2],yc[2],zc[2]),(dx,dy,dz),dim_g)
+            write_xdmf(joinpath(out_path,out_name)*".xdmf3",out_name*".h5",fields,(xc[2],yc[2],zc[2]),(dx,dy,dz),dim_g)
             println(" done")
         end
     end
@@ -285,4 +285,4 @@ end
 # Stokes3D(load_elevation("../data/bedmachine/data_Greenland.h5"))
 # Stokes3D(load_elevation("../data/bedmachine/data_Antarctica.h5"))
 
-Stokes3D(generate_elevation(10.0,10.0,(0.0,1.0),0.0,0π,tan(-π/35),0.5,1.0))
+Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.0,0π,tan(-π/6),0.5,0.9))

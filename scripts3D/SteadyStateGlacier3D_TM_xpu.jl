@@ -396,7 +396,7 @@ end
                                    (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
                                    (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
             fields = Dict("ϕ"=>inn(ϕ),"Vn"=>Vn,"τII"=>τII,"Pr"=>inn(Pt),"EII"=>inn(EII),"T"=>inn(T),"μ"=>inn(μs))
-            push!(ts,tt); push!(h5_names,out_h5)
+            push!(ts,tt); push!(h5_names,out_name*"_$isave.h5")
             (me==0) && print("Saving HDF5 file...")
             write_h5(out_h5,fields,dim_g,I,comm_cart,info) # comm_cart,MPI.Info() are varargs to exclude if using non-parallel HDF5 lib
             (me==0) && println(" done")
@@ -414,4 +414,4 @@ end
 end
 
 # Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
-Stokes3D(generate_elevation(2.0,2.0,(-0.25,0.85),1/25,10π,tan(-π/12),0.1,0.9))
+Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.0,0π,tan(-π/6),0.5,0.9))
