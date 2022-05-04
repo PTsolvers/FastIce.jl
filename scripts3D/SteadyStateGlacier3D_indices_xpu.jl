@@ -137,12 +137,13 @@ end
     # inputs
     # nx,ny,nz = 511,511,383      # local resolution
     # nx,ny,nz = 127,127,95       # local resolution
-    nx,ny,nz = 63,63,47         # local resolution
-    dim      = (1,1,1)          # MPI dims
+    nx,ny,nz = 127,127,47         # local resolution
+    dim      = (2,2,1)          # MPI dims
     ns       = 2                # number of oversampling per cell
     nsm      = 5                # number of surface data smoothing steps
     out_path = "../out_visu"
-    out_name = "results3D_M_rhone"
+    out_name = "results3D_M"
+    # out_name = "results3D_M_rhone"
     # out_name = "results3D_M_greenland"
     # out_name = "results3D_M_antarctica"
     # IGG initialisation
@@ -169,8 +170,8 @@ end
     ρgv      = ρg0*R'*[0,0,1]
     ρgx,ρgy,ρgz = ρgv
     # numerics
-    maxiter  = 50*nz_g()    # maximum number of pseudo-transient iterations
-    nchk     = 2*nz_g()     # error checking frequency
+    maxiter  = 50*nx_g()    # maximum number of pseudo-transient iterations
+    nchk     = 1*nx_g()     # error checking frequency
     b_width  = (8,4,4)      # boundary width
     ε_V      = 1e-8         # nonlinear absolute tolerance for momentum
     ε_∇V     = 1e-8         # nonlinear absolute tolerance for divergence
@@ -266,7 +267,7 @@ end
         # write XDMF
         if me == 0
             print("Saving XDMF file...")
-            write_xdmf(joinpath(out_path,out_name)*".xdmf3",out_h5,fields,(xc[2],yc[2],zc[2]),(dx,dy,dz),dim_g)
+            write_xdmf(joinpath(out_path,out_name)*".xdmf3",out_name*".h5",fields,(xc[2],yc[2],zc[2]),(dx,dy,dz),dim_g)
             println(" done")
         end
     end
@@ -279,4 +280,4 @@ end
 # Stokes3D(load_elevation("../data/bedmachine/data_Greenland.h5"))
 # Stokes3D(load_elevation("../data/bedmachine/data_Antarctica.h5"))
 
-Stokes3D(generate_elevation(50.0,50.0,(0.0,1.0),0.0,0π,tan(-π/6),0.5,0.9))
+Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.0,0π,tan(-π/6),0.5,0.9))
