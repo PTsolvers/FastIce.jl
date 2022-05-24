@@ -14,6 +14,7 @@ using HDF5,LightXML
 
 norm_g(A) = (sum2_l = sum(A.^2); sqrt(MPI.Allreduce(sum2_l, MPI.SUM, MPI.COMM_WORLD)))
 sum_g(A)  = (sum_l  = sum(A); MPI.Allreduce(sum_l, MPI.SUM, MPI.COMM_WORLD))
+max_g(A)  = (max_l  = maximum(A); MPI.Allreduce(max_l, MPI.MAX, MPI.COMM_WORLD))
 
 @views inn(A) = A[2:end-1,2:end-1,2:end-1]
 @views av(A)  = convert(eltype(A),0.5)*(A[1:end-1]+A[2:end])
@@ -22,9 +23,9 @@ sum_g(A)  = (sum_l  = sum(A); MPI.Allreduce(sum_l, MPI.SUM, MPI.COMM_WORLD))
     return
 end
 
-include(joinpath(@__DIR__, "helpers3D_v5.jl"))
-include(joinpath(@__DIR__, "data_io.jl"     ))
-include(joinpath(@__DIR__, "flagging_macros3D.jl"))
+include(joinpath(@__DIR__,"helpers3D_v5.jl"))
+include(joinpath(@__DIR__,"data_io.jl"))
+include(joinpath(@__DIR__,"flagging_macros3D.jl"))
 
 const air   = 0.0
 const fluid = 1.0
@@ -43,28 +44,28 @@ macro av_zii(A) esc(:( 0.5*($A[$ixi,$iyi,$izi] + $A[$ixi  ,$iyi  ,$izi+1]) )) en
         @all(τyy) = 2.0*μ_veτ*(@d_ya(Vy)/dy + @all(τyy)/Gdτ/2.0)
         @all(τzz) = 2.0*μ_veτ*(@d_za(Vz)/dz + @all(τzz)/Gdτ/2.0)
     end
-    @in_phases_xy ϕ fluid fluid fluid fluid begin @all(τxy) = μ_veτ*(@d_yi(Vx)/dy + @d_xi(Vy)/dx + @all(τxy)/Gdτ) end
-    @in_phases_xz ϕ fluid fluid fluid fluid begin @all(τxz) = μ_veτ*(@d_zi(Vx)/dz + @d_xi(Vz)/dx + @all(τxz)/Gdτ) end
-    @in_phases_yz ϕ fluid fluid fluid fluid begin @all(τyz) = μ_veτ*(@d_zi(Vy)/dz + @d_yi(Vz)/dy + @all(τyz)/Gdτ) end
+    @corner_xy ϕ air fluid begin @all(τxy) = μ_veτ*(@d_yi(Vx)/dy + @d_xi(Vy)/dx + @all(τxy)/Gdτ) end
+    @corner_xz ϕ air fluid begin @all(τxz) = μ_veτ*(@d_zi(Vx)/dz + @d_xi(Vz)/dx + @all(τxz)/Gdτ) end
+    @corner_yz ϕ air fluid begin @all(τyz) = μ_veτ*(@d_zi(Vy)/dz + @d_yi(Vz)/dy + @all(τyz)/Gdτ) end
     return
 end
 
-macro fm_xi(A) esc(:( ($A[$ix,$iyi,$izi] == fluid) && ($A[$ix+1,$iyi,$izi] == fluid) )) end
-macro fm_yi(A) esc(:( ($A[$ixi,$iy,$izi] == fluid) && ($A[$ixi,$iy+1,$izi] == fluid) )) end
-macro fm_zi(A) esc(:( ($A[$ixi,$iyi,$iz] == fluid) && ($A[$ixi,$iyi,$iz+1] == fluid) )) end
+macro fm_xi(A) esc(:( !(($A[$ix,$iyi,$izi] == air) && ($A[$ix+1,$iyi,$izi] == air)) )) end
+macro fm_yi(A) esc(:( !(($A[$ixi,$iy,$izi] == air) && ($A[$ixi,$iy+1,$izi] == air)) )) end
+macro fm_zi(A) esc(:( !(($A[$ixi,$iyi,$iz] == air) && ($A[$ixi,$iyi,$iz+1] == air)) )) end
 
 @parallel_indices (ix,iy,iz) function compute_V!(Vx, Vy, Vz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dτ_ρ, dx, dy, dz)
     @define_indices ix iy iz
-    @not_in_phases_xi ϕ solid solid begin @inn(Vx) = @inn(Vx) + dτ_ρ*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - 0*@fm_xi(ϕ)*ρgx) end
-    @not_in_phases_yi ϕ solid solid begin @inn(Vy) = @inn(Vy) + dτ_ρ*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - 0*@fm_yi(ϕ)*ρgy) end
+    @not_in_phases_xi ϕ solid solid begin @inn(Vx) = @inn(Vx) + dτ_ρ*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) end
+    @not_in_phases_yi ϕ solid solid begin @inn(Vy) = @inn(Vy) + dτ_ρ*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy) end
     @not_in_phases_zi ϕ solid solid begin @inn(Vz) = @inn(Vz) + dτ_ρ*(@d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz) end
     return
 end
 
 @parallel_indices (ix,iy,iz) function compute_Res!(Rx, Ry, Rz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dx, dy, dz)
     @define_indices ix iy iz
-    @not_in_phases_xi ϕ solid solid begin @all(Rx) = @d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - 0*@fm_xi(ϕ)*ρgx end
-    @not_in_phases_yi ϕ solid solid begin @all(Ry) = @d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - 0*@fm_yi(ϕ)*ρgy end
+    @not_in_phases_xi ϕ solid solid begin @all(Rx) = @d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx end
+    @not_in_phases_yi ϕ solid solid begin @all(Ry) = @d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy end
     @not_in_phases_zi ϕ solid solid begin @all(Rz) = @d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz end
     return
 end
@@ -112,11 +113,12 @@ end
 @views function Stokes3D(dem)
     # inputs
     # nx,ny,nz = 511,511,383      # local resolution
-    nx,ny,nz = 127,127,47       # local resolution
-    # nx,ny,nz = 127,127,47         # local resolution
-    dim      = (1,1,1)          # MPI dims
+    nx,ny,nz = 127,255,95       # local resolution
+    dim      = (2,2,1)          # MPI dims
+    # nx,ny,nz = 79,127,47         # local resolution
+    # dim      = (1,1,1)          # MPI dims
     ns       = 4                # number of oversampling per cell
-    nsm      = 1                # number of surface data smoothing steps
+    nsm      = 2                # number of surface data smoothing steps
     out_path = "../out_visu"
     # out_name = "results3D_M_new"
     out_name = "results3D_M_rhone"
@@ -144,9 +146,9 @@ end
     vsc      = lz/tsc
     ## dimensionally dependent
     ρgv      = ρg0*R'*[0,0,1]
-    @show ρgx,ρgy,ρgz = ρgv
+    ρgx,ρgy,ρgz = ρgv
     # numerics
-    maxiter  = 10*nx_g()    # maximum number of pseudo-transient iterations
+    maxiter  = 30*nx_g()    # maximum number of pseudo-transient iterations
     nchk     = 1*nx_g()     # error checking frequency
     b_width  = (8,4,4)      # boundary width
     ε_V      = 1e-8         # nonlinear absolute tolerance for momentum
@@ -224,11 +226,12 @@ end
             norm_Ry = norm_g(Ry)/psc*lz/sqrt(len_g)
             norm_Rz = norm_g(Rz)/psc*lz/sqrt(len_g)
             norm_∇V = norm_g(∇V)/vsc*lz/sqrt(len_g)
+            # max_∇V  = max_g(abs.(∇V))/vsc*lz
             err_V   = maximum([norm_Rx, norm_Ry, norm_Rz])
             err_∇V  = norm_∇V
             # push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/nx)
             if (me==0) @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e, norm_Rz=%1.3e], err_∇V = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, norm_Rz, err_∇V) end
-            GC.gc() # force garbage collection
+            # GC.gc() # force garbage collection
         end
     end
     if do_save

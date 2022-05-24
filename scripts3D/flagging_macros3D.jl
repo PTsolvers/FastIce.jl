@@ -4,6 +4,16 @@ ixi,iyi,izi = :($ix+1), :($iy+1), :($iz+1)
 
 macro define_indices(ix,iy,iz) esc(:( ($(INDICES[1]), $(INDICES[2]), $(INDICES[3])) = ($ix, $iy, $iz) )) end
 
+macro for_all(ϕ, expr)
+    bnd_chk = :( ix <= size($ϕ,1) && iy <= size($ϕ,2) && iz <= size($ϕ,3) )
+    esc(:( if $bnd_chk; $expr end ))
+end
+
+macro for_inn(ϕ, expr)
+    bnd_chk = :( ix <= size($ϕ,1)-2 && iy <= size($ϕ,2)-2 && iz <= size($ϕ,3)-2 )
+    esc(:( if $bnd_chk; $expr end ))
+end
+
 macro within_x(ϕ, expr)
     bnd_chk = :( ix <= size($ϕ,1)-1 && iy <= size($ϕ,2) && iz <= size($ϕ,3) )
     esc(:( if $bnd_chk; $expr end ))
