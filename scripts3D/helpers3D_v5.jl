@@ -118,7 +118,7 @@ end
 
 
 # generate_z_surf(x,y,gl) = (gl*gl - (x+0.2*gl)*(x+0.2*gl)*0.85^2 - (y*gl)*(y*gl)*0.7^2)
-generate_z_surf(x,y) = 1.0 - ((1.3*x + 0.25)^2 + (0.5*y)^2)
+generate_z_surf(x,y) = 1.0 - ((1.7*x + 0.22)^2 + (0.5*y)^2)
 generate_z_bed(x,y,amp,ω,tanβ,el) = amp*sin(ω*x)*sin(ω*y) + tanβ*x + el + (1.5*y)^2
 
 
