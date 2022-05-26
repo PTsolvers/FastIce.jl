@@ -136,24 +136,25 @@ macro dτ_ρ_mech_ax() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_xi(μs) )) end
 macro dτ_ρ_mech_ay() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_yi(μs) )) end
 macro dτ_ρ_mech_az() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_zi(μs) )) end
 
-@parallel_indices (ix,iy,iz) function compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, μs0, ρgx, ρgy, ρgz, Ta, Q_R, T0, dt, npow, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
+@parallel_indices (ix,iy,iz) function compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, A, μs0, ρgx, ρgy, ρgz, Q_R, T0, dt, npow, ρCp, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
     @define_indices ix iy iz
     @not_in_phases_xi ϕ solid solid begin @inn(Vx) = @inn(Vx) + @dτ_ρ_mech_ax()*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) end
     @not_in_phases_yi ϕ solid solid begin @inn(Vy) = @inn(Vy) + @dτ_ρ_mech_ay()*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy) end
     @not_in_phases_zi ϕ solid solid begin @inn(Vz) = @inn(Vz) + @dτ_ρ_mech_az()*(@d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz) end
     # thermo
-    @for_all ϕ begin @all(T)  = (@all(T) + dτ_ρ_heat*(@all(T_o)/dt - @d_xa(qTx)/dx - @d_ya(qTy)/dy - @d_za(qTz)/dz + 2.0*@all(μs)*@all(EII)))/(1.0 + dτ_ρ_heat/dt) end
-    @for_all ϕ begin @all(μs) = (1.0-γ)*@all(μs) + γ*(( @all(EII)^(1.0/npow-1.0) * exp(-Q_R*(1.0 - T0/@all(T))) )^(-1) + 1.0/μs0)^(-1) end
+    @for_all ϕ begin @all(T)  = (@all(T) + dτ_ρ_heat*(@all(T_o)/dt - @d_xa(qTx)/dx - @d_ya(qTy)/dy - @d_za(qTz)/dz + 2.0/ρCp*@all(μs)*@all(EII)*@all(EII)))/(1.0 + dτ_ρ_heat/dt) end
+    # @for_all ϕ begin @all(μs) = (1.0-γ)*@all(μs) + γ*(( A*@all(EII)^(npow-1.0) * exp(-Q_R*(1.0 - T0/@all(T))) )^(-1) + 1.0/μs0)^(-1) end
+    @for_all ϕ begin @all(μs) = (1.0-γ)*@all(μs) + γ*(( A*@all(EII)^(npow-1.0) * exp(Q_R/@all(T)) )^(-1) + 1.0/μs0)^(-1) end
     return
 end
 
-@parallel_indices (ix,iy,iz) function compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, dt, dx, dy, dz)
+@parallel_indices (ix,iy,iz) function compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, ρCp, dt, dx, dy, dz)
     @define_indices ix iy iz
     @not_in_phases_xi ϕ solid solid begin @all(Rx) = @d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx end
     @not_in_phases_yi ϕ solid solid begin @all(Ry) = @d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy end
     @not_in_phases_zi ϕ solid solid begin @all(Rz) = @d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz end
     # thermo
-    @for_all ϕ begin @all(RT) = -(@all(T) - @all(T_o))/dt - (@d_xa(qTx)/dx + @d_ya(qTy)/dy + @d_za(qTz)/dz) + 2.0*@all(μs)*@all(EII) end
+    @for_all ϕ begin @all(RT) = -(@all(T) - @all(T_o))/dt - (@d_xa(qTx)/dx + @d_ya(qTy)/dy + @d_za(qTz)/dz) + 2.0/ρCp*@all(μs)*@all(EII)*@all(EII) end
     return
 end
 
@@ -217,20 +218,19 @@ end
 
 @views function Stokes3D(dem)
     # inputs
-    # nx,ny,nz  = 511,511,383      # local resolution
-    # nx,ny,nz  = 127,127,95       # local resolution
-    nx,ny,nz  = 127,255,95       # local resolution
-    dim       = (2,2,1)          # MPI dims
+    # nx,ny,nz  = 511,1023,191       # local resolution
     # nx,ny,nz  = 255,511,95       # local resolution
-    # nx,ny,nz  = 95,127,47         # local resolution
-    # dim       = (1,1,1)          # MPI dims
-    nt        = 1                # number of timesteps
+    nx,ny,nz  = 127,255,47       # local resolution
+    dim       = (2,2,2)          # MPI dims
+    # nx,ny,nz  = 127,127,47       # local resolution
+    # dim       = (2,2,1)          # MPI dims
+    nt        = 500              # number of timesteps
     ns        = 4                # number of oversampling per cell
     nsm       = 2                # number of surface data smoothing steps
     out_path  = "../out_visu"
-    out_name  = "results3D_TM_rhone"
-    # out_name  = "results3D_TM_lowres"
-    nsave     = 1
+    out_name  = "results3D_TM_rhone3"
+    # out_name  = "results3D_TM"
+    nsave     = 10
     # IGG initialisation
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3])
     info      = MPI.Info()
@@ -245,13 +245,13 @@ end
     (me==0) && println("dx, dy, dz = $dx, $dy, $dz")
     # physics
     ## dimensionally independent
-    μs0       = 0.1#1.0               # matrix viscosity [Pa*s]
     ρg0       = 1.0               # gravity          [Pa/m]
     ΔT        = 1.0               # temperature difference between ice and atmosphere [K]
-    npow      = 3.0
+    npow      = 1.0/3.0
+    μs0       = 1.0 #A*(1.0/tsc)^(npow-1)
     ## scales
     psc       = ρg0*lz
-    tsc       = μs0/psc
+    tsc       = μs0/psc #A^(1.0/npow)*psc^(-1.0/npow) # [s]
     vsc       = lz/tsc
     # nondimensional
     T0_δT     = 1.0
@@ -259,10 +259,12 @@ end
     ## dimensionally dependent
     ρgv       = ρg0*R'*[0,0,1]
     ρgx,ρgy,ρgz = ρgv
-    χ         = 1e-2*ly^2/tsc # m^2/s = ly^3 * ρg0 / μs0
+    χ         = 1e-10*lz^2/tsc # m^2/s = ly^3 * ρg0 / μs0
     T0        = T0_δT*ΔT
-    dt        = 5e-3*tsc
-    Ta        = T0+0*ΔT
+    dt        = 1e2*tsc
+    # Ta        = T0+0*ΔT
+    A         = μs0^npow/psc^(npow-1)  # consistency      [Pa*s^npow]
+    ρCp       = μs0/tsc/ΔT
     # numerics
     maxiter   = 30*nx_g()     # maximum number of pseudo-transient iterations
     nchk      = 2*nx_g()      # error checking frequency
@@ -272,10 +274,10 @@ end
     ε_∇V      = 1e-6          # nonlinear absolute tolerance for divergence
     ε_T       = 1e-8          # nonlinear absolute tolerance for temperature
     CFL_mech  = 0.5/sqrt(3)   # stability condition
-    CFL_heat  = 0.95/sqrt(3)  # stability condition
+    CFL_heat  = 0.9/sqrt(3)  # stability condition
     Re_mech   = 2π            # Reynolds number                     (numerical parameter #1)
     r_mech    = 1.0           # Bulk to shear elastic modulus ratio (numerical parameter #2)
-    Re_heat   = π + sqrt(π^2 + lx^2/χ/dt)  # Reynolds number for heat conduction (numerical parameter #1)
+    Re_heat   = π + sqrt(π^2 + lz^2/χ/dt)  # Reynolds number for heat conduction (numerical parameter #1)
     # preprocessing
     max_lxyz  = 0.35lz
     vpdτ_mech = min(dx,dy,dz)*CFL_mech
@@ -303,8 +305,8 @@ end
     qTx       = @zeros(nx+1,ny  ,nz  )
     qTy       = @zeros(nx  ,ny+1,nz  )
     qTz       = @zeros(nx  ,ny  ,nz+1)
-    μs        = 1e0μs0 .* @ones(nx,ny,nz)
-    T         =    T0  .* @ones(nx,ny,nz)
+    μs        = μs0 .* @ones(nx,ny,nz)
+    T         = T0  .* @ones(nx,ny,nz)
     # set phases
     if (me==0) print("Set phases (0-air, 1-ice, 2-bedrock)...") end
     # local dem eval
@@ -353,7 +355,7 @@ end
                 update_halo!(qTx,qTy,qTz,EII)
             end
             @hide_communication b_width begin
-                @parallel compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, μs0, ρgx, ρgy, ρgz, Ta, Q_R, T0, dt, npow, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
+                @parallel compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, A, μs0, ρgx, ρgy, ρgz, Q_R, T0, dt, npow, ρCp, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
                 @parallel (1:size(μs,2), 1:size(μs,3)) bc_x!(μs)
                 @parallel (1:size(μs,1), 1:size(μs,3)) bc_y!(μs)
                 @parallel (1:size(μs,1), 1:size(μs,2)) bc_z!(μs)
@@ -361,7 +363,7 @@ end
             end
             iter += 1
             if iter % nchk == 0
-                @parallel compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, dt, dx, dy, dz)
+                @parallel compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, ρCp, dt, dx, dy, dz)
                 norm_Rx = norm_g(Rx)/psc*lz/sqrt(len_g)
                 norm_Ry = norm_g(Ry)/psc*lz/sqrt(len_g)
                 norm_Rz = norm_g(Rz)/psc*lz/sqrt(len_g)
@@ -371,14 +373,14 @@ end
                 err_V   = maximum([norm_Rx, norm_Ry, norm_Rz])
                 err_∇V  = norm_∇V
                 err_T   = norm_T
-                any(isnan.([err_V,err_∇V,err_T])) && error("NaN")
                 # push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/nx)
                 if (me==0) @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e, norm_Rz=%1.3e], err_∇V = %1.3e err_T = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, norm_Rz, err_∇V, err_T) end
+                any(isnan.([err_V,err_∇V,err_T])) && error("NaN")
                 # GC.gc() # force garbage collection
             end
         end
         tt += dt
-        if do_save && (it % nsave == 0)
+        if do_save && ((it % nsave == 0) || (it == 1))
             dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
             @parallel preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
             @parallel apply_mask!(Vn, τII, ϕ)
@@ -408,3 +410,4 @@ end
 Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
 
 # Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.0,0π,tan(-π/6),0.5,0.9))
+# Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.1,10π,tan(-π/6),0.35,0.9))
