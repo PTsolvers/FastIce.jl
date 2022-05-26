@@ -112,16 +112,15 @@ end
 
 @views function Stokes3D(dem)
     # inputs
-    # nx,ny,nz = 511,511,383      # local resolution
-    nx,ny,nz = 127,255,95       # local resolution
+    # nx,ny,nz = 127,255,95       # local resolution
+    # dim      = (2,2,1)          # MPI dims
+    nx,ny,nz = 127,127,47       # local resolution
     dim      = (2,2,1)          # MPI dims
-    # nx,ny,nz = 79,127,47         # local resolution
-    # dim      = (1,1,1)          # MPI dims
     ns       = 4                # number of oversampling per cell
     nsm      = 2                # number of surface data smoothing steps
     out_path = "../out_visu"
-    # out_name = "results3D_M_new"
-    out_name = "results3D_M_rhone"
+    out_name = "results3D_M"
+    # out_name = "results3D_M_rhone"
     # out_name = "results3D_M_greenland"
     # out_name = "results3D_M_antarctica"
     # IGG initialisation
@@ -258,9 +257,9 @@ end
     return
 end
 
-Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
-
+# Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
 # Stokes3D(load_elevation("../data/bedmachine/data_Greenland.h5"))
 # Stokes3D(load_elevation("../data/bedmachine/data_Antarctica.h5"))
 
 # Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.0,0π,tan(-π/6),0.5,0.9))
+Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.1,10π,tan(-π/6),0.35,0.9))
