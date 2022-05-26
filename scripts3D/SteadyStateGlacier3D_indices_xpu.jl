@@ -230,6 +230,7 @@ end
             err_∇V  = norm_∇V
             # push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/nx)
             if (me==0) @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e, norm_Rz=%1.3e], err_∇V = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, norm_Rz, err_∇V) end
+            any(isnan.([err_V,err_∇V,err_T])) && error("NaN")
             # GC.gc() # force garbage collection
         end
     end
