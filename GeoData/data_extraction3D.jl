@@ -180,5 +180,5 @@ end
 
 @time extract_geodata(Float64, "Rhone")
 
-# @time extract_bm_data(Float64, "Antarctica"; downscale=4, pad=50)
-# @time extract_bm_data(Float64, "Greenland"; downscale=4, pad=50)
+# @time extract_bm_data(Float64, "Antarctica"; downscale=2, pad=50)
+# @time extract_bm_data(Float64, "Greenland"; downscale=2, pad=50)

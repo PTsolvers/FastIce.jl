@@ -14,6 +14,7 @@ using HDF5,LightXML
 
 norm_g(A) = (sum2_l = sum(A.^2); sqrt(MPI.Allreduce(sum2_l, MPI.SUM, MPI.COMM_WORLD)))
 sum_g(A)  = (sum_l  = sum(A); MPI.Allreduce(sum_l, MPI.SUM, MPI.COMM_WORLD))
+max_g(A)  = (max_l  = maximum(A); MPI.Allreduce(max_l, MPI.MAX, MPI.COMM_WORLD))
 
 @views inn(A) = A[2:end-1,2:end-1,2:end-1]
 @views av(A)  = convert(eltype(A),0.5)*(A[1:end-1]+A[2:end])
@@ -22,9 +23,9 @@ sum_g(A)  = (sum_l  = sum(A); MPI.Allreduce(sum_l, MPI.SUM, MPI.COMM_WORLD))
     return
 end
 
-include(joinpath(@__DIR__, "helpers3D_v5.jl"))
-include(joinpath(@__DIR__, "data_io.jl"     ))
-include(joinpath(@__DIR__, "flagging_macros3D.jl"))
+include(joinpath(@__DIR__,"helpers3D_v5.jl"))
+include(joinpath(@__DIR__,"data_io.jl"))
+include(joinpath(@__DIR__,"flagging_macros3D.jl"))
 
 const air   = 0.0
 const fluid = 1.0
@@ -43,15 +44,15 @@ macro av_zii(A) esc(:( 0.5*($A[$ixi,$iyi,$izi] + $A[$ixi  ,$iyi  ,$izi+1]) )) en
         @all(τyy) = 2.0*μ_veτ*(@d_ya(Vy)/dy + @all(τyy)/Gdτ/2.0)
         @all(τzz) = 2.0*μ_veτ*(@d_za(Vz)/dz + @all(τzz)/Gdτ/2.0)
     end
-    @in_phases_xy ϕ fluid fluid fluid fluid begin @all(τxy) = μ_veτ*(@d_yi(Vx)/dy + @d_xi(Vy)/dx + @all(τxy)/Gdτ) end
-    @in_phases_xz ϕ fluid fluid fluid fluid begin @all(τxz) = μ_veτ*(@d_zi(Vx)/dz + @d_xi(Vz)/dx + @all(τxz)/Gdτ) end
-    @in_phases_yz ϕ fluid fluid fluid fluid begin @all(τyz) = μ_veτ*(@d_zi(Vy)/dz + @d_yi(Vz)/dy + @all(τyz)/Gdτ) end
+    @corner_xy ϕ air fluid begin @all(τxy) = μ_veτ*(@d_yi(Vx)/dy + @d_xi(Vy)/dx + @all(τxy)/Gdτ) end
+    @corner_xz ϕ air fluid begin @all(τxz) = μ_veτ*(@d_zi(Vx)/dz + @d_xi(Vz)/dx + @all(τxz)/Gdτ) end
+    @corner_yz ϕ air fluid begin @all(τyz) = μ_veτ*(@d_zi(Vy)/dz + @d_yi(Vz)/dy + @all(τyz)/Gdτ) end
     return
 end
 
-macro fm_xi(A) esc(:( ($A[$ix,$iyi,$izi] == fluid) && ($A[$ix+1,$iyi,$izi] == fluid) )) end
-macro fm_yi(A) esc(:( ($A[$ixi,$iy,$izi] == fluid) && ($A[$ixi,$iy+1,$izi] == fluid) )) end
-macro fm_zi(A) esc(:( ($A[$ixi,$iyi,$iz] == fluid) && ($A[$ixi,$iyi,$iz+1] == fluid) )) end
+macro fm_xi(A) esc(:( !(($A[$ix,$iyi,$izi] == air) && ($A[$ix+1,$iyi,$izi] == air)) )) end
+macro fm_yi(A) esc(:( !(($A[$ixi,$iy,$izi] == air) && ($A[$ixi,$iy+1,$izi] == air)) )) end
+macro fm_zi(A) esc(:( !(($A[$ixi,$iyi,$iz] == air) && ($A[$ixi,$iyi,$iz+1] == air)) )) end
 
 @parallel_indices (ix,iy,iz) function compute_V!(Vx, Vy, Vz, Pt, τxx, τyy, τzz, τxy, τxz, τyz, ϕ, ρgx, ρgy, ρgz, dτ_ρ, dx, dy, dz)
     @define_indices ix iy iz
@@ -109,38 +110,16 @@ end
     return
 end
 
-@parallel_indices (ix,iy,iz) function init_ϕi!(ϕ,ϕx,ϕy,ϕz)
-    if ix <= size(ϕx,1) && iy <= size(ϕx,2) && iz <= size(ϕx,3)
-        ϕx[ix,iy,iz] = air
-        if ϕ[ix,iy,iz] == fluid && ϕ[ix+1,iy,iz] == fluid
-            ϕx[ix,iy,iz] = fluid
-        end
-    end
-    if ix <= size(ϕy,1) && iy <= size(ϕy,2) && iz <= size(ϕy,3)
-        ϕy[ix,iy,iz] = air
-        if ϕ[ix,iy,iz] == fluid && ϕ[ix,iy+1,iz] == fluid
-            ϕy[ix,iy,iz] = fluid
-        end
-    end
-    if ix <= size(ϕz,1) && iy <= size(ϕz,2) && iz <= size(ϕz,3)
-        ϕz[ix,iy,iz] = air
-        if ϕ[ix,iy,iz] == fluid && ϕ[ix,iy,iz+1] == fluid
-            ϕz[ix,iy,iz] = fluid
-        end
-    end
-    return
-end
-
 @views function Stokes3D(dem)
     # inputs
-    # nx,ny,nz = 511,511,383      # local resolution
-    # nx,ny,nz = 127,127,95       # local resolution
-    nx,ny,nz = 127,127,47         # local resolution
+    # nx,ny,nz = 127,255,95       # local resolution
+    # dim      = (2,2,1)          # MPI dims
+    nx,ny,nz = 127,127,47       # local resolution
     dim      = (2,2,1)          # MPI dims
-    ns       = 2                # number of oversampling per cell
-    nsm      = 5                # number of surface data smoothing steps
+    ns       = 4                # number of oversampling per cell
+    nsm      = 2                # number of surface data smoothing steps
     out_path = "../out_visu"
-    out_name = "results3D_M_new"
+    out_name = "results3D_M"
     # out_name = "results3D_M_rhone"
     # out_name = "results3D_M_greenland"
     # out_name = "results3D_M_antarctica"
@@ -156,54 +135,6 @@ end
     R        = rotation(dem)
     (me==0) && println("lx, ly, lz = $lx, $ly, $lz")
     (me==0) && println("dx, dy, dz = $dx, $dy, $dz")
-
-
-    xc_l = xc[(coords[1]*(nx-2) + 1):((coords[1]+1)*(nx-2) + 2)]
-    yc_l = yc[(coords[2]*(ny-2) + 1):((coords[2]+1)*(ny-2) + 2)]
-    zc_l = zc[(coords[3]*(nz-2) + 1):((coords[3]+1)*(nz-2) + 2)]
-
-    @assert length(xc_l) == nx
-    @assert length(yc_l) == ny
-    @assert length(zc_l) == nz
-
-    Rinv_h        = R'
-
-    xmin_l,xmax_l = xc_l[1], xc_l[end]
-    ymin_l,ymax_l = yc_l[1], yc_l[end]
-    zmin_l,zmax_l = zc_l[1], zc_l[end]
-
-    x000, y000, z000 = xmin_l, ymin_l, zmin_l
-    x100, y100, z100 = xmax_l, ymin_l, zmin_l
-    x010, y010, z010 = xmin_l, ymax_l, zmin_l
-    x110, y110, z110 = xmax_l, ymax_l, zmin_l
-
-    x001, y001, z001 = xmin_l, ymin_l, zmax_l
-    x101, y101, z101 = xmax_l, ymin_l, zmax_l
-    x011, y011, z011 = xmin_l, ymax_l, zmax_l
-    x111, y111, z111 = xmax_l, ymax_l, zmax_l
-
-    xr000, yr000, _ = rotate(x000,y000,z000,Rinv_h)
-    xr100, yr100, _ = rotate(x100,y100,z100,Rinv_h)
-    xr010, yr010, _ = rotate(x010,y010,z010,Rinv_h)
-    xr110, yr110, _ = rotate(x110,y110,z110,Rinv_h)
-
-    xr001, yr001, _ = rotate(x001,y001,z001,Rinv_h)
-    xr101, yr101, _ = rotate(x101,y101,z101,Rinv_h)
-    xr011, yr011, _ = rotate(x011,y011,z011,Rinv_h)
-    xr111, yr111, _ = rotate(x111,y111,z111,Rinv_h)
-
-    xc_ss_min = min(xr000,xr100,xr010,xr110,xr001,xr101,xr011,xr111) - 0.05lx
-    xc_ss_max = max(xr000,xr100,xr010,xr110,xr001,xr101,xr011,xr111) + 0.05lx
-    yc_ss_min = min(yr000,yr100,yr010,yr110,yr001,yr101,yr011,yr111) - 0.05ly
-    yc_ss_max = max(yr000,yr100,yr010,yr110,yr001,yr101,yr011,yr111) + 0.05ly
-
-    nr_box = dem.domain
-
-    xc_ss_min,yc_ss_min = max(xc_ss_min,nr_box.xmin),max(yc_ss_min,nr_box.ymin)
-    xc_ss_max,yc_ss_max = min(xc_ss_max,nr_box.xmax),min(yc_ss_max,nr_box.ymax)
-
-    xc_ss,yc_ss  = LinRange(xc_ss_min,xc_ss_max,ns*length(xc_l)),LinRange(yc_ss_min,yc_ss_max,ns*length(yc_l))
-
     # physics
     ## dimensionally independent
     μs0      = 1.0               # matrix viscosity [Pa*s]
@@ -216,7 +147,7 @@ end
     ρgv      = ρg0*R'*[0,0,1]
     ρgx,ρgy,ρgz = ρgv
     # numerics
-    maxiter  = 50*nx_g()    # maximum number of pseudo-transient iterations
+    maxiter  = 30*nx_g()    # maximum number of pseudo-transient iterations
     nchk     = 1*nx_g()     # error checking frequency
     b_width  = (8,4,4)      # boundary width
     ε_V      = 1e-8         # nonlinear absolute tolerance for momentum
@@ -250,8 +181,13 @@ end
     Vz       = @zeros(nx  ,ny  ,nz+1)
     # set phases
     (me==0) && print("Set phases (0-air, 1-ice, 2-bedrock)...")
-    Rinv     = Data.Array(R')
+    # local dem eval
+    xc_l,yc_l,zc_l = local_grid(xc,yc,zc,nx,ny,nz,coords)
+    xcl_min,xcl_max,ycl_min,ycl_max = local_extend(xc,yc,zc,nx,ny,nz,dx,dy,coords,R)
+    nr_box = dem.domain
+    xcl_min,xcl_max,ycl_min,ycl_max = max(xcl_min,nr_box.xmin),min(xcl_max,nr_box.xmax),max(ycl_min,nr_box.ymin),min(ycl_max,nr_box.ymax)
     # supersampled grid
+    xc_ss,yc_ss  = LinRange(xcl_min,xcl_max,ns*length(xc_l)),LinRange(ycl_min,ycl_max,ns*length(yc_l))
     dsx,dsy      = xc_ss[2] - xc_ss[1], yc_ss[2] - yc_ss[1]
     z_bed,z_surf = Data.Array.(evaluate(dem, xc_ss, yc_ss))
     ϕ            = air.*@ones(nx,ny,nz)
@@ -263,8 +199,9 @@ end
         z_bed, z_bed2 = z_bed2, z_bed
         z_surf, z_surf2 = z_surf2, z_surf
     end
+    Rinv = Data.Array(R')
     @parallel set_phases!(ϕ,z_surf,z_bed,Rinv,xc_l[1],yc_l[1],zc_l[1],xc_ss[1],yc_ss[1],dx,dy,dz,dsx,dsy)
-    @parallel init_ϕi!(ϕ, ϕx, ϕy, ϕz)
+    update_halo!(ϕ)
     len_g = sum_g(ϕ.==fluid)
     # visu
     if do_save
@@ -288,11 +225,13 @@ end
             norm_Ry = norm_g(Ry)/psc*lz/sqrt(len_g)
             norm_Rz = norm_g(Rz)/psc*lz/sqrt(len_g)
             norm_∇V = norm_g(∇V)/vsc*lz/sqrt(len_g)
+            # max_∇V  = max_g(abs.(∇V))/vsc*lz
             err_V   = maximum([norm_Rx, norm_Ry, norm_Rz])
             err_∇V  = norm_∇V
             # push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/nx)
             if (me==0) @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e, norm_Rz=%1.3e], err_∇V = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, norm_Rz, err_∇V) end
-            GC.gc() # force garbage collection
+            any(isnan.([err_V,err_∇V,err_T])) && error("NaN")
+            # GC.gc() # force garbage collection
         end
     end
     if do_save
@@ -320,8 +259,8 @@ end
 end
 
 # Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
-
 # Stokes3D(load_elevation("../data/bedmachine/data_Greenland.h5"))
 # Stokes3D(load_elevation("../data/bedmachine/data_Antarctica.h5"))
 
-Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.0,0π,tan(-π/6),0.5,0.9))
+# Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.0,0π,tan(-π/6),0.5,0.9))
+Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.1,10π,tan(-π/6),0.35,0.9))
