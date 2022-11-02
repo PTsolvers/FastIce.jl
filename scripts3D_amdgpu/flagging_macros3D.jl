@@ -1,8 +1,11 @@
-import ParallelStencil: INDICES
-ix,iy,iz   = INDICES[1], INDICES[2], INDICES[3]
-ixi,iyi,izi = :($ix+1), :($iy+1), :($iz+1)
+macro get_thread_idx() esc(:( begin
+                              ix = (workgroupIdx().x - 1) * workgroupDim().x + workitemIdx().x
+                              iy = (workgroupIdx().y - 1) * workgroupDim().y + workitemIdx().y
+                              iz = (workgroupIdx().z - 1) * workgroupDim().z + workitemIdx().z
+                              ixi, iyi, izi = (ix+1), (iy+1), (iz+1)
+                              end )) end
 
-macro define_indices(ix,iy,iz) esc(:( ($(INDICES[1]), $(INDICES[2]), $(INDICES[3])) = ($ix, $iy, $iz) )) end
+include(joinpath(@__DIR__,"finite_differences3D.jl"))
 
 macro for_all(ϕ, expr)
     bnd_chk = :( ix <= size($ϕ,1) && iy <= size($ϕ,2) && iz <= size($ϕ,3) )

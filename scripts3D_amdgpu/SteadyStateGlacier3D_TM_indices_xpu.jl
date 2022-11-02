@@ -1,14 +1,6 @@
-const USE_GPU = haskey(ENV, "USE_GPU") ? parse(Bool, ENV["USE_GPU"]) : true
 const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
 ###
-using ParallelStencil
-using ParallelStencil.FiniteDifferences3D
-@static if USE_GPU
-    @init_parallel_stencil(CUDA, Float64, 3)
-else
-    @init_parallel_stencil(Threads, Float64, 3)
-end
-using ImplicitGlobalGrid,Printf,Statistics,LinearAlgebra,Random
+using AMDGPU,ImplicitGlobalGrid,Printf,Statistics,LinearAlgebra,Random
 import MPI
 using HDF5,LightXML
 
@@ -35,8 +27,9 @@ macro av_xii(A) esc(:( 0.5*($A[$ixi,$iyi,$izi] + $A[$ixi+1,$iyi  ,$izi  ]) )) en
 macro av_yii(A) esc(:( 0.5*($A[$ixi,$iyi,$izi] + $A[$ixi  ,$iyi+1,$izi  ]) )) end
 macro av_zii(A) esc(:( 0.5*($A[$ixi,$iyi,$izi] + $A[$ixi  ,$iyi  ,$izi+1]) )) end
 
-@parallel_indices (ix,iy,iz) function compute_EII!(EII, Vx, Vy, Vz, ϕ, dx, dy, dz)
-    nfluid_xy = 0; nfluid_xz = 0; nfluid_yz = 0; 
+function compute_EII!(EII, Vx, Vy, Vz, ϕ, dx, dy, dz)
+    @get_thread_idx()
+    nfluid_xy = 0; nfluid_xz = 0; nfluid_yz = 0
     exy = 0.0; exz = 0.0; eyz = 0.0; exx = 0.0; eyy = 0.0; ezz = 0.0
     if ix <= size(EII,1)-2 && iy <= size(EII,2)-2 && iz <= size(EII,3)-2
         if ϕ[ix,iy,iz+1] == fluid && ϕ[ix+1,iy,iz+1] == fluid && ϕ[ix,iy+1,iz+1] == fluid && ϕ[ix+1,iy+1,iz+1] == fluid
@@ -109,8 +102,8 @@ macro μ_veτ_av_xyi() esc(:( 1.0/(1.0/@Gdτ_av_xyi() + 1.0/@av_xyi(μs))      )
 macro μ_veτ_av_xzi() esc(:( 1.0/(1.0/@Gdτ_av_xzi() + 1.0/@av_xzi(μs))      )) end
 macro μ_veτ_av_yzi() esc(:( 1.0/(1.0/@Gdτ_av_yzi() + 1.0/@av_yzi(μs))      )) end
 
-@parallel_indices (ix,iy,iz) function compute_P_τ_qT!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, qTx, qTy, qTz, Vx, Vy, Vz, μs, ϕ, T, vpdτ_mech, Re_mech, r, max_lxyz, χ, θr_dτ, dx, dy, dz)
-    @define_indices ix iy iz
+function compute_P_τ_qT!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, qTx, qTy, qTz, Vx, Vy, Vz, μs, ϕ, T, vpdτ_mech, Re_mech, r, max_lxyz, χ, θr_dτ, dx, dy, dz)
+    @get_thread_idx()
     @in_phase ϕ fluid begin
         @all(∇V)  = @d_xa(Vx)/dx + @d_ya(Vy)/dy + @d_za(Vz)/dz
         @all(Pt)  = @all(Pt) - r*@Gdτ()*@all(∇V)
@@ -128,16 +121,16 @@ macro μ_veτ_av_yzi() esc(:( 1.0/(1.0/@Gdτ_av_yzi() + 1.0/@av_yzi(μs))      )
     return
 end
 
-macro fm_xi(A) esc(:( !(($A[$ix,$iyi,$izi] == air) && ($A[$ix+1,$iyi,$izi] == air)) )) end
-macro fm_yi(A) esc(:( !(($A[$ixi,$iy,$izi] == air) && ($A[$ixi,$iy+1,$izi] == air)) )) end
-macro fm_zi(A) esc(:( !(($A[$ixi,$iyi,$iz] == air) && ($A[$ixi,$iyi,$iz+1] == air)) )) end
+macro fm_xi(A) esc(:( !(($A[ix,iyi,izi] == air) && ($A[ix+1,iyi,izi] == air)) )) end
+macro fm_yi(A) esc(:( !(($A[ixi,iy,izi] == air) && ($A[ixi,iy+1,izi] == air)) )) end
+macro fm_zi(A) esc(:( !(($A[ixi,iyi,iz] == air) && ($A[ixi,iyi,iz+1] == air)) )) end
 
 macro dτ_ρ_mech_ax() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_xi(μs) )) end
 macro dτ_ρ_mech_ay() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_yi(μs) )) end
 macro dτ_ρ_mech_az() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_zi(μs) )) end
 
-@parallel_indices (ix,iy,iz) function compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, A, μs0, ρgx, ρgy, ρgz, Q_R, T0, dt, npow, ρCp, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
-    @define_indices ix iy iz
+function compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, A, μs0, ρgx, ρgy, ρgz, Q_R, T0, dt, npow, ρCp, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
+    @get_thread_idx()
     @not_in_phases_xi ϕ solid solid begin @inn(Vx) = @inn(Vx) + @dτ_ρ_mech_ax()*(@d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx) end
     @not_in_phases_yi ϕ solid solid begin @inn(Vy) = @inn(Vy) + @dτ_ρ_mech_ay()*(@d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy) end
     @not_in_phases_zi ϕ solid solid begin @inn(Vz) = @inn(Vz) + @dτ_ρ_mech_az()*(@d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz) end
@@ -148,8 +141,8 @@ macro dτ_ρ_mech_az() esc(:( vpdτ_mech*max_lxyz/Re_mech/@av_zi(μs) )) end
     return
 end
 
-@parallel_indices (ix,iy,iz) function compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, ρCp, dt, dx, dy, dz)
-    @define_indices ix iy iz
+function compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, ρCp, dt, dx, dy, dz)
+    @get_thread_idx()
     @not_in_phases_xi ϕ solid solid begin @all(Rx) = @d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @d_xi(Pt)/dx - @fm_xi(ϕ)*ρgx end
     @not_in_phases_yi ϕ solid solid begin @all(Ry) = @d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @d_yi(Pt)/dy - @fm_yi(ϕ)*ρgy end
     @not_in_phases_zi ϕ solid solid begin @all(Rz) = @d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @d_zi(Pt)/dz - @fm_zi(ϕ)*ρgz end
@@ -158,14 +151,16 @@ end
     return
 end
 
-@parallel function preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
+function preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, ϕ)
+    @get_thread_idx()
     # all arrays of size (nx-2,ny-2,nz-2)
-    @all(Vn)  = sqrt(@av_xii(Vx)*@av_xii(Vx) + @av_yii(Vy)*@av_yii(Vy) + @av_zii(Vz)*@av_zii(Vz))
-    @all(τII) = sqrt(0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy) + @inn(τzz)*@inn(τzz)) + @av_xya(τxy)*@av_xya(τxy) + @av_xza(τxz)*@av_xza(τxz) + @av_yza(τyz)*@av_yza(τyz))
+    @for_inn ϕ begin @all(Vn)  = sqrt(@av_xii(Vx)*@av_xii(Vx) + @av_yii(Vy)*@av_yii(Vy) + @av_zii(Vz)*@av_zii(Vz)) end
+    @for_inn ϕ begin @all(τII) = sqrt(0.5*(@inn(τxx)*@inn(τxx) + @inn(τyy)*@inn(τyy) + @inn(τzz)*@inn(τzz)) + @av_xya(τxy)*@av_xya(τxy) + @av_xza(τxz)*@av_xza(τxz) + @av_yza(τyz)*@av_yza(τyz)) end
     return
 end
 
-@parallel_indices (ix,iy,iz) function apply_mask!(Vn, τII, ϕ)
+function apply_mask!(Vn, τII, ϕ)
+    @get_thread_idx()
     if checkbounds(Bool,Vn,ix,iy,iz)
         if ϕ[ix+1,iy+1,iz+1] != fluid
             Vn[ix,iy,iz]  = NaN
@@ -180,7 +175,8 @@ function is_inside_phase(z3rot,ztopo)
     return z3rot < ztopo
 end
 
-@parallel_indices (ix,iy,iz) function set_phases!(ϕ,zsurf,zbed,R,ox,oy,oz,osx,osy,dx,dy,dz,dsx,dsy)
+function set_phases!(ϕ,zsurf,zbed,R,ox,oy,oz,osx,osy,dx,dy,dz,dsx,dsy)
+    @get_thread_idx()
     if checkbounds(Bool,ϕ,ix,iy,iz)
         xc,yc,zc    = ox + (ix-1)*dx, oy + (iy-1)*dy, oz + (iz-1)*dz
         xrot        = R[1,1]*xc + R[1,2]*yc + R[1,3]*zc
@@ -198,21 +194,24 @@ end
     return
 end
 
-@parallel_indices (iy,iz) function bc_x!(A)
-    A[  1, iy,  iz] = A[    2,   iy,   iz]
-    A[end, iy,  iz] = A[end-1,   iy,   iz]
+function bc_x!(A)
+    @get_thread_idx()
+    if (ix==1         && iy<=size(A,2) && iz<=size(A,3)) A[ix,iy,iz] = A[ix+1,iy,iz] end
+    if (ix==size(A,1) && iy<=size(A,2) && iz<=size(A,3)) A[ix,iy,iz] = A[ix-1,iy,iz] end
     return
 end
 
-@parallel_indices (ix,iz) function bc_y!(A)
-    A[ ix,  1,  iz] = A[   ix,    2,   iz]
-    A[ ix,end,  iz] = A[   ix,end-1,   iz]
+function bc_y!(A)
+    @get_thread_idx()
+    if (ix<=size(A,1) && iy==1         && iz<=size(A,3)) A[ix,iy,iz] = A[ix,iy+1,iz] end
+    if (ix<=size(A,1) && iy==size(A,2) && iz<=size(A,3)) A[ix,iy,iz] = A[ix,iy-1,iz] end
     return
 end
 
-@parallel_indices (ix,iy) function bc_z!(A)
-    A[ ix,  iy,  1] = A[   ix,   iy,    2]
-    A[ ix,  iy,end] = A[   ix,   iy,end-1]
+function bc_z!(A)
+    @get_thread_idx()
+    if (ix<=size(A,1) && iy<=size(A,2) && iz==1        ) A[ix,iy,iz] = A[ix,iy,iz+1] end
+    if (ix<=size(A,1) && iy<=size(A,2) && iz==size(A,3)) A[ix,iy,iz] = A[ix,iy,iz-1] end
     return
 end
 
@@ -233,6 +232,7 @@ end
     nsave     = 10
     # IGG initialisation
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3])
+    println("Process $me selecting device $(AMDGPU.default_device_id())")
     info      = MPI.Info()
     # define domain
     domain    = dilate(rotated_domain(dem), (0.05, 0.05, 0.05))
@@ -266,9 +266,11 @@ end
     A         = μs0^npow/psc^(npow-1)  # consistency      [Pa*s^npow]
     ρCp       = μs0/tsc/ΔT
     # numerics
+    threads   = (32,2,2)
+    grid      = (nx,ny,nz)
+    b_width   = (32,2,2)      # boundary width (8,4,4)
     maxiter   = 30*nx_g()     # maximum number of pseudo-transient iterations
     nchk      = 2*nx_g()      # error checking frequency
-    b_width   = (8,4,4)       # boundary width
     γ         = 1e-1
     ε_V       = 1e-6          # nonlinear absolute tolerance for momentum
     ε_∇V      = 1e-6          # nonlinear absolute tolerance for divergence
@@ -285,28 +287,28 @@ end
     dτ_ρ_heat = vpdτ_heat*max_lxyz/Re_heat/χ
     θr_dτ     = max_lxyz/vpdτ_heat/Re_heat
     # allocation
-    Pt        = @zeros(nx  ,ny  ,nz  )
-    ∇V        = @zeros(nx  ,ny  ,nz  )
-    τxx       = @zeros(nx  ,ny  ,nz  )
-    τyy       = @zeros(nx  ,ny  ,nz  )
-    τzz       = @zeros(nx  ,ny  ,nz  )
-    τxy       = @zeros(nx-1,ny-1,nz-2)
-    τxz       = @zeros(nx-1,ny-2,nz-1)
-    τyz       = @zeros(nx-2,ny-1,nz-1)
-    Rx        = @zeros(nx-1,ny-2,nz-2)
-    Ry        = @zeros(nx-2,ny-1,nz-2)
-    Rz        = @zeros(nx-2,ny-2,nz-1)
-    RT        = @zeros(nx  ,ny  ,nz  )
-    Vx        = @zeros(nx+1,ny  ,nz  )
-    Vy        = @zeros(nx  ,ny+1,nz  )
-    Vz        = @zeros(nx  ,ny  ,nz+1)
-    EII       = @zeros(nx  ,ny  ,nz  )
-    T_o       = @zeros(nx  ,ny  ,nz  )
-    qTx       = @zeros(nx+1,ny  ,nz  )
-    qTy       = @zeros(nx  ,ny+1,nz  )
-    qTz       = @zeros(nx  ,ny  ,nz+1)
-    μs        = μs0 .* @ones(nx,ny,nz)
-    T         = T0  .* @ones(nx,ny,nz)
+    Pt        = AMDGPU.zeros(nx  ,ny  ,nz  )
+    ∇V        = AMDGPU.zeros(nx  ,ny  ,nz  )
+    τxx       = AMDGPU.zeros(nx  ,ny  ,nz  )
+    τyy       = AMDGPU.zeros(nx  ,ny  ,nz  )
+    τzz       = AMDGPU.zeros(nx  ,ny  ,nz  )
+    τxy       = AMDGPU.zeros(nx-1,ny-1,nz-2)
+    τxz       = AMDGPU.zeros(nx-1,ny-2,nz-1)
+    τyz       = AMDGPU.zeros(nx-2,ny-1,nz-1)
+    Rx        = AMDGPU.zeros(nx-1,ny-2,nz-2)
+    Ry        = AMDGPU.zeros(nx-2,ny-1,nz-2)
+    Rz        = AMDGPU.zeros(nx-2,ny-2,nz-1)
+    RT        = AMDGPU.zeros(nx  ,ny  ,nz  )
+    Vx        = AMDGPU.zeros(nx+1,ny  ,nz  )
+    Vy        = AMDGPU.zeros(nx  ,ny+1,nz  )
+    Vz        = AMDGPU.zeros(nx  ,ny  ,nz+1)
+    EII       = AMDGPU.zeros(nx  ,ny  ,nz  )
+    T_o       = AMDGPU.zeros(nx  ,ny  ,nz  )
+    qTx       = AMDGPU.zeros(nx+1,ny  ,nz  )
+    qTy       = AMDGPU.zeros(nx  ,ny+1,nz  )
+    qTz       = AMDGPU.zeros(nx  ,ny  ,nz+1)
+    μs        = μs0 .* AMDGPU.ones(nx,ny,nz)
+    T         = T0  .* AMDGPU.ones(nx,ny,nz)
     # set phases
     if (me==0) print("Set phases (0-air, 1-ice, 2-bedrock)...") end
     # local dem eval
@@ -317,8 +319,8 @@ end
     # supersampled grid
     xc_ss,yc_ss  = LinRange(xcl_min,xcl_max,ns*length(xc_l)),LinRange(ycl_min,ycl_max,ns*length(yc_l))
     dsx,dsy      = xc_ss[2] - xc_ss[1], yc_ss[2] - yc_ss[1]
-    z_bed,z_surf = Data.Array.(evaluate(dem, xc_ss, yc_ss))
-    ϕ            = air.*@ones(nx,ny,nz)
+    z_bed,z_surf = ROCArray.(evaluate(dem, xc_ss, yc_ss))
+    ϕ            = air.*AMDGPU.ones(nx,ny,nz)
     z_bed2  = copy(z_bed)
     z_surf2 = copy(z_surf)
     for ism = 1:nsm
@@ -327,15 +329,15 @@ end
         z_bed, z_bed2 = z_bed2, z_bed
         z_surf, z_surf2 = z_surf2, z_surf
     end
-    Rinv = Data.Array(R')
-    @parallel set_phases!(ϕ,z_surf,z_bed,Rinv,xc_l[1],yc_l[1],zc_l[1],xc_ss[1],yc_ss[1],dx,dy,dz,dsx,dsy)
+    Rinv = ROCArray(R')
+    wait( @roc groupsize=threads gridsize=grid set_phases!(ϕ,z_surf,z_bed,Rinv,xc_l[1],yc_l[1],zc_l[1],xc_ss[1],yc_ss[1],dx,dy,dz,dsx,dsy) )
     update_halo!(ϕ)
     len_g = sum_g(ϕ.==fluid)
     # visu
     if do_save
         (me==0) && !ispath(out_path) && mkdir(out_path)
-        Vn  = @zeros(nx-2,ny-2,nz-2)
-        τII = @zeros(nx-2,ny-2,nz-2)
+        Vn  = AMDGPU.zeros(nx-2,ny-2,nz-2)
+        τII = AMDGPU.zeros(nx-2,ny-2,nz-2)
     end
     (me==0) && println(" done. Starting the real stuff 🚀")
     # time 
@@ -346,24 +348,24 @@ end
         # iteration loop
         err_V=2*ε_V; err_∇V=2*ε_∇V; err_T=2*ε_T; iter=0; err_evo1=[]; err_evo2=[]
         while !((err_V <= ε_V) && (err_∇V <= ε_∇V) && (err_T <= ε_T)) && (iter <= maxiter)
-            @parallel compute_EII!(EII, Vx, Vy, Vz, ϕ, dx, dy, dz)
-            @parallel (1:size(EII,2), 1:size(EII,3)) bc_x!(EII)
-            @parallel (1:size(EII,1), 1:size(EII,3)) bc_y!(EII)
-            @parallel (1:size(EII,1), 1:size(EII,2)) bc_z!(EII)
-            @hide_communication b_width begin
-                @parallel compute_P_τ_qT!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, qTx, qTy, qTz, Vx, Vy, Vz, μs, ϕ, T, vpdτ_mech, Re_mech, r_mech, max_lxyz, χ, θr_dτ, dx, dy, dz)
+            wait( @roc groupsize=threads gridsize=grid compute_EII!(EII, Vx, Vy, Vz, ϕ, dx, dy, dz) )
+            wait( @roc groupsize=threads gridsize=grid bc_x!(EII) )
+            wait( @roc groupsize=threads gridsize=grid bc_y!(EII) )
+            wait( @roc groupsize=threads gridsize=grid bc_z!(EII) )
+            # @hide_communication b_width begin
+                wait( @roc groupsize=threads gridsize=grid compute_P_τ_qT!(∇V, Pt, τxx, τyy, τzz, τxy, τxz, τyz, qTx, qTy, qTz, Vx, Vy, Vz, μs, ϕ, T, vpdτ_mech, Re_mech, r_mech, max_lxyz, χ, θr_dτ, dx, dy, dz) )
                 update_halo!(qTx,qTy,qTz,EII)
-            end
-            @hide_communication b_width begin
-                @parallel compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, A, μs0, ρgx, ρgy, ρgz, Q_R, T0, dt, npow, ρCp, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz)
-                @parallel (1:size(μs,2), 1:size(μs,3)) bc_x!(μs)
-                @parallel (1:size(μs,1), 1:size(μs,3)) bc_y!(μs)
-                @parallel (1:size(μs,1), 1:size(μs,2)) bc_z!(μs)
+            # end
+            # @hide_communication b_width begin
+                wait( @roc groupsize=threads gridsize=grid compute_V_T_μ!(Vx, Vy, Vz, T, μs, Pt, τxx, τyy, τzz, τxy, τxz, τyz, EII, T_o, qTx, qTy, qTz, ϕ, A, μs0, ρgx, ρgy, ρgz, Q_R, T0, dt, npow, ρCp, γ, vpdτ_mech, max_lxyz, Re_mech, dτ_ρ_heat, dx, dy, dz) )
+                wait( @roc groupsize=threads gridsize=grid bc_x!(μs) )
+                wait( @roc groupsize=threads gridsize=grid bc_y!(μs) )
+                wait( @roc groupsize=threads gridsize=grid bc_z!(μs) )
                 update_halo!(Vx,Vy,Vz,μs)
-            end
+            # end
             iter += 1
             if iter % nchk == 0
-                @parallel compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, ρCp, dt, dx, dy, dz)
+                wait( @roc groupsize=threads gridsize=grid compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, ρCp, dt, dx, dy, dz) )
                 norm_Rx = norm_g(Rx)/psc*lz/sqrt(len_g)
                 norm_Ry = norm_g(Ry)/psc*lz/sqrt(len_g)
                 norm_Rz = norm_g(Rz)/psc*lz/sqrt(len_g)
@@ -382,8 +384,8 @@ end
         tt += dt
         if do_save && ((it % nsave == 0) || (it == 1))
             dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
-            @parallel preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz)
-            @parallel apply_mask!(Vn, τII, ϕ)
+            wait( @roc groupsize=threads gridsize=grid preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, ϕ) )
+            wait( @roc groupsize=threads gridsize=grid apply_mask!(Vn, τII, ϕ) )
             out_h5 = joinpath(out_path,out_name)*"_$isave.h5"
             I = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
                                    (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
@@ -407,7 +409,7 @@ end
     return
 end
 
-Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
+# Stokes3D(load_elevation("../data/alps/data_Rhone.h5"))
 
 # Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.0,0π,tan(-π/6),0.5,0.9))
-# Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.1,10π,tan(-π/6),0.35,0.9))
+Stokes3D(generate_elevation(5.0,5.0,(0.0,1.0),0.1,10π,tan(-π/6),0.35,0.9))
