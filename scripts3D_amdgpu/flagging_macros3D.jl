@@ -1,8 +1,8 @@
 macro get_thread_idx() esc(:( begin
-                              ix = (workgroupIdx().x - 1) * workgroupDim().x + workitemIdx().x
-                              iy = (workgroupIdx().y - 1) * workgroupDim().y + workitemIdx().y
-                              iz = (workgroupIdx().z - 1) * workgroupDim().z + workitemIdx().z
-                              ixi, iyi, izi = (ix+1), (iy+1), (iz+1)
+                              ix = (workgroupIdx().x - 1) * workgroupDim().x + workitemIdx().x;
+                              iy = (workgroupIdx().y - 1) * workgroupDim().y + workitemIdx().y;
+                              iz = (workgroupIdx().z - 1) * workgroupDim().z + workitemIdx().z;
+                              ixi, iyi, izi = (ix+1), (iy+1), (iz+1);
                               end )) end
 
 include(joinpath(@__DIR__,"finite_differences3D.jl"))

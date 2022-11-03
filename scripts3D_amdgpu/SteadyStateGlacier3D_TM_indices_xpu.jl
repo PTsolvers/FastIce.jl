@@ -1,10 +1,10 @@
-const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : true
+const do_save = haskey(ENV, "DO_SAVE") ? parse(Bool, ENV["DO_SAVE"]) : false
 ###
 using AMDGPU,ImplicitGlobalGrid,Printf,Statistics,LinearAlgebra,Random
 import MPI
 using HDF5,LightXML
 
-norm_g(A) = (sum2_l = sum(A.^2); sqrt(MPI.Allreduce(sum2_l, MPI.SUM, MPI.COMM_WORLD)))
+norm_g(A) = (sum2_l = sum(A.*A); sqrt(MPI.Allreduce(sum2_l, MPI.SUM, MPI.COMM_WORLD)))
 sum_g(A)  = (sum_l  = sum(A); MPI.Allreduce(sum_l, MPI.SUM, MPI.COMM_WORLD))
 max_g(A)  = (max_l  = maximum(A); MPI.Allreduce(max_l, MPI.MAX, MPI.COMM_WORLD))
 
@@ -23,9 +23,9 @@ const air   = 0.0
 const fluid = 1.0
 const solid = 2.0
 
-macro av_xii(A) esc(:( 0.5*($A[$ixi,$iyi,$izi] + $A[$ixi+1,$iyi  ,$izi  ]) )) end
-macro av_yii(A) esc(:( 0.5*($A[$ixi,$iyi,$izi] + $A[$ixi  ,$iyi+1,$izi  ]) )) end
-macro av_zii(A) esc(:( 0.5*($A[$ixi,$iyi,$izi] + $A[$ixi  ,$iyi  ,$izi+1]) )) end
+macro av_xii(A) esc(:( 0.5*($A[ixi,iyi,izi] + $A[ixi+1,iyi  ,izi  ]) )) end
+macro av_yii(A) esc(:( 0.5*($A[ixi,iyi,izi] + $A[ixi  ,iyi+1,izi  ]) )) end
+macro av_zii(A) esc(:( 0.5*($A[ixi,iyi,izi] + $A[ixi  ,iyi  ,izi+1]) )) end
 
 function compute_EII!(EII, Vx, Vy, Vz, ϕ, dx, dy, dz)
     @get_thread_idx()
@@ -217,18 +217,13 @@ end
 
 @views function Stokes3D(dem)
     # inputs
-    # nx,ny,nz  = 511,1023,191       # local resolution
-    # nx,ny,nz  = 255,511,95       # local resolution
-    nx,ny,nz  = 127,255,47       # local resolution
-    dim       = (2,2,2)          # MPI dims
-    # nx,ny,nz  = 127,127,47       # local resolution
-    # dim       = (2,2,1)          # MPI dims
-    nt        = 500              # number of timesteps
+    nx,ny,nz  = 127,127,47       # local resolution
+    dim       = (2,2,1)          # MPI dims
+    nt        = 1               # number of timesteps
     ns        = 4                # number of oversampling per cell
     nsm       = 2                # number of surface data smoothing steps
     out_path  = "../out_visu"
-    out_name  = "results3D_TM_rhone3"
-    # out_name  = "results3D_TM"
+    out_name  = "results3D_TM"
     nsave     = 10
     # IGG initialisation
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3])
@@ -269,8 +264,8 @@ end
     threads   = (32,2,2)
     grid      = (nx,ny,nz)
     b_width   = (32,2,2)      # boundary width (8,4,4)
-    maxiter   = 30*nx_g()     # maximum number of pseudo-transient iterations
-    nchk      = 2*nx_g()      # error checking frequency
+    maxiter   = 10#30*nx_g()     # maximum number of pseudo-transient iterations
+    nchk      = 2#2*nx_g()      # error checking frequency
     γ         = 1e-1
     ε_V       = 1e-6          # nonlinear absolute tolerance for momentum
     ε_∇V      = 1e-6          # nonlinear absolute tolerance for divergence
@@ -287,28 +282,28 @@ end
     dτ_ρ_heat = vpdτ_heat*max_lxyz/Re_heat/χ
     θr_dτ     = max_lxyz/vpdτ_heat/Re_heat
     # allocation
-    Pt        = AMDGPU.zeros(nx  ,ny  ,nz  )
-    ∇V        = AMDGPU.zeros(nx  ,ny  ,nz  )
-    τxx       = AMDGPU.zeros(nx  ,ny  ,nz  )
-    τyy       = AMDGPU.zeros(nx  ,ny  ,nz  )
-    τzz       = AMDGPU.zeros(nx  ,ny  ,nz  )
-    τxy       = AMDGPU.zeros(nx-1,ny-1,nz-2)
-    τxz       = AMDGPU.zeros(nx-1,ny-2,nz-1)
-    τyz       = AMDGPU.zeros(nx-2,ny-1,nz-1)
-    Rx        = AMDGPU.zeros(nx-1,ny-2,nz-2)
-    Ry        = AMDGPU.zeros(nx-2,ny-1,nz-2)
-    Rz        = AMDGPU.zeros(nx-2,ny-2,nz-1)
-    RT        = AMDGPU.zeros(nx  ,ny  ,nz  )
-    Vx        = AMDGPU.zeros(nx+1,ny  ,nz  )
-    Vy        = AMDGPU.zeros(nx  ,ny+1,nz  )
-    Vz        = AMDGPU.zeros(nx  ,ny  ,nz+1)
-    EII       = AMDGPU.zeros(nx  ,ny  ,nz  )
-    T_o       = AMDGPU.zeros(nx  ,ny  ,nz  )
-    qTx       = AMDGPU.zeros(nx+1,ny  ,nz  )
-    qTy       = AMDGPU.zeros(nx  ,ny+1,nz  )
-    qTz       = AMDGPU.zeros(nx  ,ny  ,nz+1)
-    μs        = μs0 .* AMDGPU.ones(nx,ny,nz)
-    T         = T0  .* AMDGPU.ones(nx,ny,nz)
+    Pt        = AMDGPU.zeros(Float64,nx  ,ny  ,nz  )
+    ∇V        = AMDGPU.zeros(Float64,nx  ,ny  ,nz  )
+    τxx       = AMDGPU.zeros(Float64,nx  ,ny  ,nz  )
+    τyy       = AMDGPU.zeros(Float64,nx  ,ny  ,nz  )
+    τzz       = AMDGPU.zeros(Float64,nx  ,ny  ,nz  )
+    τxy       = AMDGPU.zeros(Float64,nx-1,ny-1,nz-2)
+    τxz       = AMDGPU.zeros(Float64,nx-1,ny-2,nz-1)
+    τyz       = AMDGPU.zeros(Float64,nx-2,ny-1,nz-1)
+    Rx        = AMDGPU.zeros(Float64,nx-1,ny-2,nz-2)
+    Ry        = AMDGPU.zeros(Float64,nx-2,ny-1,nz-2)
+    Rz        = AMDGPU.zeros(Float64,nx-2,ny-2,nz-1)
+    RT        = AMDGPU.zeros(Float64,nx  ,ny  ,nz  )
+    Vx        = AMDGPU.zeros(Float64,nx+1,ny  ,nz  )
+    Vy        = AMDGPU.zeros(Float64,nx  ,ny+1,nz  )
+    Vz        = AMDGPU.zeros(Float64,nx  ,ny  ,nz+1)
+    EII       = AMDGPU.zeros(Float64,nx  ,ny  ,nz  )
+    T_o       = AMDGPU.zeros(Float64,nx  ,ny  ,nz  )
+    qTx       = AMDGPU.zeros(Float64,nx+1,ny  ,nz  )
+    qTy       = AMDGPU.zeros(Float64,nx  ,ny+1,nz  )
+    qTz       = AMDGPU.zeros(Float64,nx  ,ny  ,nz+1)
+    μs        = μs0 .* AMDGPU.ones(Float64,nx,ny,nz)
+    T         = T0  .* AMDGPU.ones(Float64,nx,ny,nz)
     # set phases
     if (me==0) print("Set phases (0-air, 1-ice, 2-bedrock)...") end
     # local dem eval
@@ -320,7 +315,7 @@ end
     xc_ss,yc_ss  = LinRange(xcl_min,xcl_max,ns*length(xc_l)),LinRange(ycl_min,ycl_max,ns*length(yc_l))
     dsx,dsy      = xc_ss[2] - xc_ss[1], yc_ss[2] - yc_ss[1]
     z_bed,z_surf = ROCArray.(evaluate(dem, xc_ss, yc_ss))
-    ϕ            = air.*AMDGPU.ones(nx,ny,nz)
+    ϕ            = air .* AMDGPU.ones(Float64,nx,ny,nz)
     z_bed2  = copy(z_bed)
     z_surf2 = copy(z_surf)
     for ism = 1:nsm
@@ -332,15 +327,16 @@ end
     Rinv = ROCArray(R')
     wait( @roc groupsize=threads gridsize=grid set_phases!(ϕ,z_surf,z_bed,Rinv,xc_l[1],yc_l[1],zc_l[1],xc_ss[1],yc_ss[1],dx,dy,dz,dsx,dsy) )
     update_halo!(ϕ)
-    len_g = sum_g(ϕ.==fluid)
+    len_g = sum_g(ϕ.==fluid); sqrt_len_g = sqrt(len_g)
     # visu
     if do_save
         (me==0) && !ispath(out_path) && mkdir(out_path)
-        Vn  = AMDGPU.zeros(nx-2,ny-2,nz-2)
-        τII = AMDGPU.zeros(nx-2,ny-2,nz-2)
+        Vn  = AMDGPU.zeros(Float64,nx-2,ny-2,nz-2)
+        τII = AMDGPU.zeros(Float64,nx-2,ny-2,nz-2)
     end
     (me==0) && println(" done. Starting the real stuff 🚀")
-    # time 
+    # time
+    # GC.enable(false) # uncomment for prof, mtp
     ts = Float64[]; tt = 0.0; h5_names = String[]; isave = 1
     for it = 1:nt
         if (me==0) @printf("➡ it = %d\n", it) end
@@ -366,44 +362,44 @@ end
             iter += 1
             if iter % nchk == 0
                 wait( @roc groupsize=threads gridsize=grid compute_Res!(Rx, Ry, Rz, RT, Pt, τxx, τyy, τzz, τxy, τxz, τyz, T, T_o, qTx, qTy, qTz, EII, μs, ϕ, ρgx, ρgy, ρgz, ρCp, dt, dx, dy, dz) )
-                norm_Rx = norm_g(Rx)/psc*lz/sqrt(len_g)
-                norm_Ry = norm_g(Ry)/psc*lz/sqrt(len_g)
-                norm_Rz = norm_g(Rz)/psc*lz/sqrt(len_g)
-                norm_∇V = norm_g(∇V)/vsc*lz/sqrt(len_g)
+                norm_Rx = norm_g(Rx)/psc*lz/sqrt_len_g
+                norm_Ry = norm_g(Ry)/psc*lz/sqrt_len_g
+                norm_Rz = norm_g(Rz)/psc*lz/sqrt_len_g
+                norm_∇V = norm_g(∇V)/vsc*lz/sqrt_len_g
+                norm_T  = norm_g(RT)*tsc/ΔT/sqrt_len_g
                 # max_∇V  = max_g(abs.(∇V))/vsc*lz
-                norm_T  = norm_g(RT)*tsc/ΔT/sqrt(len_g)
                 err_V   = maximum([norm_Rx, norm_Ry, norm_Rz])
                 err_∇V  = norm_∇V
                 err_T   = norm_T
-                # push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/nx)
+                push!(err_evo1, maximum([norm_Rx, norm_Ry, norm_∇V])); push!(err_evo2,iter/nx)
                 if (me==0) @printf("# iters = %d, err_V = %1.3e [norm_Rx=%1.3e, norm_Ry=%1.3e, norm_Rz=%1.3e], err_∇V = %1.3e err_T = %1.3e \n", iter, err_V, norm_Rx, norm_Ry, norm_Rz, err_∇V, err_T) end
                 any(isnan.([err_V,err_∇V,err_T])) && error("NaN")
                 # GC.gc() # force garbage collection
             end
         end
         tt += dt
-        if do_save && ((it % nsave == 0) || (it == 1))
-            dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
-            wait( @roc groupsize=threads gridsize=grid preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, ϕ) )
-            wait( @roc groupsize=threads gridsize=grid apply_mask!(Vn, τII, ϕ) )
-            out_h5 = joinpath(out_path,out_name)*"_$isave.h5"
-            I = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
-                                   (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
-                                   (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
-            fields = Dict("ϕ"=>inn(ϕ),"Vn"=>Vn,"τII"=>τII,"Pr"=>inn(Pt),"EII"=>inn(EII),"T"=>inn(T),"μ"=>inn(μs))
-            push!(ts,tt); push!(h5_names,out_name*"_$isave.h5")
-            (me==0) && print("Saving HDF5 file...")
-            write_h5(out_h5,fields,dim_g,I,comm_cart,info) # comm_cart,MPI.Info() are varargs to exclude if using non-parallel HDF5 lib
-            # write_h5(out_h5,fields,dim_g,I) # comm_cart,MPI.Info() are varargs to exclude if using non-parallel HDF5 lib
-            (me==0) && println(" done")
-            # write XDMF
-            if me==0
-                print("Saving XDMF file...")
-                write_xdmf(joinpath(out_path,out_name)*".xdmf3",h5_names,fields,(xc[2],yc[2],zc[2]),(dx,dy,dz),dim_g,ts)
-                println(" done")
-            end
-            isave += 1
-        end
+        # if do_save && ((it % nsave == 0) || (it == 1))
+        #     dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
+        #     wait( @roc groupsize=threads gridsize=grid preprocess_visu!(Vn, τII, Vx, Vy, Vz, τxx, τyy, τzz, τxy, τxz, τyz, ϕ) )
+        #     wait( @roc groupsize=threads gridsize=grid apply_mask!(Vn, τII, ϕ) )
+        #     out_h5 = joinpath(out_path,out_name)*"_$isave.h5"
+        #     I = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
+        #                            (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
+        #                            (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
+        #     fields = Dict("ϕ"=>inn(ϕ),"Vn"=>Vn,"τII"=>τII,"Pr"=>inn(Pt),"EII"=>inn(EII),"T"=>inn(T),"μ"=>inn(μs))
+        #     push!(ts,tt); push!(h5_names,out_name*"_$isave.h5")
+        #     (me==0) && print("Saving HDF5 file...")
+        #     write_h5(out_h5,fields,dim_g,I,comm_cart,info) # comm_cart,MPI.Info() are varargs to exclude if using non-parallel HDF5 lib
+        #     # write_h5(out_h5,fields,dim_g,I) # comm_cart,MPI.Info() are varargs to exclude if using non-parallel HDF5 lib
+        #     (me==0) && println(" done")
+        #     # write XDMF
+        #     if me==0
+        #         print("Saving XDMF file...")
+        #         write_xdmf(joinpath(out_path,out_name)*".xdmf3",h5_names,fields,(xc[2],yc[2],zc[2]),(dx,dy,dz),dim_g,ts)
+        #         println(" done")
+        #     end
+        #     isave += 1
+        # end
     end
     finalize_global_grid()
     return
