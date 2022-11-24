@@ -127,6 +127,8 @@ end
     lx,ly,lz   = 20.0,20.0,10.0
     η0         = (ice = 1.0 , air = 1e-6)
     ρg0        = (ice = 1.0 , air = 0.0 )
+    λ          = (ice = 1.0 , air = 1.0 )
+    ρCp        = (ice = 1.0 , air = 1.0 )
     r_dep      = 3.0*min(lx,ly,lz)
     x0,y0,z0   = 0.1lx,0.2ly,0.8lz + sqrt(r_dep^2-max(lx,ly)^2/4.0)
     # numerics
@@ -180,6 +182,10 @@ end
     ρgz        = @zeros(nx  ,ny  ,nz-1)
     phase      = @zeros(nx  ,ny  ,nz  )
     ητ         = @zeros(nx  ,ny  ,nz  )
+    U          = @zeros(nx  ,ny  ,nz  )
+    qUx        = @zeros(nx+1,ny  ,nz  )
+    qUy        = @zeros(nx  ,ny+1,nz  )
+    qUz        = @zeros(nx  ,ny  ,nz+1)
     # initialisation
     @parallel compte_η_ρg!(η,ρgz_c,phase,xc,yc,zc,x0,y0,z0,r_dep,δ_sd,η0.air,η0.ice,ρg0.air,ρg0.ice)
     ρgz .= ameanz(ρgz_c)
