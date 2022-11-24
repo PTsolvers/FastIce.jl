@@ -233,15 +233,9 @@ end
     )
     # connect sliders to `volumeslices` update methods
     sl_yz, sl_xz, sl_xy = sgrid.sliders
-    on(sl_yz.value) do v
-        for prop in eachindex(plts) plts[prop][:update_yz][](v) end
-    end
-    on(sl_xz.value) do v
-        for prop in eachindex(plts) plts[prop][:update_xz][](v) end
-    end
-    on(sl_xy.value) do v
-        for prop in eachindex(plts) plts[prop][:update_xy][](v) end
-    end
+    on(sl_yz.value) do v; for prop in eachindex(plts) plts[prop][:update_yz][](v) end; end
+    on(sl_xz.value) do v; for prop in eachindex(plts) plts[prop][:update_xz][](v) end; end
+    on(sl_xy.value) do v; for prop in eachindex(plts) plts[prop][:update_xy][](v) end; end
     set_close_to!(sl_yz, .5length(xc))
     set_close_to!(sl_xz, .5length(yc))
     set_close_to!(sl_xy, .5length(zc))
