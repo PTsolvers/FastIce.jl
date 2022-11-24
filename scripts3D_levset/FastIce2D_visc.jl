@@ -89,14 +89,12 @@ end
     return
 end
 
-@parallel_indices (ix,iy) function compte_η_G_ρg!(K,η,G,ρgy_c,phase,ηb,xc,yc,x0,y0c,y0d,r_dep,δ_sd,K0_air,K0_ice,η0_air,η0_ice,G0_air,G0_ice,ρg0_air,ρg0_ice)
-    if ix<=size(G,1) && iy<=size(G,2)
+@parallel_indices (ix,iy) function compte_η_ρg!(η,ρgy_c,phase,ηb,xc,yc,x0,y0c,y0d,r_dep,δ_sd,η0_air,η0_ice,ρg0_air,ρg0_ice)
+    if ix<=size(η,1) && iy<=size(η,2)
         sd_air = sqrt((xc[ix]-x0)^2 + 5*(yc[iy]-y0d)^2)-r_dep
         t_air  = 0.5*(tanh(-sd_air/δ_sd) + 1)
         t_ice  = 1.0 - t_air
         η[ix,iy]     = t_ice*η0_ice  + t_air*η0_air
-        G[ix,iy]     = t_ice*G0_ice  + t_air*G0_air
-        K[ix,iy]     = t_ice*K0_ice  + t_air*K0_air
         ρgy_c[ix,iy] = t_ice*ρg0_ice + t_air*ρg0_air
         phase[ix,iy] =  1.0 - t_air
         ηb[ix,iy]    = (1.0 - t_air)*1e12 + t_air*1.0
@@ -108,8 +106,6 @@ function main()
     # physics
     lx,ly      = 20.0,10.0
     η0         = (ice = 1.0 , air = 1e-6)
-    G0         = (ice = 1.0 , air = 1e6 )
-    K0         = (ice = 4.0 , air = 4e0 ) # 4*G0
     ρg0        = (ice = 0.9 , air = 0.0 )
     r_dep      = 1.5*min(lx,ly)
     x0,y0c,y0d = 0.0,0.0*ly,1.4*ly
@@ -146,10 +142,8 @@ function main()
     εxyv       = @zeros(nx+1,ny+1)
     η          = @zeros(nx  ,ny  )
     τII        = @zeros(nx  ,ny  )
-    K          = @zeros(nx  ,ny  )
     Vmag       = @zeros(nx  ,ny  )
     dPr        = @zeros(nx  ,ny  )
-    G          = @zeros(nx  ,ny  )
     r_Vx       = @zeros(nx-1,ny-2)
     r_Vy       = @zeros(nx-2,ny-1)
     ρgy_c      = @zeros(nx  ,ny  )
@@ -159,7 +153,7 @@ function main()
     ηb         = @zeros(nx  ,ny  )
     ητ         = @zeros(nx  ,ny  )
     # initialisation
-    @parallel compte_η_G_ρg!(K,η,G,ρgy_c,phase,ηb,xc,yc,x0,y0c,y0d,r_dep,δ_sd,K0.air,K0.ice,η0.air,η0.ice,G0.air,G0.ice,ρg0.air,ρg0.ice)
+    @parallel compte_η_ρg!(η,ρgy_c,phase,ηb,xc,yc,x0,y0c,y0d,r_dep,δ_sd,η0.air,η0.ice,ρg0.air,ρg0.ice)
     ρgy .= ameany(ρgy_c)
     Pr  .= Data.Array(reverse(cumsum(reverse(Array(ρgy_c),dims=2),dims=2).*dy,dims=2))
     opts = (aspect_ratio=1, xlims=extrema(xc), ylims=extrema(yc), c=:turbo, framestyle=:box)
