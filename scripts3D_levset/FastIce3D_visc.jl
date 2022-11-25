@@ -118,7 +118,7 @@ end
 end
 
 @parallel_indices (ix,iz) function bc_Vy!(Vy,η,Pr,ph_ice,ph_bed,dy)
-    t_air         = 1.0 - 0.5*(ph_ice[ix,1,iz] + ph_ice[ix,2,iz]) - 0.5*(ph_bed[ix,1,iz] + ph_bed[ix,1,iz])
+    t_air         = 1.0 - 0.5*(ph_ice[ix,1,iz] + ph_ice[ix,2,iz]) - 0.5*(ph_bed[ix,1,iz] + ph_bed[ix,2,iz])
     Vy[ix,1  ,iz] = t_air*(Vy[ix,2    ,iz] - 0.5*dy/η[ix,1  ,iz]*(Pr[ix,2    ,iz] + Pr[ix,1  ,iz] - 2.0*η[ix,2    ,iz]*(Vy[ix,3    ,iz] - Vy[ix,2    ,iz])/dy)) - (1.0-t_air)*Vy[ix,3    ,iz]
     t_air         = 1.0 - 0.5*(ph_ice[ix,end-1,iz] + ph_ice[ix,end,iz]) - 0.5*(ph_bed[ix,end-1,iz] + ph_bed[ix,end,iz])
     Vy[ix,end,iz] = t_air*(Vy[ix,end-1,iz] + 0.5*dy/η[ix,end,iz]*(Pr[ix,end-1,iz] + Pr[ix,end,iz] - 2.0*η[ix,end-1,iz]*(Vy[ix,end-1,iz] - Vy[ix,end-2,iz])/dy)) - (1.0-t_air)*Vy[ix,end-2,iz]
@@ -172,7 +172,7 @@ end
 @views function main()
     # physics
     lx,ly,lz   = 40.0,40.0,10.0
-    η0         = (ice = 1.0  ,bed = 1e2  ,air = 1e-8 )
+    η0         = (ice = 1.0  ,bed = 1e2  ,air = 1e-6 )
     ρg0        = (ice = 1.0  ,bed = 1.0  ,air = 0.0  )
     λ          = (ice = 1.0  ,bed = 1.0  ,air = 1.0  )
     ρCp        = (ice = 1.0  ,bed = 1.0  ,air = 1.0  )
@@ -189,8 +189,8 @@ end
     ϵtol       = (1e-6,1e-6,1e-6,1e-6)
     maxiter    = 100min(nx,ny,nz)
     ncheck     = ceil(Int,5min(nx,ny,nz))
-    r          = 0.6
-    re_mech    = 3π
+    r          = 0.7
+    re_mech    = 5.2π
     nt         = 2
     # preprocessing
     dx,dy,dz   = lx/nx,ly/ny,lz/nz
@@ -198,7 +198,7 @@ end
     xc,yc,zc   = amean1(xv),amean1(yv),amean1(zv)
     lτ         = min(lx,ly,lz)
     vdτ        = min(dx,dy,dz)/sqrt(3.1)
-    θ_dτ       = lτ*(r+2.0)/(re_mech*vdτ)
+    θ_dτ       = lτ*(r+4/3)/(re_mech*vdτ)
     nudτ       = vdτ*lτ/re_mech
     dτ_r       = 1.0/(θ_dτ + 1.0)
     δ_sd       = 1.0*max(dx,dy,dz)
