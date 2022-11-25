@@ -279,7 +279,7 @@ end
             @parallel (1:size(Vy,1),1:size(Vy,2)) bc_Vxy!(Vy)
             if iter % ncheck == 0
                 @parallel compute_residuals!(r_Vx,r_Vy,r_Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ρgx,ρgy,ρgz,dx,dy,dz)
-                errs = maximum.((abs.(r_Vx),abs.(r_Vy),abs.(r_Vz),abs.(dPr)))
+                errs = maximum.((abs.(r_Vx),abs.(r_Vy),abs.(r_Vz),abs.(dPr[2:end-1,2:end-1,2:end-1])))
                 push!(iter_evo,iter/min(nx,ny,nz));append!(errs_evo,errs)
                 @printf("  iter/nz=%.3f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/min(nx,ny,nz),errs...)
             end
