@@ -125,15 +125,22 @@ end
     return
 end
 
-@parallel_indices (ix,iy,iz) function compte_η_ρg!(η,ρgz_c,phase,xc,yc,zc,x0,y0,z0,r_dep,δ_sd,η0_air,η0_ice,ρg0_air,ρg0_ice)
-    if ix<=size(η,1) && iy<=size(η,2) && iz<=size(η,3)
-        sd_air = sqrt((xc[ix]-x0)^2 + (yc[iy]-y0)^2+(zc[iz]-z0)^2)-r_dep
-        t_air  = 0.5*(tanh(-sd_air/δ_sd) + 1)
-        t_ice  = 1.0 - t_air
-        η[ix,iy,iz]     = t_ice*η0_ice  + t_air*η0_air
-        ρgz_c[ix,iy,iz] = t_ice*ρg0_ice + t_air*ρg0_air
-        phase[ix,iy,iz] =  1.0 - t_air
-    end
+@parallel_indices (ix,iy,iz) function compute_η!(η,T,Q_R,η0_air,η0_ice,phase)
+    t_ice        = phase[ix,iy,iz]
+    t_air        = 1.0 - t_ice
+    η_ice        = η0_ice*exp(Q_R/T[ix,iy,iz])
+    η_air        = η0_air
+    η[ix,iy,iz]  = t_ice*η_ice  + t_air*η_air
+    return
+end
+
+
+@parallel_indices (ix,iy,iz) function compute_phase!(ρgz_c,phase,xc,yc,zc,x0,y0,z0,r_dep,δ_sd,ρg0_air,ρg0_ice)
+    sd_air = sqrt((xc[ix]-x0)^2 + (yc[iy]-y0)^2+(zc[iz]-z0)^2)-r_dep
+    t_air  = 0.5*(tanh(-sd_air/δ_sd) + 1)
+    t_ice  = 1.0 - t_air
+    ρgz_c[ix,iy,iz] = t_ice*ρg0_ice + t_air*ρg0_air
+    phase[ix,iy,iz] = t_ice
     return
 end
 
@@ -151,6 +158,7 @@ end
     λ          = (ice = 1.0 , air = 1.0 )
     ρCp        = (ice = 1.0 , air = 1.0 )
     T0         = (ice = 253.0,air = 253.0)
+    Q_R        = 1.0
     r_dep      = 3.0*min(lx,ly,lz)
     x0,y0,z0   = 0.1lx,0.2ly,0.8lz + sqrt(r_dep^2-max(lx,ly)^2/4.0)
     # numerics
@@ -211,7 +219,7 @@ end
     qUy        = @zeros(nx-2,ny-1,nz-2)
     qUz        = @zeros(nx-2,ny-2,nz-1)
     # initialisation
-    @parallel compte_η_ρg!(η,ρgz_c,phase,xc,yc,zc,x0,y0,z0,r_dep,δ_sd,η0.air,η0.ice,ρg0.air,ρg0.ice)
+    @parallel (1:size(phase,1),1:size(phase,2),1:size(phase,3)) compute_phase!(ρgz_c,phase,xc,yc,zc,x0,y0,z0,r_dep,δ_sd,ρg0.air,ρg0.ice)
     @parallel init_U!(U,T,ρCp.ice,T0.ice)
     ρgz .= ameanz(ρgz_c[2:end-1,2:end-1,:])
     Pr  .= Data.Array(reverse(cumsum(reverse(Array(ρgz_c),dims=3),dims=3).*dz,dims=3))
@@ -224,6 +232,7 @@ end
         # iteration loop
         while any(errs .>= ϵtol) && iter <= maxiter
             # mechanics
+            @parallel (1:size(η,1),1:size(η,2),1:size(η,3)) compute_η!(η,T,Q_R,η0.air,η0.ice,phase)
             @parallel update_iter_params!(ητ,η)
             @parallel (1:size(ητ,2),1:size(ητ,3)) bc_x!(ητ)
             @parallel (1:size(ητ,1),1:size(ητ,3)) bc_y!(ητ)
