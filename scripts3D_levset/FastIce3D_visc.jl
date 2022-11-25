@@ -27,9 +27,6 @@ macro my_maxloc(A) esc(:( max.($A[$ixi-1,$iyi-1,$izi-1],$A[$ixi-1,$iyi,$izi-1],$
 import ParallelStencil: INDICES
 ix,iy,iz = INDICES
 ixi,iyi,izi = :($ix+1), :($iy+1), :($iz+1)
-macro d_xii(A) esc(:( $A[$ixi+1,$iyi  ,$izi  ]-$A[$ixi,$iyi,$izi] )) end
-macro d_yii(A) esc(:( $A[$ixi  ,$iyi+1,$izi  ]-$A[$ixi,$iyi,$izi] )) end
-macro d_zii(A) esc(:( $A[$ixi  ,$iyi  ,$izi+1]-$A[$ixi,$iyi,$izi] )) end
 
 @parallel function update_iter_params!(ητ,η)
     @inn(ητ) = @my_maxloc(η)
