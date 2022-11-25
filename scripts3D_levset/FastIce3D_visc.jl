@@ -78,6 +78,20 @@ end
     return
 end
 
+@parallel function update_qU!(qUx,qUy,qUz,T,λ,dx,dy,dz)
+    @all(qUx) = -λ*@d_xi(T)/dx
+    @all(qUy) = -λ*@d_yi(T)/dy
+    @all(qUz) = -λ*@d_zi(T)/dz
+    return
+end
+
+@parallel function update_U!(U,qUx,qUy,qUz,η,εII,dt,dx,dy,dz)
+    @inn(U) = @inn(U) + dt*(-(@d_xa(qUx)/dx + @d_ya(qUy)/dy + @d_za(qUz)/dz) + 2.0*@inn(η)*@all(εII)^2)
+    return
+end
+
+@parallel function compute_T!(T,U,ρCp)
+    @all(T) = @all(U)/ρCp
     return
 end
 
@@ -126,6 +140,12 @@ end
     return
 end
 
+@parallel function init_U!(U,T,ρCp,T0)
+    @all(T) = T0
+    @all(U) = ρCp*@all(T)
+    return
+end
+
 @views function main()
     # physics
     lx,ly,lz   = 20.0,20.0,10.0
@@ -133,6 +153,7 @@ end
     ρg0        = (ice = 1.0 , air = 0.0 )
     λ          = (ice = 1.0 , air = 1.0 )
     ρCp        = (ice = 1.0 , air = 1.0 )
+    T0         = (ice = 253.0,air = 253.0)
     r_dep      = 3.0*min(lx,ly,lz)
     x0,y0,z0   = 0.1lx,0.2ly,0.8lz + sqrt(r_dep^2-max(lx,ly)^2/4.0)
     # numerics
@@ -144,6 +165,7 @@ end
     ncheck     = ceil(Int,2max(nx,ny,nz))
     r          = 0.5
     re_mech    = 2π
+    nt         = 10
     # preprocessing
     dx,dy,dz   = lx/nx,ly/ny,lz/nz
     xv,yv,zv   = LinRange(-lx/2,lx/2,nx+1),LinRange(-ly/2,ly/2,ny+1),LinRange(0,lz,nz+1)
@@ -154,6 +176,7 @@ end
     nudτ       = vdτ*lτ/re_mech
     dτ_r       = 1.0/(θ_dτ + 1.0)
     δ_sd       = 1.0*max(dx,dy,dz)
+    dt         = min(dx,dy,dz)^2/(λ.ice/ρCp.ice)/6.1
     # array allocation
     Vx         = @zeros(nx+1,ny  ,nz  )
     Vy         = @zeros(nx  ,ny+1,nz  )
@@ -186,26 +209,31 @@ end
     phase      = @zeros(nx  ,ny  ,nz  )
     ητ         = @zeros(nx  ,ny  ,nz  )
     U          = @zeros(nx  ,ny  ,nz  )
-    qUx        = @zeros(nx+1,ny  ,nz  )
-    qUy        = @zeros(nx  ,ny+1,nz  )
-    qUz        = @zeros(nx  ,ny  ,nz+1)
+    T          = @zeros(nx  ,ny  ,nz  )
+    qUx        = @zeros(nx-1,ny-2,nz-2)
+    qUy        = @zeros(nx-2,ny-1,nz-2)
+    qUz        = @zeros(nx-2,ny-2,nz-1)
     # initialisation
     @parallel compte_η_ρg!(η,ρgz_c,phase,xc,yc,zc,x0,y0,z0,r_dep,δ_sd,η0.air,η0.ice,ρg0.air,ρg0.ice)
-    ρgz .= ameanz(ρgz_c)
+    @parallel init_U!(U,T,ρCp.ice,T0.ice)
+    ρgz .= ameanz(ρgz_c[2:end-1,2:end-1,:])
     Pr  .= Data.Array(reverse(cumsum(reverse(Array(ρgz_c),dims=3),dims=3).*dz,dims=3))
     iter_evo=Float64[]; errs_evo=ElasticMatrix{Float64}(undef,length(ϵtol),0)
-    errs = 2.0.*ϵtol; iter = 1
-    resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
-    # iteration loop
-    while any(errs .>= ϵtol) && iter <= maxiter
+    # time loop
+    for it = 1:nt
+        @printf("it = %d \n",it)
+        errs = 2.0.*ϵtol; iter = 1
+        resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
+        # iteration loop
+        while any(errs .>= ϵtol) && iter <= maxiter
             # mechanics
-        @parallel update_iter_params!(ητ,η)
-        @parallel (1:size(ητ,2),1:size(ητ,3)) bc_x!(ητ)
-        @parallel (1:size(ητ,1),1:size(ητ,3)) bc_y!(ητ)
-        @parallel (1:size(ητ,1),1:size(ητ,2)) bc_z!(ητ)
-        @parallel update_normal_τ!(Pr,dPr,εxx,εyy,εzz,εxy,εxz,εyz,Vx,Vy,Vz,∇V,η,r,θ_dτ,dx,dy,dz)
+            @parallel update_iter_params!(ητ,η)
+            @parallel (1:size(ητ,2),1:size(ητ,3)) bc_x!(ητ)
+            @parallel (1:size(ητ,1),1:size(ητ,3)) bc_y!(ητ)
+            @parallel (1:size(ητ,1),1:size(ητ,2)) bc_z!(ητ)
+            @parallel update_normal_τ!(Pr,dPr,εxx,εyy,εzz,εxy,εxz,εyz,Vx,Vy,Vz,∇V,η,r,θ_dτ,dx,dy,dz)
             @parallel update_shear_τ!(τxx,τyy,τzz,τxy,τxz,τyz,εxx,εyy,εzz,εxy,εxz,εyz,εII,η,dτ_r)
-        @parallel update_velocities!(Vx,Vy,Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ητ,ρgx,ρgy,ρgz,nudτ,dx,dy,dz)
+            @parallel update_velocities!(Vx,Vy,Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ητ,ρgx,ρgy,ρgz,nudτ,dx,dy,dz)
             # free slip x
             @parallel (1:size(Vx,1),1:size(Vx,3)) bc_y!(Vx)
             @parallel (1:size(Vx,1),1:size(Vx,2)) bc_z!(Vx)
@@ -216,29 +244,39 @@ end
             @parallel (1:size(Vz,2),1:size(Vz,3)) bc_x!(Vz)
             @parallel (1:size(Vz,1),1:size(Vz,3)) bc_y!(Vz)
             # no slip bottom
-        @parallel (1:size(Vx,1),1:size(Vx,2)) bc_Vxy!(Vx)
-        @parallel (1:size(Vy,1),1:size(Vy,2)) bc_Vxy!(Vy)
+            @parallel (1:size(Vx,1),1:size(Vx,2)) bc_Vxy!(Vx)
+            @parallel (1:size(Vy,1),1:size(Vy,2)) bc_Vxy!(Vy)
             # free surface top
-        @parallel (1:size(Vz,1),1:size(Vz,2)) bc_Vz!(Vz,η,Pr,dz)
-        if iter % ncheck == 0
-            @parallel compute_residuals!(r_Vx,r_Vy,r_Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ρgx,ρgy,ρgz,dx,dy,dz)
-            errs = maximum.((abs.(r_Vx),abs.(r_Vy),abs.(r_Vz),abs.(dPr)))
-            push!(iter_evo,iter/max(nx,ny));append!(errs_evo,errs)
-            @printf("  iter/nx=%.3f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/max(nx,ny),errs...)
+            @parallel (1:size(Vz,1),1:size(Vz,2)) bc_Vz!(Vz,η,Pr,dz)
+            if iter % ncheck == 0
+                @parallel compute_residuals!(r_Vx,r_Vy,r_Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ρgx,ρgy,ρgz,dx,dy,dz)
+                errs = maximum.((abs.(r_Vx),abs.(r_Vy),abs.(r_Vz),abs.(dPr)))
+                push!(iter_evo,iter/max(nx,ny));append!(errs_evo,errs)
+                @printf("  iter/nx=%.3f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/max(nx,ny),errs...)
+            end
+            iter += 1
         end
-        iter += 1
+        # thermal
+        @parallel compute_T!(T,U,ρCp.ice)
+        @parallel update_qU!(qUx,qUy,qUz,T,λ.ice,dx,dy,dz)
+        @parallel update_U!(U,qUx,qUy,qUz,η,εII,dt,dx,dy,dz)
+        @parallel (1:size(U,2),1:size(U,3)) bc_x!(U)
+        @parallel (1:size(U,1),1:size(U,3)) bc_y!(U)
+        @parallel (1:size(U,1),1:size(U,2)) bc_z!(U)
     end
     # visualisation
     Vmag .= sqrt.(ameanx(Vx).^2 .+ ameany(Vy).^2 .+ ameanz(Vz).^2)
     mask = copy(phase); @. mask[mask<0.7]=NaN
-    fig = Figure(resolution=(3000,1000),fontsize=32)
+    fig = Figure(resolution=(3000,800),fontsize=32)
     axs = (
         Pr   = Axis3(fig[1,1][1,1][1,1];aspect=:data,xlabel="x",ylabel="y",zlabel="z",title="Pr"),
         Vmag = Axis3(fig[1,1][1,2][1,1];aspect=:data,xlabel="x",ylabel="y",zlabel="z",title="|V|"),
+        T    = Axis3(fig[1,1][1,3][1,1];aspect=:data,xlabel="x",ylabel="y",zlabel="z",title="T"),
     )
     plts = (
         Pr   = volumeslices!(axs.Pr  ,xc,yc,zc,Array(Pr  );colormap=:turbo),
         Vmag = volumeslices!(axs.Vmag,xc,yc,zc,Array(Vmag);colormap=:turbo),
+        T    = volumeslices!(axs.T   ,xc,yc,zc,Array(T   );colormap=:turbo),
     )
     sgrid = SliderGrid(
         fig[2,1],
@@ -254,7 +292,7 @@ end
     set_close_to!(sl_yz, .5length(xc))
     set_close_to!(sl_xz, .5length(yc))
     set_close_to!(sl_xy, .5length(zc))
-    [Colorbar(fig[1,1][irow,icol][1,2],plts[(irow-1)*2+icol]) for irow in 1:1,icol in 1:2]
+    [Colorbar(fig[1,1][irow,icol][1,2],plts[(irow-1)*2+icol]) for irow in 1:1,icol in 1:3]
     display(fig)
     return
 end
