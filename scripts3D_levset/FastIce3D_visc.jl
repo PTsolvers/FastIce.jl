@@ -61,19 +61,23 @@ end
     @all(εxx) = @d_xa(Vx)/dx - @all(∇V)/3.0
     @all(εyy) = @d_ya(Vy)/dy - @all(∇V)/3.0
     @all(εzz) = @d_za(Vz)/dz - @all(∇V)/3.0
-    @inn(εxy) = 0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx)
-    @inn(εxz) = 0.5*(@d_zi(Vx)/dz + @d_xi(Vz)/dx)
-    @inn(εyz) = 0.5*(@d_zi(Vy)/dz + @d_yi(Vz)/dy)
+    @all(εxy) = 0.5*(@d_yi(Vx)/dy + @d_xi(Vy)/dx)
+    @all(εxz) = 0.5*(@d_zi(Vx)/dz + @d_xi(Vz)/dx)
+    @all(εyz) = 0.5*(@d_zi(Vy)/dz + @d_yi(Vz)/dy)
     return
 end
 
-@parallel function update_shear_τ!(τxx,τyy,τzz,τxy,τxz,τyz,εxx,εyy,εzz,εxy,εxz,εyz,η,dτ_r)
-    @all(τxx)  = @all(τxx) + (-@all(τxx) + 2.0*@all(η)*@all(εxx))*dτ_r
-    @all(τyy)  = @all(τyy) + (-@all(τyy) + 2.0*@all(η)*@all(εyy))*dτ_r
-    @all(τzz)  = @all(τzz) + (-@all(τzz) + 2.0*@all(η)*@all(εzz))*dτ_r
-    @inn_xy(τxy) = @inn_xy(τxy) + (-@inn_xy(τxy) + 2.0*@av_xya(η)*@inn_xy(εxy))*dτ_r
-    @inn_xz(τxz) = @inn_xz(τxz) + (-@inn_xz(τxz) + 2.0*@av_xza(η)*@inn_xz(εxz))*dτ_r
-    @inn_yz(τyz) = @inn_yz(τyz) + (-@inn_yz(τyz) + 2.0*@av_yza(η)*@inn_yz(εyz))*dτ_r
+@parallel function update_shear_τ!(τxx,τyy,τzz,τxy,τxz,τyz,εxx,εyy,εzz,εxy,εxz,εyz,εII,η,dτ_r)
+    @all(τxx) = @all(τxx) + (-@all(τxx) + 2.0*@all(η)*@all(εxx))*dτ_r
+    @all(τyy) = @all(τyy) + (-@all(τyy) + 2.0*@all(η)*@all(εyy))*dτ_r
+    @all(τzz) = @all(τzz) + (-@all(τzz) + 2.0*@all(η)*@all(εzz))*dτ_r
+    @all(τxy) = @all(τxy) + (-@all(τxy) + 2.0*@av_xyi(η)*@all(εxy))*dτ_r
+    @all(τxz) = @all(τxz) + (-@all(τxz) + 2.0*@av_xzi(η)*@all(εxz))*dτ_r
+    @all(τyz) = @all(τyz) + (-@all(τyz) + 2.0*@av_yzi(η)*@all(εyz))*dτ_r
+    @all(εII) = sqrt(0.5*(@inn(εxx)^2 + @inn(εyy)^2 + @inn(εzz)^2) + @av_xya(εxy)^2 + @av_xza(εxz)^2 + @av_yza(εyz)^2)
+    return
+end
+
     return
 end
 
@@ -87,14 +91,14 @@ macro d_z_ix(A::Symbol)  esc(:( $A[$ixi,$iy ,$iz+1] - $A[$ixi,$iy ,$iz ] )) end
 macro d_z_iy(A::Symbol)  esc(:( $A[$ix ,$iyi,$iz+1] - $A[$ix ,$iyi,$iz ] )) end
 
 @parallel function update_velocities!(Vx,Vy,Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ητ,ρgx,ρgy,ρgz,nudτ,dx,dy,dz)
-    @inn_x(Vx) = @inn_x(Vx) + (-@d_xa(Pr)/dx + @d_xa(τxx)/dx + @d_y_ix(τxy)/dy + @d_z_ix(τxz)/dz - @all(ρgx))*nudτ/@av_xa(ητ)
-    @inn_y(Vy) = @inn_y(Vy) + (-@d_ya(Pr)/dy + @d_ya(τyy)/dy + @d_x_iy(τxy)/dx + @d_z_iy(τyz)/dz - @all(ρgy))*nudτ/@av_ya(ητ)
-    @inn_z(Vz) = @inn_z(Vz) + (-@d_za(Pr)/dz + @d_za(τzz)/dz + @d_x_iz(τxz)/dx + @d_y_iz(τyz)/dy - @all(ρgz))*nudτ/@av_za(ητ)
+    @inn(Vx) = @inn(Vx) + (-@d_xi(Pr)/dx + @d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @all(ρgx))*nudτ/@av_xi(ητ)
+    @inn(Vy) = @inn(Vy) + (-@d_yi(Pr)/dy + @d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @all(ρgy))*nudτ/@av_yi(ητ)
+    @inn(Vz) = @inn(Vz) + (-@d_zi(Pr)/dz + @d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @all(ρgz))*nudτ/@av_zi(ητ)
     return
 end
 
 @parallel_indices (ix,iy) function bc_Vxy!(Vxy)
-    Vxy[ix,iy,1] = 1.0/3.0*Vxy[ix,iy,2]
+    Vxy[ix,iy,1] = -Vxy[ix,iy,2]
     return
 end
 
@@ -104,9 +108,9 @@ end
 end
 
 @parallel function compute_residuals!(r_Vx,r_Vy,r_Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ρgx,ρgy,ρgz,dx,dy,dz)
-    @all(r_Vx) = -@d_xi(Pr)/dx + @d_xi(τxx)/dx + @d_yii(τxy)/dy + @d_zii(τxz)/dz - @inn_yz(ρgx)
-    @all(r_Vy) = -@d_yi(Pr)/dy + @d_yi(τyy)/dy + @d_xii(τxy)/dx + @d_zii(τyz)/dz - @inn_xz(ρgy)
-    @all(r_Vz) = -@d_zi(Pr)/dz + @d_zi(τzz)/dz + @d_xii(τxz)/dx + @d_yii(τyz)/dy - @inn_xy(ρgz)
+    @all(r_Vx) = -@d_xi(Pr)/dx + @d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @all(ρgx)
+    @all(r_Vy) = -@d_yi(Pr)/dy + @d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @all(ρgy)
+    @all(r_Vz) = -@d_zi(Pr)/dz + @d_zi(τzz)/dz + @d_xa(τxz)/dx + @d_ya(τyz)/dy - @all(ρgz)
     return
 end
 
@@ -125,14 +129,14 @@ end
 @views function main()
     # physics
     lx,ly,lz   = 20.0,20.0,10.0
-    η0         = (ice = 1.0 , air = 1e-6)
+    η0         = (ice = 1.0 , air = 1e-4)
     ρg0        = (ice = 1.0 , air = 0.0 )
     λ          = (ice = 1.0 , air = 1.0 )
     ρCp        = (ice = 1.0 , air = 1.0 )
     r_dep      = 3.0*min(lx,ly,lz)
     x0,y0,z0   = 0.1lx,0.2ly,0.8lz + sqrt(r_dep^2-max(lx,ly)^2/4.0)
     # numerics
-    nx         = 128
+    nx         = 64
     ny         = ceil(Int,nx*ly/lx)
     nz         = ceil(Int,nx*lz/lx)
     ϵtol       = (1e-6,1e-6,1e-6,1e-6)
@@ -159,27 +163,26 @@ end
     τxx        = @zeros(nx  ,ny  ,nz  )
     τyy        = @zeros(nx  ,ny  ,nz  )
     τzz        = @zeros(nx  ,ny  ,nz  )
-    τxy        = @zeros(nx+1,ny+1,nz  )
-    τxz        = @zeros(nx+1,ny  ,nz+1)
-    τyz        = @zeros(nx  ,ny+1,nz+1)
+    τxy        = @zeros(nx-1,ny-1,nz-2)
+    τxz        = @zeros(nx-1,ny-2,nz-1)
+    τyz        = @zeros(nx-2,ny-1,nz-1)
     εxx        = @zeros(nx  ,ny  ,nz  )
     εyy        = @zeros(nx  ,ny  ,nz  )
     εzz        = @zeros(nx  ,ny  ,nz  )
-    εxy        = @zeros(nx+1,ny+1,nz  )
-    εxz        = @zeros(nx+1,ny  ,nz+1)
-    εyz        = @zeros(nx  ,ny+1,nz+1)
+    εxy        = @zeros(nx-1,ny-1,nz-2)
+    εxz        = @zeros(nx-1,ny-2,nz-1)
+    εyz        = @zeros(nx-2,ny-1,nz-1)
+    εII        = @zeros(nx-2,ny-2,nz-2)
     η          = @zeros(nx  ,ny  ,nz  )
-    τII        = @zeros(nx  ,ny  ,nz  )
-    εII        = @zeros(nx  ,ny  ,nz  )
     Vmag       = @zeros(nx  ,ny  ,nz  )
     dPr        = @zeros(nx  ,ny  ,nz  )
     r_Vx       = @zeros(nx-1,ny-2,nz-2)
     r_Vy       = @zeros(nx-2,ny-1,nz-2)
     r_Vz       = @zeros(nx-2,ny-2,nz-1)
     ρgz_c      = @zeros(nx  ,ny  ,nz  )
-    ρgx        = @zeros(nx-1,ny  ,nz  )
-    ρgy        = @zeros(nx  ,ny-1,nz  )
-    ρgz        = @zeros(nx  ,ny  ,nz-1)
+    ρgx        = @zeros(nx-1,ny-2,nz-2)
+    ρgy        = @zeros(nx-2,ny-1,nz-2)
+    ρgz        = @zeros(nx-2,ny-2,nz-1)
     phase      = @zeros(nx  ,ny  ,nz  )
     ητ         = @zeros(nx  ,ny  ,nz  )
     U          = @zeros(nx  ,ny  ,nz  )
@@ -195,15 +198,27 @@ end
     resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
     # iteration loop
     while any(errs .>= ϵtol) && iter <= maxiter
+            # mechanics
         @parallel update_iter_params!(ητ,η)
         @parallel (1:size(ητ,2),1:size(ητ,3)) bc_x!(ητ)
         @parallel (1:size(ητ,1),1:size(ητ,3)) bc_y!(ητ)
         @parallel (1:size(ητ,1),1:size(ητ,2)) bc_z!(ητ)
         @parallel update_normal_τ!(Pr,dPr,εxx,εyy,εzz,εxy,εxz,εyz,Vx,Vy,Vz,∇V,η,r,θ_dτ,dx,dy,dz)
-        @parallel update_shear_τ!(τxx,τyy,τzz,τxy,τxz,τyz,εxx,εyy,εzz,εxy,εxz,εyz,η,dτ_r)
+            @parallel update_shear_τ!(τxx,τyy,τzz,τxy,τxz,τyz,εxx,εyy,εzz,εxy,εxz,εyz,εII,η,dτ_r)
         @parallel update_velocities!(Vx,Vy,Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ητ,ρgx,ρgy,ρgz,nudτ,dx,dy,dz)
+            # free slip x
+            @parallel (1:size(Vx,1),1:size(Vx,3)) bc_y!(Vx)
+            @parallel (1:size(Vx,1),1:size(Vx,2)) bc_z!(Vx)
+            # free slip y
+            @parallel (1:size(Vy,2),1:size(Vy,3)) bc_x!(Vy)
+            @parallel (1:size(Vy,1),1:size(Vy,2)) bc_z!(Vy)
+            # free slip z
+            @parallel (1:size(Vz,2),1:size(Vz,3)) bc_x!(Vz)
+            @parallel (1:size(Vz,1),1:size(Vz,3)) bc_y!(Vz)
+            # no slip bottom
         @parallel (1:size(Vx,1),1:size(Vx,2)) bc_Vxy!(Vx)
         @parallel (1:size(Vy,1),1:size(Vy,2)) bc_Vxy!(Vy)
+            # free surface top
         @parallel (1:size(Vz,1),1:size(Vz,2)) bc_Vz!(Vz,η,Pr,dz)
         if iter % ncheck == 0
             @parallel compute_residuals!(r_Vx,r_Vy,r_Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ρgx,ρgy,ρgz,dx,dy,dz)
