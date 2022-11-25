@@ -154,11 +154,11 @@ end
 @views function main()
     # physics
     lx,ly,lz   = 40.0,40.0,10.0
-    η0         = (ice = 1.0  ,bed=1e2  ,air = 1e-8 )
-    ρg0        = (ice = 1.0  ,bed=1.0  ,air = 0.0  )
-    λ          = (ice = 1.0  ,bed=1.0  ,air = 1.0  )
-    ρCp        = (ice = 1.0  ,bed=1.0  ,air = 1.0  )
-    T0         = (ice = 253.0,bed=253.0,air = 253.0)
+    η0         = (ice = 1.0  ,bed = 1e2  ,air = 1e-8 )
+    ρg0        = (ice = 1.0  ,bed = 1.0  ,air = 0.0  )
+    λ          = (ice = 1.0  ,bed = 1.0  ,air = 1.0  )
+    ρCp        = (ice = 1.0  ,bed = 1.0  ,air = 1.0  )
+    T0         = (ice = 253.0,bed = 253.0,air = 253.0)
     Q_R        = 10.0
     r_box      = Vec(0.0lx,0.0ly,0.3lz)
     w_box      = Vec(0.5lx-0.6lz,0.5ly-0.6lz,0.3lz)
