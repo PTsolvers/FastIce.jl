@@ -191,7 +191,7 @@ end
     ncheck     = ceil(Int,5min(nx,ny,nz))
     r          = 0.7
     re_mech    = 5.2π
-    nt         = 2
+    nt         = 10
     # preprocessing
     dx,dy,dz   = lx/nx,ly/ny,lz/nz
     xv,yv,zv   = LinRange(-lx/2,lx/2,nx+1),LinRange(-ly/2,ly/2,ny+1),LinRange(0,lz,nz+1)
