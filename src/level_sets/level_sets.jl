@@ -108,13 +108,8 @@ function solve_eikonal!(ls,dldt,mask,dx,dy,dz)
     nthreads = (8,8,8)
     nblocks  = cld.(size(ls),nthreads)
     for _ in 1:maximum(size(ls))
-        # @static if BACKEND == :CUDA
-            CUDA.@sync @cuda threads=nthreads blocks=nblocks _update_dldt!(dldt,ls,mask,dx,dy,dz)
-            CUDA.@sync @cuda threads=nthreads blocks=nblocks _update_ls!(ls,dldt,dt)
-        # elseif BACKEND == :AMDGPU
-        #     wait( @roc threads=nthreads blocks=nblocks _update_dldt!(dldt,ls,mask,dx,dy,dz) )
-        #     wait( @roc threads=nthreads blocks=nblocks _update_ls!(ls,dldt,dt) )
-        # end
+        CUDA.@sync @cuda threads=nthreads blocks=nblocks _update_dldt!(dldt,ls,mask,dx,dy,dz)
+        CUDA.@sync @cuda threads=nthreads blocks=nblocks _update_ls!(ls,dldt,dt)
     end
     return
 end
