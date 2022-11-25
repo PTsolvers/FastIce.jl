@@ -6,7 +6,7 @@ using ParallelStencil.FiniteDifferences3D
 else
     @init_parallel_stencil(Threads,Float64,3)
 end
-using ElasticArrays,Printf
+using GeometryBasics,LinearAlgebra,ElasticArrays,Printf
 using GLMakie
 
 @views amean1(A) = 0.5.*(A[1:end-1] .+ A[2:end])
@@ -92,15 +92,6 @@ end
     return
 end
 
-macro d_x_iy(A::Symbol)  esc(:( $A[$ix+1,$iyi,$iz ] - $A[$ix ,$iyi,$iz ] )) end
-macro d_x_iz(A::Symbol)  esc(:( $A[$ix+1,$iy ,$izi] - $A[$ix ,$iy ,$izi] )) end
-
-macro d_y_ix(A::Symbol)  esc(:( $A[$ixi,$iy+1,$iz ] - $A[$ixi,$iy ,$iz ] )) end
-macro d_y_iz(A::Symbol)  esc(:( $A[$ix ,$iy+1,$izi] - $A[$ix ,$iy ,$izi] )) end
-
-macro d_z_ix(A::Symbol)  esc(:( $A[$ixi,$iy ,$iz+1] - $A[$ixi,$iy ,$iz ] )) end
-macro d_z_iy(A::Symbol)  esc(:( $A[$ix ,$iyi,$iz+1] - $A[$ix ,$iyi,$iz ] )) end
-
 @parallel function update_velocities!(Vx,Vy,Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ητ,ρgx,ρgy,ρgz,nudτ,dx,dy,dz)
     @inn(Vx) = @inn(Vx) + (-@d_xi(Pr)/dx + @d_xi(τxx)/dx + @d_ya(τxy)/dy + @d_za(τxz)/dz - @all(ρgx))*nudτ/@av_xi(ητ)
     @inn(Vy) = @inn(Vy) + (-@d_yi(Pr)/dy + @d_yi(τyy)/dy + @d_xa(τxy)/dx + @d_za(τyz)/dz - @all(ρgy))*nudτ/@av_yi(ητ)
@@ -125,22 +116,32 @@ end
     return
 end
 
-@parallel_indices (ix,iy,iz) function compute_η!(η,T,Q_R,η0_air,η0_ice,phase)
-    t_ice        = phase[ix,iy,iz]
-    t_air        = 1.0 - t_ice
+@parallel_indices (ix,iy,iz) function compute_η!(η,T,Q_R,η0_air,η0_ice,η0_bed,ph_ice,ph_bed)
+    t_ice        = ph_ice[ix,iy,iz]
+    t_bed        = ph_bed[ix,iy,iz]
+    t_air        = 1.0 - t_ice - t_bed
     η_ice        = η0_ice*exp(Q_R/T[ix,iy,iz])
+    η_bed        = η0_bed
     η_air        = η0_air
-    η[ix,iy,iz]  = t_ice*η_ice  + t_air*η_air
+    η[ix,iy,iz]  = t_ice*η_ice + t_bed*η_bed + t_air*η_air
     return
 end
 
+@inline function sd_round_box(p,b,r)
+  q = abs.(p) .- b
+  return norm(max.(q,0.0)) + min(max(q[1],max(q[2],q[3])),0.0) - r
+end
 
-@parallel_indices (ix,iy,iz) function compute_phase!(ρgz_c,phase,xc,yc,zc,x0,y0,z0,r_dep,δ_sd,ρg0_air,ρg0_ice)
-    sd_air = sqrt((xc[ix]-x0)^2 + (yc[iy]-y0)^2+(zc[iz]-z0)^2)-r_dep
-    t_air  = 0.5*(tanh(-sd_air/δ_sd) + 1)
-    t_ice  = 1.0 - t_air
-    ρgz_c[ix,iy,iz] = t_ice*ρg0_ice + t_air*ρg0_air
-    phase[ix,iy,iz] = t_ice
+@parallel_indices (ix,iy,iz) function compute_phase!(ρgz_c,ph_ice,ph_bed,xc,yc,zc,r_box,w_box,r_rnd,z_bed,δ_sd,ρg0_air,ρg0_ice,ρg0_bed)
+    sd_bed = zc[iz]-z_bed
+    sd_ice = sd_round_box(Point(xc[ix],yc[iy],zc[iz])-r_box,w_box,r_rnd)
+    sd_ice = max(sd_ice,-sd_bed)
+    t_ice  = 0.5*(tanh(-sd_ice/δ_sd) + 1.0)
+    t_bed  = 0.5*(tanh(-sd_bed/δ_sd) + 1.0)
+    t_air  = 1.0 - t_ice - t_bed
+    ρgz_c[ix,iy,iz]  = t_ice*ρg0_ice + t_bed*ρg0_bed + t_air*ρg0_air
+    ph_ice[ix,iy,iz] = t_ice
+    ph_bed[ix,iy,iz] = t_bed
     return
 end
 
@@ -152,25 +153,27 @@ end
 
 @views function main()
     # physics
-    lx,ly,lz   = 20.0,20.0,10.0
-    η0         = (ice = 1.0 , air = 1e-4)
-    ρg0        = (ice = 1.0 , air = 0.0 )
-    λ          = (ice = 1.0 , air = 1.0 )
-    ρCp        = (ice = 1.0 , air = 1.0 )
-    T0         = (ice = 253.0,air = 253.0)
-    Q_R        = 1.0
-    r_dep      = 3.0*min(lx,ly,lz)
-    x0,y0,z0   = 0.1lx,0.2ly,0.8lz + sqrt(r_dep^2-max(lx,ly)^2/4.0)
+    lx,ly,lz   = 40.0,40.0,10.0
+    η0         = (ice = 1.0  ,bed=1e2  ,air = 1e-8 )
+    ρg0        = (ice = 1.0  ,bed=1.0  ,air = 0.0  )
+    λ          = (ice = 1.0  ,bed=1.0  ,air = 1.0  )
+    ρCp        = (ice = 1.0  ,bed=1.0  ,air = 1.0  )
+    T0         = (ice = 253.0,bed=253.0,air = 253.0)
+    Q_R        = 10.0
+    r_box      = Vec(0.0lx,0.0ly,0.3lz)
+    w_box      = Vec(0.5lx-0.6lz,0.5ly-0.6lz,0.3lz)
+    r_rnd      = 0.25lz
+    z_bed      = 0.1lz
     # numerics
-    nx         = 64
-    ny         = ceil(Int,nx*ly/lx)
-    nz         = ceil(Int,nx*lz/lx)
+    nz         = 32
+    nx         = ceil(Int,nz*lx/lz)
+    ny         = ceil(Int,nz*ly/lz)
     ϵtol       = (1e-6,1e-6,1e-6,1e-6)
-    maxiter    = 20max(nx,ny,nz)
-    ncheck     = ceil(Int,2max(nx,ny,nz))
-    r          = 0.5
-    re_mech    = 2π
-    nt         = 10
+    maxiter    = 100min(nx,ny,nz)
+    ncheck     = ceil(Int,5min(nx,ny,nz))
+    r          = 0.6
+    re_mech    = 3π
+    nt         = 2
     # preprocessing
     dx,dy,dz   = lx/nx,ly/ny,lz/nz
     xv,yv,zv   = LinRange(-lx/2,lx/2,nx+1),LinRange(-ly/2,ly/2,ny+1),LinRange(0,lz,nz+1)
@@ -211,7 +214,8 @@ end
     ρgx        = @zeros(nx-1,ny-2,nz-2)
     ρgy        = @zeros(nx-2,ny-1,nz-2)
     ρgz        = @zeros(nx-2,ny-2,nz-1)
-    phase      = @zeros(nx  ,ny  ,nz  )
+    ph_ice     = @zeros(nx  ,ny  ,nz  )
+    ph_bed     = @zeros(nx  ,ny  ,nz  )
     ητ         = @zeros(nx  ,ny  ,nz  )
     U          = @zeros(nx  ,ny  ,nz  )
     T          = @zeros(nx  ,ny  ,nz  )
@@ -219,10 +223,9 @@ end
     qUy        = @zeros(nx-2,ny-1,nz-2)
     qUz        = @zeros(nx-2,ny-2,nz-1)
     # initialisation
-    @parallel (1:size(phase,1),1:size(phase,2),1:size(phase,3)) compute_phase!(ρgz_c,phase,xc,yc,zc,x0,y0,z0,r_dep,δ_sd,ρg0.air,ρg0.ice)
+    @parallel (1:nx,1:ny,1:nz) compute_phase!(ρgz_c,ph_ice,ph_bed,xc,yc,zc,r_box,w_box,r_rnd,z_bed,δ_sd,ρg0.air,ρg0.ice,ρg0.bed)
     @parallel init_U!(U,T,ρCp.ice,T0.ice)
     ρgz .= ameanz(ρgz_c[2:end-1,2:end-1,:])
-    Pr  .= Data.Array(reverse(cumsum(reverse(Array(ρgz_c),dims=3),dims=3).*dz,dims=3))
     iter_evo=Float64[]; errs_evo=ElasticMatrix{Float64}(undef,length(ϵtol),0)
     # time loop
     for it = 1:nt
@@ -232,7 +235,7 @@ end
         # iteration loop
         while any(errs .>= ϵtol) && iter <= maxiter
             # mechanics
-            @parallel (1:size(η,1),1:size(η,2),1:size(η,3)) compute_η!(η,T,Q_R,η0.air,η0.ice,phase)
+            @parallel (1:size(η,1),1:size(η,2),1:size(η,3)) compute_η!(η,T,Q_R,η0.air,η0.ice,η0.bed,ph_ice,ph_bed)
             @parallel update_iter_params!(ητ,η)
             @parallel (1:size(ητ,2),1:size(ητ,3)) bc_x!(ητ)
             @parallel (1:size(ητ,1),1:size(ητ,3)) bc_y!(ητ)
@@ -257,8 +260,8 @@ end
             if iter % ncheck == 0
                 @parallel compute_residuals!(r_Vx,r_Vy,r_Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ρgx,ρgy,ρgz,dx,dy,dz)
                 errs = maximum.((abs.(r_Vx),abs.(r_Vy),abs.(r_Vz),abs.(dPr)))
-                push!(iter_evo,iter/max(nx,ny));append!(errs_evo,errs)
-                @printf("  iter/nx=%.3f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/max(nx,ny),errs...)
+                push!(iter_evo,iter/min(nx,ny,nz));append!(errs_evo,errs)
+                @printf("  iter/nz=%.3f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/min(nx,ny,nz),errs...)
             end
             iter += 1
         end
@@ -272,7 +275,6 @@ end
     end
     # visualisation
     Vmag .= sqrt.(ameanx(Vx).^2 .+ ameany(Vy).^2 .+ ameanz(Vz).^2)
-    mask = copy(phase); @. mask[mask<0.7]=NaN
     fig = Figure(resolution=(3000,800),fontsize=32)
     axs = (
         Pr   = Axis3(fig[1,1][1,1][1,1];aspect=:data,xlabel="x",ylabel="y",zlabel="z",title="Pr"),
