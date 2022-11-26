@@ -1,4 +1,4 @@
-using GLMakie
+using GLMakie, DelimitedFiles
 
 function load_array(Aname,A)
     fname = string(Aname,".bin")
@@ -6,13 +6,14 @@ function load_array(Aname,A)
 end
 
 
-function visualise(nx,ny,nz)
-    xc   = zeros(Float32,nx); load_array("out/out_xc",xc)
-    yc   = zeros(Float32,ny); load_array("out/out_xc",yc)
-    zc   = zeros(Float32,nz); load_array("out/out_xc",zc)
-    Pr   = zeros(Float32,nx,ny,nz); load_array("out/out_Pr"  ,Pr  )
-    Vmag = zeros(Float32,nx,ny,nz); load_array("out/out_Vmag",Vmag)
-    T    = zeros(Float32,nx,ny,nz); load_array("out/out_T"   ,T   )
+function visualise(;outdir="out")
+    (nx,ny,nz) = readdlm("out/nxyz.txt",Int)
+    xc   = zeros(Float32,nx);       load_array(joinpath(outdir,"out_xc"  ),xc)
+    yc   = zeros(Float32,ny);       load_array(joinpath(outdir,"out_xc"  ),yc)
+    zc   = zeros(Float32,nz);       load_array(joinpath(outdir,"out_xc"  ),zc)
+    Pr   = zeros(Float32,nx,ny,nz); load_array(joinpath(outdir,"out_Pr"  ),Pr)
+    Vmag = zeros(Float32,nx,ny,nz); load_array(joinpath(outdir,"out_Vmag"),Vmag)
+    T    = zeros(Float32,nx,ny,nz); load_array(joinpath(outdir,"out_T"   ),T)
     # visualisation
     fig = Figure(resolution=(2000,800),fontsize=32)
     axs = (
@@ -44,4 +45,4 @@ function visualise(nx,ny,nz)
     return
 end
 
-visualise(255,255,63)
+visualise(outdir="out")
