@@ -7,14 +7,14 @@ end
 
 
 function visualise(nx,ny,nz)
-    xc   = zeros(Float32,nx)
-    yc   = zeros(Float32,ny)
-    zc   = zeros(Float32,nz)
-    Pr   = zeros(Float32,nx,ny,nz)
-    Vmag = zeros(Float32,nx,ny,nz)
-    T    = zeros(Float32,nx,ny,nz)
+    xc   = zeros(Float32,nx); load_array("out/out_xc",xc)
+    yc   = zeros(Float32,ny); load_array("out/out_xc",yc)
+    zc   = zeros(Float32,nz); load_array("out/out_xc",zc)
+    Pr   = zeros(Float32,nx,ny,nz); load_array("out/out_Pr"  ,Pr  )
+    Vmag = zeros(Float32,nx,ny,nz); load_array("out/out_Vmag",Vmag)
+    T    = zeros(Float32,nx,ny,nz); load_array("out/out_T"   ,T   )
     # visualisation
-    fig = Figure(resolution=(3000,800),fontsize=32)
+    fig = Figure(resolution=(2000,800),fontsize=32)
     axs = (
     Pr   = Axis3(fig[1,1][1,1][1,1];aspect=:data,xlabel="x",ylabel="y",zlabel="z",title="Pr"),
     Vmag = Axis3(fig[1,1][1,2][1,1];aspect=:data,xlabel="x",ylabel="y",zlabel="z",title="|V|"),
@@ -44,4 +44,4 @@ function visualise(nx,ny,nz)
     return
 end
 
-visualise(127,127,31)
+visualise(255,255,63)

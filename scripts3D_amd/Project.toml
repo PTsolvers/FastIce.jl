@@ -1,6 +1,7 @@
 [deps]
 AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 GPUCompiler = "61eb1bfa-7361-4325-ad38-22787b887f55"
 GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
 ImplicitGlobalGrid = "4d7a3746-15be-11ea-1130-334b0c4f5fa0"
