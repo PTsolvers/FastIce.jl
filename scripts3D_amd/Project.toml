@@ -1,0 +1,8 @@
+[deps]
+AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
+ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
+GPUCompiler = "61eb1bfa-7361-4325-ad38-22787b887f55"
+GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
+ImplicitGlobalGrid = "4d7a3746-15be-11ea-1130-334b0c4f5fa0"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MPIPreferences = "3da0fdf6-3ccc-4f1b-acd9-58baa6c99267"
