@@ -31,3 +31,5 @@ data/alps/
 data/alps_sgi/
 data/bedmachine/
 data/bedmachine_src/
+
+scripts3D_amd/out/*
