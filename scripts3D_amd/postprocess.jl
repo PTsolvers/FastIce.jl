@@ -7,7 +7,7 @@ end
 
 
 function visualise(;outdir="out")
-    (nx,ny,nz) = readdlm("out/nxyz.txt",Int)
+    (nx,ny,nz) = readdlm(joinpath(outdir,"nxyz.txt"),Int)
     xc   = zeros(Float32,nx);       load_array(joinpath(outdir,"out_xc"  ),xc)
     yc   = zeros(Float32,ny);       load_array(joinpath(outdir,"out_xc"  ),yc)
     zc   = zeros(Float32,nz);       load_array(joinpath(outdir,"out_xc"  ),zc)
@@ -45,4 +45,4 @@ function visualise(;outdir="out")
     return
 end
 
-visualise(outdir="out")
+visualise(;outdir="out_8mh")
