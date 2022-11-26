@@ -408,7 +408,7 @@ end
         save_array(joinpath(outdir,"out_xc"  ),convert.(Float32,Array(xc)  ))
         save_array(joinpath(outdir,"out_yc"  ),convert.(Float32,Array(yc)  ))
         save_array(joinpath(outdir,"out_zc"  ),convert.(Float32,Array(zc)  ))
-        open(joinpath(outdir,"nxyz.txt"),"a") do io
+        open(joinpath(outdir,"nxyz.txt"),"w") do io
             println(io,"$(size(Pr,1)) $(size(Pr,2)) $(size(Pr,3))")
         end
     end
