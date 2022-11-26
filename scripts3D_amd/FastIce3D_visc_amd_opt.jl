@@ -217,7 +217,7 @@ end
     r_rnd      = 0.25lz
     z_bed      = 0.15lz
     # numerics
-    threads    = (32,2,2)
+    threads    = (128,2,1)
     nz         = 2*32-1
     nx         = ceil(Int,(nz+1)*lx/lz)-1
     ny         = ceil(Int,(nz+1)*ly/lz)-1
