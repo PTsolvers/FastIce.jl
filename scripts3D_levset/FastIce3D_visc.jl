@@ -105,7 +105,23 @@ end
 end
 
 @parallel_indices (ix,iy) function bc_Vz!(Vz,η,Pr,dz)
-    Vz[ix,iy,end] = Vz[ix,iy,end-1] + 0.5*dz/η[ix,iy,end]*(Pr[ix,iy,end] + 1.0/3.0*(-Pr[ix,iy,end-1] + 2.0*η[ix,iy,end-1]*(Vz[ix,iy,end-1] - Vz[ix,iy,end-2])/dz))
+    Vz[ix,iy,end] = Vz[ix,iy,end-1] + 0.5*dz/η[ix,iy,end]*(Pr[ix,iy,end-1] + Pr[ix,iy,end] - 2.0*η[ix,iy,end-1]*(Vz[ix,iy,end-1] - Vz[ix,iy,end-2])/dz)
+    return
+end
+
+@parallel_indices (iy,iz) function bc_Vx!(Vx,η,Pr,ph_ice,ph_bed,dx)
+    t_air         = 1.0 - 0.5*(ph_ice[1,iy,iz] + ph_ice[2,iy,iz]) - 0.5*(ph_bed[1,iy,iz] + ph_bed[2,iy,iz])
+    Vx[1  ,iy,iz] = t_air*(Vx[2    ,iy,iz] - 0.5*dx/η[1  ,iy,iz]*(Pr[2    ,iy,iz] + Pr[1  ,iy,iz] - 2.0*η[2    ,iy,iz]*(Vx[3    ,iy,iz] - Vx[2    ,iy,iz])/dx)) - (1.0-t_air)*Vx[3    ,iy,iz]
+    t_air         = 1.0 - 0.5*(ph_ice[end-1,iy,iz] + ph_ice[end,iy,iz]) - 0.5*(ph_bed[end-1,iy,iz] + ph_bed[end,iy,iz])
+    Vx[end,iy,iz] = t_air*(Vx[end-1,iy,iz] + 0.5*dx/η[end,iy,iz]*(Pr[end-1,iy,iz] + Pr[end,iy,iz] - 2.0*η[end-1,iy,iz]*(Vx[end-1,iy,iz] - Vx[end-2,iy,iz])/dx)) - (1.0-t_air)*Vx[end-2,iy,iz]
+    return
+end
+
+@parallel_indices (ix,iz) function bc_Vy!(Vy,η,Pr,ph_ice,ph_bed,dy)
+    t_air         = 1.0 - 0.5*(ph_ice[ix,1,iz] + ph_ice[ix,2,iz]) - 0.5*(ph_bed[ix,1,iz] + ph_bed[ix,2,iz])
+    Vy[ix,1  ,iz] = t_air*(Vy[ix,2    ,iz] - 0.5*dy/η[ix,1  ,iz]*(Pr[ix,2    ,iz] + Pr[ix,1  ,iz] - 2.0*η[ix,2    ,iz]*(Vy[ix,3    ,iz] - Vy[ix,2    ,iz])/dy)) - (1.0-t_air)*Vy[ix,3    ,iz]
+    t_air         = 1.0 - 0.5*(ph_ice[ix,end-1,iz] + ph_ice[ix,end,iz]) - 0.5*(ph_bed[ix,end-1,iz] + ph_bed[ix,end,iz])
+    Vy[ix,end,iz] = t_air*(Vy[ix,end-1,iz] + 0.5*dy/η[ix,end,iz]*(Pr[ix,end-1,iz] + Pr[ix,end,iz] - 2.0*η[ix,end-1,iz]*(Vy[ix,end-1,iz] - Vy[ix,end-2,iz])/dy)) - (1.0-t_air)*Vy[ix,end-2,iz]
     return
 end
 
@@ -133,8 +149,10 @@ end
 end
 
 @parallel_indices (ix,iy,iz) function compute_phase!(ρgz_c,ph_ice,ph_bed,xc,yc,zc,r_box,w_box,r_rnd,z_bed,δ_sd,ρg0_air,ρg0_ice,ρg0_bed)
-    sd_bed = zc[iz]-z_bed
-    sd_ice = sd_round_box(Point(xc[ix],yc[iy],zc[iz])-r_box,w_box,r_rnd)
+    nor    = normalize(Vec3(1.0,1.0,30.0))
+    P      = Point(xc[ix],yc[iy],zc[iz])
+    sd_bed = dot(nor,P-Point(0,0,z_bed))
+    sd_ice = sd_round_box(P-r_box,w_box,r_rnd)
     sd_ice = max(sd_ice,-sd_bed)
     t_ice  = 0.5*(tanh(-sd_ice/δ_sd) + 1.0)
     t_bed  = 0.5*(tanh(-sd_bed/δ_sd) + 1.0)
@@ -154,16 +172,16 @@ end
 @views function main()
     # physics
     lx,ly,lz   = 40.0,40.0,10.0
-    η0         = (ice = 1.0  ,bed = 1e2  ,air = 1e-8 )
+    η0         = (ice = 1.0  ,bed = 1e2  ,air = 1e-6 )
     ρg0        = (ice = 1.0  ,bed = 1.0  ,air = 0.0  )
     λ          = (ice = 1.0  ,bed = 1.0  ,air = 1.0  )
     ρCp        = (ice = 1.0  ,bed = 1.0  ,air = 1.0  )
     T0         = (ice = 253.0,bed = 253.0,air = 253.0)
     Q_R        = 10.0
-    r_box      = Vec(0.0lx,0.0ly,0.3lz)
-    w_box      = Vec(0.5lx-0.6lz,0.5ly-0.6lz,0.3lz)
+    r_box      = Vec(0.0lx,0.0ly,0.1lz)
+    w_box      = Vec(0.5lx-0.5lz,0.5ly-0.5lz,0.5lz)
     r_rnd      = 0.25lz
-    z_bed      = 0.1lz
+    z_bed      = 0.15lz
     # numerics
     nz         = 32
     nx         = ceil(Int,nz*lx/lz)
@@ -171,16 +189,16 @@ end
     ϵtol       = (1e-6,1e-6,1e-6,1e-6)
     maxiter    = 100min(nx,ny,nz)
     ncheck     = ceil(Int,5min(nx,ny,nz))
-    r          = 0.6
-    re_mech    = 3π
-    nt         = 2
+    r          = 0.7
+    re_mech    = 5.2π
+    nt         = 10
     # preprocessing
     dx,dy,dz   = lx/nx,ly/ny,lz/nz
     xv,yv,zv   = LinRange(-lx/2,lx/2,nx+1),LinRange(-ly/2,ly/2,ny+1),LinRange(0,lz,nz+1)
     xc,yc,zc   = amean1(xv),amean1(yv),amean1(zv)
     lτ         = min(lx,ly,lz)
     vdτ        = min(dx,dy,dz)/sqrt(3.1)
-    θ_dτ       = lτ*(r+2.0)/(re_mech*vdτ)
+    θ_dτ       = lτ*(r+4/3)/(re_mech*vdτ)
     nudτ       = vdτ*lτ/re_mech
     dτ_r       = 1.0/(θ_dτ + 1.0)
     δ_sd       = 1.0*max(dx,dy,dz)
@@ -252,14 +270,16 @@ end
             # free slip z
             @parallel (1:size(Vz,2),1:size(Vz,3)) bc_x!(Vz)
             @parallel (1:size(Vz,1),1:size(Vz,3)) bc_y!(Vz)
+            # free surface top
+            @parallel (1:size(Vx,2),1:size(Vx,3)) bc_Vx!(Vx,η,Pr,ph_ice,ph_bed,dx)
+            @parallel (1:size(Vy,1),1:size(Vy,3)) bc_Vy!(Vy,η,Pr,ph_ice,ph_bed,dy)
+            @parallel (1:size(Vz,1),1:size(Vz,2)) bc_Vz!(Vz,η,Pr,dz)
             # no slip bottom
             @parallel (1:size(Vx,1),1:size(Vx,2)) bc_Vxy!(Vx)
             @parallel (1:size(Vy,1),1:size(Vy,2)) bc_Vxy!(Vy)
-            # free surface top
-            @parallel (1:size(Vz,1),1:size(Vz,2)) bc_Vz!(Vz,η,Pr,dz)
             if iter % ncheck == 0
                 @parallel compute_residuals!(r_Vx,r_Vy,r_Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ρgx,ρgy,ρgz,dx,dy,dz)
-                errs = maximum.((abs.(r_Vx),abs.(r_Vy),abs.(r_Vz),abs.(dPr)))
+                errs = maximum.((abs.(r_Vx),abs.(r_Vy),abs.(r_Vz),abs.(dPr[2:end-1,2:end-1,2:end-1])))
                 push!(iter_evo,iter/min(nx,ny,nz));append!(errs_evo,errs)
                 @printf("  iter/nz=%.3f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/min(nx,ny,nz),errs...)
             end
