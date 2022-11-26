@@ -280,20 +280,23 @@ end
     qUy        = ROCArray(zeros(DAT,nx-2,ny-1,nz-2))
     qUz        = ROCArray(zeros(DAT,nx-2,ny-2,nz-1))
     # AMDGPU specific
-    nkern = 26
+    nkern = 28
     nstep = 1 # 1 normal or 2 if comm overlap
     rocqueues = Vector{AMDGPU.ROCQueue}(undef,nstep)
     for is = 1:nstep
         rocqueues[is] = is == 1 ? ROCQueue(AMDGPU.default_device(); priority=:high) : ROCQueue(AMDGPU.default_device())
     end
-    sig_real = Array{AMDGPU.ROCSignal}(undef,nkern,nstep)
-    for is = 1:nstep, ik = 1:nkern
-        sig_real[ik,is] = ROCSignal()
+    sig = Array{AMDGPU.ROCSignal}(undef,nkern,nstep)
+    for is=1:nstep, ik=1:nkern
+        sig[ik,is] = ROCSignal()
     end
-    # signals = Array{AMDGPU.ROCKernelSignal}(undef,nkern,nstep)
     # initialisation
-    sig = @roc queue=rocqueues[1] groupsize=threads gridsize=grid compute_phase!(ρgz_c,ph_ice,ph_bed,xc,yc,zc,r_box,w_box,r_rnd,z_bed,δ_sd,ρg0.air,ρg0.ice,ρg0.bed); wait(sig)
-    sig = @roc queue=rocqueues[1] groupsize=threads gridsize=grid init_U!(U,T,ρCp.ice,T0.ice); wait(sig)
+    for is=1:nstep, ik=1:2
+        AMDGPU.HSA.signal_store_screlease(sig[ik,is].signal[],1)
+    end
+    @roc wait=false mark=false signal=sig[1,1] queue=rocqueues[1] groupsize=threads gridsize=grid compute_phase!(ρgz_c,ph_ice,ph_bed,xc,yc,zc,r_box,w_box,r_rnd,z_bed,δ_sd,ρg0.air,ρg0.ice,ρg0.bed)
+    @roc wait=false mark=false signal=sig[2,1] queue=rocqueues[1] groupsize=threads gridsize=grid init_U!(U,T,ρCp.ice,T0.ice)
+    wait(sig[2,1])
     ρgz .= ameanz(ρgz_c[2:end-1,2:end-1,:])
     iter_evo=Float64[]; errs_evo=ElasticMatrix{Float64}(undef,length(ϵtol),0)
     # time loop
@@ -303,69 +306,65 @@ end
         resize!(iter_evo,0); resize!(errs_evo,length(ϵtol),0)
         # iteration loop
         while any(errs .>= ϵtol) && iter <= maxiter
-            for is = 1:nstep, ik = 1:19
-                AMDGPU.HSA.signal_store_screlease(sig_real[ik,is].signal[],1)
+            for is=1:nstep, ik=3:21
+                AMDGPU.HSA.signal_store_screlease(sig[ik,is].signal[],1)
             end
             # mechanics
-            sig = @roc wait=false mark=false signal=sig_real[1,1] queue=rocqueues[1] groupsize=threads gridsize=grid compute_η!(η,T,Q_R,η0.air,η0.ice,η0.bed,ph_ice,ph_bed); wait(sig)
+            @roc wait=false mark=false signal=sig[3,1] queue=rocqueues[1] groupsize=threads gridsize=grid compute_η!(η,T,Q_R,η0.air,η0.ice,η0.bed,ph_ice,ph_bed)
+            wait(sig[1,1])
             ###### hide_comm
-            sig = @roc wait=false mark=false signal=sig_real[2,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_iter_params!(ητ,η); wait(sig)
-            sig = @roc wait=false mark=false signal=sig_real[3,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_x!(ητ); wait(sig)
-            sig = @roc wait=false mark=false signal=sig_real[4,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_y!(ητ); wait(sig)
-            sig = @roc wait=false mark=false signal=sig_real[5,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_z!(ητ); wait(sig)
+            @roc wait=false mark=false signal=sig[4,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_iter_params!(ητ,η)
+            @roc wait=false mark=false signal=sig[5,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_x!(ητ)
+            @roc wait=false mark=false signal=sig[6,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_y!(ητ)
+            @roc wait=false mark=false signal=sig[7,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_z!(ητ)
+            wait(sig[7,1])
             ###### hide_comm
-            # for istep=1:2
-            #     signals[1,istep] = @roc wait=false mark=false signal=sig_real[1,istep] queue=rocqueues[istep] groupsize=threads gridsize=grid update_iter_params!(ητ,η)
-            # end
-            # signals[2,1] = @roc wait=false mark=false signal=sig_real[2,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_x!(ητ)
-            # signals[3,1] = @roc wait=false mark=false signal=sig_real[1,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_y!(ητ)
-            # signals[4,1] = @roc wait=false mark=false signal=sig_real[2,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_z!(ητ)
-            # for ikern=1:4
-            #     wait(signals[ikern,1])
-            # end
-            # # update_halo!(ητ)
-            # wait(signals[1,2])
-            sig = @roc wait=false mark=false signal=sig_real[6,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_P_ε!(Pr,dPr,εxx,εyy,εzz,εxy,εxz,εyz,Vx,Vy,Vz,∇V,η,r,θ_dτ,dx,dy,dz); wait(sig)
-            sig = @roc wait=false mark=false signal=sig_real[7,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_τ!(τxx,τyy,τzz,τxy,τxz,τyz,εxx,εyy,εzz,εxy,εxz,εyz,εII,η,dτ_r); wait(sig)
+            @roc wait=false mark=false signal=sig[8,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_P_ε!(Pr,dPr,εxx,εyy,εzz,εxy,εxz,εyz,Vx,Vy,Vz,∇V,η,r,θ_dτ,dx,dy,dz)
+            @roc wait=false mark=false signal=sig[9,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_τ!(τxx,τyy,τzz,τxy,τxz,τyz,εxx,εyy,εzz,εxy,εxz,εyz,εII,η,dτ_r)
+            wait(sig[9,1])
             ###### hide_comm
-            sig = @roc wait=false mark=false signal=sig_real[8,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_velocities!(Vx,Vy,Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ητ,ρgx,ρgy,ρgz,nudτ,dx,dy,dz); wait(sig)
+            @roc wait=false mark=false signal=sig[10,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_velocities!(Vx,Vy,Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ητ,ρgx,ρgy,ρgz,nudτ,dx,dy,dz)
             # free slip x
-            sig = @roc wait=false mark=false signal=sig_real[9,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_y!(Vx); wait(sig)
-            sig = @roc wait=false mark=false signal=sig_real[10,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_z!(Vx); wait(sig)
+            @roc wait=false mark=false signal=sig[11,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_y!(Vx)
+            @roc wait=false mark=false signal=sig[12,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_z!(Vx)
             # free slip y
-            sig = @roc wait=false mark=false signal=sig_real[11,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_x!(Vy); wait(sig)
-            sig = @roc wait=false mark=false signal=sig_real[12,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_z!(Vy); wait(sig)
+            @roc wait=false mark=false signal=sig[13,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_x!(Vy)
+            @roc wait=false mark=false signal=sig[14,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_z!(Vy)
             # free slip z
-            sig = @roc wait=false mark=false signal=sig_real[13,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_x!(Vz); wait(sig)
-            sig = @roc wait=false mark=false signal=sig_real[14,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_y!(Vz); wait(sig)
+            @roc wait=false mark=false signal=sig[15,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_x!(Vz)
+            @roc wait=false mark=false signal=sig[16,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_y!(Vz)
             # free surface top
-            sig = @roc wait=false mark=false signal=sig_real[15,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_Vx!(Vx,η,Pr,ph_ice,ph_bed,dx); wait(sig)
-            sig = @roc wait=false mark=false signal=sig_real[16,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_Vy!(Vy,η,Pr,ph_ice,ph_bed,dy); wait(sig)
-            sig = @roc wait=false mark=false signal=sig_real[17,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_Vz!(Vz,η,Pr,dz); wait(sig)
+            @roc wait=false mark=false signal=sig[17,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_Vx!(Vx,η,Pr,ph_ice,ph_bed,dx)
+            @roc wait=false mark=false signal=sig[18,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_Vy!(Vy,η,Pr,ph_ice,ph_bed,dy)
+            @roc wait=false mark=false signal=sig[19,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_Vz!(Vz,η,Pr,dz)
             # no slip bottom
-            sig = @roc wait=false mark=false signal=sig_real[18,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_Vxy!(Vx); wait(sig)
-            sig = @roc wait=false mark=false signal=sig_real[19,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_Vxy!(Vy); wait(sig)
+            @roc wait=false mark=false signal=sig[20,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_Vxy!(Vx)
+            @roc wait=false mark=false signal=sig[21,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_Vxy!(Vy)
+            wait(sig[21,1])
             ###### hide_comm
             if iter % ncheck == 0
-                AMDGPU.HSA.signal_store_screlease(sig_real[20,1].signal[],1)
-                sig = @roc wait=false mark=false signal=sig_real[20,1] queue=rocqueues[1] groupsize=threads gridsize=grid compute_residuals!(r_Vx,r_Vy,r_Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ρgx,ρgy,ρgz,dx,dy,dz); wait(sig)
+                AMDGPU.HSA.signal_store_screlease(sig[22,1].signal[],1)
+                @roc wait=false mark=false signal=sig[22,1] queue=rocqueues[1] groupsize=threads gridsize=grid compute_residuals!(r_Vx,r_Vy,r_Vz,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ρgx,ρgy,ρgz,dx,dy,dz)
+                wait(sig[22,1])
                 errs = maximum.((abs.(r_Vx),abs.(r_Vy),abs.(r_Vz),abs.(dPr[2:end-1,2:end-1,2:end-1])))
                 push!(iter_evo,iter/min(nx,ny,nz)); append!(errs_evo,errs)
-                @printf("  iter/nz=%.3f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/min(nx,ny,nz),errs...)
+                @printf("  iter/nz=%.1f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/min(nx,ny,nz),errs...)
             end
             iter += 1
         end
-        for is = 1:nstep, ik = 21:26
-            AMDGPU.HSA.signal_store_screlease(sig_real[ik,is].signal[],1)
+        for is = 1:nstep, ik = 23:28
+            AMDGPU.HSA.signal_store_screlease(sig[ik,is].signal[],1)
         end
         # thermal
-        sig = @roc wait=false mark=false signal=sig_real[21,1] queue=rocqueues[1] groupsize=threads gridsize=grid compute_T!(T,U,ρCp.ice); wait(sig)
-        sig = @roc wait=false mark=false signal=sig_real[22,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_qU!(qUx,qUy,qUz,T,λ.ice,dx,dy,dz); wait(sig)
+        @roc wait=false mark=false signal=sig[23,1] queue=rocqueues[1] groupsize=threads gridsize=grid compute_T!(T,U,ρCp.ice)
+        @roc wait=false mark=false signal=sig[24,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_qU!(qUx,qUy,qUz,T,λ.ice,dx,dy,dz)
+        wait(sig[24,1])
         ###### hide_comm
-        sig = @roc wait=false mark=false signal=sig_real[23,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_U!(U,qUx,qUy,qUz,η,εII,dt,dx,dy,dz); wait(sig)
-        sig = @roc wait=false mark=false signal=sig_real[24,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_x!(U); wait(sig)
-        sig = @roc wait=false mark=false signal=sig_real[25,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_y!(U); wait(sig)
-        sig = @roc wait=false mark=false signal=sig_real[26,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_z!(U); wait(sig)
+        @roc wait=false mark=false signal=sig[25,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_U!(U,qUx,qUy,qUz,η,εII,dt,dx,dy,dz)
+        @roc wait=false mark=false signal=sig[26,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_x!(U)
+        @roc wait=false mark=false signal=sig[27,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_y!(U)
+        @roc wait=false mark=false signal=sig[28,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_z!(U)
+        wait(sig[28,1])
         ###### hide_comm
     end
     if do_visu
@@ -415,4 +414,4 @@ end
     return
 end
 
-main(;do_visu=false,do_save=true,outdir="out_opt")
+main(;do_visu=false,do_save=true)
