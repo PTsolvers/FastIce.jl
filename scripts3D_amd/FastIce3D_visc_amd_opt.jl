@@ -311,7 +311,7 @@ end
             end
             # mechanics
             @roc wait=false mark=false signal=sig[3,1] queue=rocqueues[1] groupsize=threads gridsize=grid compute_η!(η,T,Q_R,η0.air,η0.ice,η0.bed,ph_ice,ph_bed)
-            wait(sig[1,1])
+            wait(sig[3,1])
             ###### hide_comm
             @roc wait=false mark=false signal=sig[4,1] queue=rocqueues[1] groupsize=threads gridsize=grid update_iter_params!(ητ,η)
             @roc wait=false mark=false signal=sig[5,1] queue=rocqueues[1] groupsize=threads gridsize=grid bc_x!(ητ)
