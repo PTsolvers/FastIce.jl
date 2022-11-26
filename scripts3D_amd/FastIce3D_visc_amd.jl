@@ -112,15 +112,6 @@ function bc_Vxy!(Vxy)
     return
 end
 
-function bc_Vz!(Vz,η,Pr,dz)
-    @get_thread_idx()
-    nx,ny,nz=size(Pr); zE = iz+1
-    if (ix<=nx && iy<=ny && iz==nz)
-        Vz[ix,iy,zE] = Vz[ix,iy,zE-1] + 0.5*dz/η[ix,iy,iz]*(Pr[ix,iy,iz-1] + Pr[ix,iy,iz] - 2.0*η[ix,iy,iz-1]*(Vz[ix,iy,zE-1] - Vz[ix,iy,zE-2])/dz)
-    end
-    return
-end
-
 function bc_Vx!(Vx,η,Pr,ph_ice,ph_bed,dx)
     @get_thread_idx()
     nx,ny,nz=size(Pr); xE = ix+1
@@ -143,8 +134,17 @@ function bc_Vy!(Vy,η,Pr,ph_ice,ph_bed,dy)
         Vy[ix,iy,iz] = t_air*(Vy[ix,iy+1,iz] - 0.5*dy/η[ix,iy,iz]*(Pr[ix,iy+1,iz] + Pr[ix,iy,iz] - 2.0*η[ix,iy+1,iz]*(Vy[ix,iy+2,iz] - Vy[ix,iy+1,iz])/dy)) - (1.0-t_air)*Vy[ix,iy+2,iz]
     end
     if (ix<=nx && iy==ny && iz<=nz)
-        t_air        = 1.0 - 0.5*(ph_ice[ix,ny-1,iz] + ph_ice[ix,ny,iz]) - 0.5*(ph_bed[ix,ny-1,iz] + ph_bed[ix,ny,iz])
+        t_air        = 1.0 - 0.5*(ph_ice[ix,iy-1,iz] + ph_ice[ix,iy,iz]) - 0.5*(ph_bed[ix,iy-1,iz] + ph_bed[ix,iy,iz])
         Vy[ix,yE,iz] = t_air*(Vy[ix,yE-1,iz] + 0.5*dy/η[ix,iy,iz]*(Pr[ix,iy-1,iz] + Pr[ix,iy,iz] - 2.0*η[ix,iy-1,iz]*(Vy[ix,yE-1,iz] - Vy[ix,yE-2,iz])/dy)) - (1.0-t_air)*Vy[ix,yE-2,iz]
+    end
+    return
+end
+
+function bc_Vz!(Vz,η,Pr,dz)
+    @get_thread_idx()
+    nx,ny,nz=size(Pr); zE = iz+1
+    if (ix<=nx && iy<=ny && iz==nz)
+        Vz[ix,iy,zE] = Vz[ix,iy,zE-1] + 0.5*dz/η[ix,iy,iz]*(Pr[ix,iy,iz-1] + Pr[ix,iy,iz] - 2.0*η[ix,iy,iz-1]*(Vz[ix,iy,zE-1] - Vz[ix,iy,zE-2])/dz)
     end
     return
 end
@@ -219,7 +219,7 @@ end
     z_bed      = 0.15lz
     # numerics
     threads    = (32,2,2)
-    nz         = 32-1
+    nz         = 2*32-1
     nx         = ceil(Int,(nz+1)*lx/lz)-1
     ny         = ceil(Int,(nz+1)*ly/lz)-1
     println("Grid nx=$nx, ny=$ny, nz=$nz")
@@ -227,7 +227,7 @@ end
     ϵtol       = (1e-6,1e-6,1e-6,1e-6)
     maxiter    = 100min(nx,ny,nz)
     ncheck     = ceil(Int,5min(nx,ny,nz))
-    r          = 0.7
+    r          = 0.6
     re_mech    = 5.2π
     nt         = 10
     # preprocessing

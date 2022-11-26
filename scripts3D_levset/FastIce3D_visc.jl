@@ -189,7 +189,7 @@ end
     ϵtol       = (1e-6,1e-6,1e-6,1e-6)
     maxiter    = 100min(nx,ny,nz)
     ncheck     = ceil(Int,5min(nx,ny,nz))
-    r          = 0.7
+    r          = 0.6
     re_mech    = 5.2π
     nt         = 10
     # preprocessing
