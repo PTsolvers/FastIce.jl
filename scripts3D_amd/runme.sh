@@ -10,6 +10,6 @@ source ./setenv_lumi.sh
 
 # julia --project --check-bounds=no -O3 FastIce3D_visc_amd_opt_mpi.jl
 
-# julia --project --check-bounds=no -O3 FastIce3D_visc_amd_opt_mpi_perf.jl
+julia --project --check-bounds=no -O3 FastIce3D_visc_amd_opt_mpi_perf.jl
 
-./myrocprof --hsa-trace -d ./prof_out${SLURM_PROCID} -o ./prof_out${SLURM_PROCID}/results${SLURM_PROCID}.csv julia --project -O3 --check-bounds=no FastIce3D_visc_amd_opt_mpi_perf.jl
+# ./myrocprof --hsa-trace -d ./prof_out${SLURM_PROCID} -o ./prof_out${SLURM_PROCID}/results${SLURM_PROCID}.csv julia --project -O3 --check-bounds=no FastIce3D_visc_amd_opt_mpi_perf.jl
