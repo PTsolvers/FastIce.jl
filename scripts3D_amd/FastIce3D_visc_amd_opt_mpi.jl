@@ -1,7 +1,7 @@
 using AMDGPU
 using GeometryBasics,LinearAlgebra,ElasticArrays,Printf,Random
-# using ImplicitGlobalGrid
-# import MPI
+using ImplicitGlobalGrid
+import MPI
 # using GLMakie
 
 include("FD_helpers.jl")
@@ -12,8 +12,8 @@ const DAT = Float64
 @views ameany(A) = 0.5.*(A[:,1:end-1,:] .+ A[:,2:end,:])
 @views ameanz(A) = 0.5.*(A[:,:,1:end-1] .+ A[:,:,2:end])
 
-# maximum_g(A) = (max_l = maximum(A); MPI.Allreduce(max_l,MPI.MAX,MPI.COMM_WORLD))
-maximum_g(A) = (max_l = maximum(A))
+maximum_g(A) = (max_l = maximum(A); MPI.Allreduce(max_l,MPI.MAX,MPI.COMM_WORLD))
+# maximum_g(A) = (max_l = maximum(A))
 
 function save_array(Aname,A)
     fname = string(Aname,".bin")
@@ -241,31 +241,31 @@ end
     nx         = ceil(Int,(nz+1)*lx/lz)-1
     ny         = ceil(Int,(nz+1)*ly/lz)-1
     dim        = (0,0,0)
-    # me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3])
-    me,dims,nprocs=0,(1,1,1),1
+    me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3])
+    # me,dims,nprocs=0,(1,1,1),1
     ϵtol       = (1e-6,1e-6,1e-6,1e-6)
-    # maxiter    = 100min(nx_g(),ny_g(),nz_g())
-    # ncheck     = ceil(Int,5min(nx_g(),ny_g(),nz_g()))
-    maxiter    = 100min(nx,ny,nz)
-    ncheck     = ceil(Int,5min(nx,ny,nz))
+    maxiter    = 100min(nx_g(),ny_g(),nz_g())
+    ncheck     = ceil(Int,5min(nx_g(),ny_g(),nz_g()))
+    # maxiter    = 100min(nx,ny,nz)
+    # ncheck     = ceil(Int,5min(nx,ny,nz))
     r          = 0.6
     re_mech    = 5.2π
     nt         = 10
     b_width    = (32,4,4)
     threads    = (128,2,1)
-    grid       = (nx,ny,nz)
+    grid       = (nx+1,ny+1,nz+1)
     me==0 && println("Process $me selecting device $(AMDGPU.default_device_id())")
     me==0 && println("Local problem size: nx=$nx, ny=$ny, nz=$nz")
     me==0 && println("ROCm grid=$grid, threads=$threads")
     # preprocessing
-    dx,dy,dz   = lx/nx,ly/ny,lz/nz
-    xv,yv,zv   = LinRange(-lx/2,lx/2,nx+1),LinRange(-ly/2,ly/2,ny+1),LinRange(0,lz,nz+1)
-    xc,yc,zc   = amean1(xv),amean1(yv),amean1(zv)
-    # xc,yc,zc   = zeros(nx),zeros(ny),zeros(nz)
-    # dx,dy,dz   = lx/nx_g(),ly/ny_g(),lz/nz_g()
-    # xc         = ROCArray([x_g(ix,dx,xc)+0.5*dx-lx/2 for ix=1:length(xc)])
-    # yc         = ROCArray([y_g(iy,dy,yc)+0.5*dy-ly/2 for iy=1:length(yc)])
-    # zc         = ROCArray([z_g(iz,dz,zc)+0.5*dz      for iz=1:length(zc)])
+    # dx,dy,dz   = lx/nx,ly/ny,lz/nz
+    # xv,yv,zv   = LinRange(-lx/2,lx/2,nx+1),LinRange(-ly/2,ly/2,ny+1),LinRange(0,lz,nz+1)
+    # xc,yc,zc   = amean1(xv),amean1(yv),amean1(zv)
+    xc,yc,zc   = zeros(nx,1,1),zeros(1,ny,1),zeros(1,1,nz)
+    dx,dy,dz   = lx/nx_g(),ly/ny_g(),lz/nz_g()
+    xc         = ROCArray([(x_g(ix,dx,xc)+dx/2-lx/2) for ix=1:size(xc,1)])
+    yc         = ROCArray([(y_g(iy,dy,yc)+dy/2-ly/2) for iy=1:size(yc,2)])
+    zc         = ROCArray([(z_g(iz,dz,zc)+dz/2     ) for iz=1:size(zc,3)])
     lτ         = min(lx,ly,lz)
     vdτ        = min(dx,dy,dz)/sqrt(3.1)
     θ_dτ       = lτ*(r+4/3)/(re_mech*vdτ)
@@ -314,10 +314,10 @@ end
     nkern  = 25
     nkern2 = 3
     nstep  = 2 # 1 normal or 2 if comm overlap
-    rocqueues = Vector{AMDGPU.ROCQueue}(undef,nstep)
-    for is = 1:nstep
-        rocqueues[is] = is == 1 ? ROCQueue(AMDGPU.default_device(); priority=:high) : ROCQueue(AMDGPU.default_device())
-    end
+    # rocqueues = Vector{AMDGPU.ROCQueue}(undef,nstep) # from IGG
+    # for is = 1:nstep
+    #     rocqueues[is] = is == 1 ? ROCQueue(AMDGPU.default_device(); priority=:high) : ROCQueue(AMDGPU.default_device())
+    # end
     sig  = Array{AMDGPU.ROCSignal}(undef,nkern)
     sig2 = Array{AMDGPU.ROCSignal}(undef,nkern2,nstep)
     for ik=1:nkern
@@ -373,7 +373,7 @@ end
             end
             wait(sig[6])
             # print("update_halo!(ητ) ... ")
-            # update_halo!(ητ)
+            update_halo!(ητ)
             wait(sig2[1,2])
             # println("done")
             # ###### hide_comm
@@ -404,7 +404,7 @@ end
             end
             wait(sig[19])
             # print("update_halo!(Vx,Vy,Vz) ... ")
-            # update_halo!(Vx,Vy,Vz)
+            update_halo!(Vx,Vy,Vz)
             wait(sig2[2,2])
             # println("done")
             ###### hide_comm
@@ -417,10 +417,10 @@ end
                 errVz = maximum_g(abs.(r_Vz))
                 errPr = maximum_g(abs.(dPr[2:end-1,2:end-1,2:end-1]))
                 errs  = (errVx,errVy,errVz,errPr)
-                # push!(iter_evo,iter/min(nx_g(),ny_g(),nz_g())); append!(errs_evo,errs)
-                # me==0 && @printf("  iter/nz=%.1f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/min(nx_g(),ny_g(),nz_g()),errs...)
-                push!(iter_evo,iter/min(nx,ny,nz)); append!(errs_evo,errs)
-                @printf("  iter/nz=%.1f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/min(nx,ny,nz),errs...)
+                push!(iter_evo,iter/min(nx_g(),ny_g(),nz_g())); append!(errs_evo,errs)
+                me==0 && @printf("  iter/nz=%.1f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/min(nx_g(),ny_g(),nz_g()),errs...)
+                # push!(iter_evo,iter/min(nx,ny,nz)); append!(errs_evo,errs)
+                # @printf("  iter/nz=%.1f,errs=[ %1.3e, %1.3e, %1.3e, %1.3e ] \n",iter/min(nx,ny,nz),errs...)
             end
             iter += 1
         end
@@ -445,7 +445,7 @@ end
         end
         wait(sig[25])
         # print("update_halo!(U) ... ")
-        # update_halo!(U)
+        update_halo!(U)
         wait(sig2[3,2])
         # println("done")
         # ###### hide_comm
@@ -455,6 +455,9 @@ end
         T_inn  .= Array(T)[2:end-1,2:end-1,2:end-1];    gather!(T_inn , T_v )
         Vm_inn .= Array(Vmag)[2:end-1,2:end-1,2:end-1]; gather!(Vm_inn, Vm_v)
         Pr_inn .= Array(Pr)[2:end-1,2:end-1,2:end-1];   gather!(Pr_inn, Pr_v)
+        # T_inn  .= Array(ρgz_c)[2:end-1,2:end-1,2:end-1];    gather!(T_inn , T_v )
+        # Vm_inn .= Array(ph_ice)[2:end-1,2:end-1,2:end-1]; gather!(Vm_inn, Vm_v)
+        # Pr_inn .= Array(ph_bed)[2:end-1,2:end-1,2:end-1];   gather!(Pr_inn, Pr_v)
         if me==0
             if isdir(outdir)==false mkdir(outdir) end
             save_array(joinpath(outdir,"out_Pr"  ),convert.(Float32,Array(Pr_v)))
@@ -468,8 +471,8 @@ end
             end
         end
     end
-    # finalize_global_grid()
+    finalize_global_grid()
     return
 end
 
-main(;do_save=false)
+main(;do_save=true)
