@@ -173,8 +173,8 @@ function compute_η!(η,T,Q_R,η0_air,η0_ice,η0_bed,ph_ice,ph_bed)
 end
 
 @inline function sd_round_box(p,b,r)
-  q = abs.(p) .- b
-  return norm(max.(q,0.0)) + min(max(q[1],max(q[2],q[3])),0.0) - r
+    q = abs.(p) .- b
+    return norm(max.(q,0.0)) + min(max(q[1],max(q[2],q[3])),0.0) - r
 end
 
 function compute_phase!(ρgz_c,ph_ice,ph_bed,xc,yc,zc,r_box,w_box,r_rnd,z_bed,δ_sd,ρg0_air,ρg0_ice,ρg0_bed)
