@@ -1,3 +1,4 @@
+const nz = haskey(ENV,"NZ") ? parse(Int,ENV["NZ"]) : 511
 using AMDGPU
 using GeometryBasics,LinearAlgebra,ElasticArrays,Printf,Random
 # using GLMakie
@@ -218,7 +219,7 @@ end
     z_bed      = 0.15lz
     # numerics
     threads    = (128,2,1)
-    nz         = 16*32-1
+    # nz         = 16*32-1
     nx         = ceil(Int,(nz+1)*lx/lz)-1
     ny         = ceil(Int,(nz+1)*ly/lz)-1
     grid       = (nx+1,ny+1,nz+1)
@@ -360,6 +361,9 @@ end
                 A_eff = 24/1e9*nx*ny*nz*sizeof(Float64)
                 T_eff = A_eff/t_it
                 println("Sample (t_it global max): t_it=$(round(t_it,sigdigits=4)) T_eff=$(round(T_eff,sigdigits=6))")
+                open("./out_perf/out_perf_$(nx).txt","a") do io
+                    println(io, "$(nx) $(ny) $(nz) $(round(t_it,sigdigits=4)) $(A_eff) $(round(T_eff,sigdigits=6))")
+                end
             end
             iter += 1
         end
