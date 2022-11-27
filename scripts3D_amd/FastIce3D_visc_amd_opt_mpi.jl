@@ -251,7 +251,7 @@ end
     r          = 0.6
     re_mech    = 5.2π
     nt         = 10
-    b_width    = (32,4,4)
+    b_width    = (32,2,2)
     threads    = (128,2,1)
     grid       = (nx+1,ny+1,nz+1)
     me==0 && println("Process $me selecting device $(AMDGPU.default_device_id())")
