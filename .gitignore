@@ -31,6 +31,7 @@ data/alps/
 data/alps_sgi/
 data/bedmachine/
 data/bedmachine_src/
+data/synthetic_topo/
 
 scripts3D_amd/out*
 scripts3D_amd/prof*
