@@ -10,5 +10,5 @@ T_init  = (0.294776409,0.605874031,3.123633533,43.06257976)
 
 png(plot(collect(nz),collect(T_init),
          xticks=(nz, string.(nz)), legend=false,
-         xlabel="", ylabel="Initialisation time",
+         xlabel="Number of grid points in z direction", ylabel="Initialisation time",
          dpi=150,size=(600, 380)),"init_strong_scale_lumi.png")
