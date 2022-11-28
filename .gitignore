@@ -34,3 +34,5 @@ data/bedmachine_src/
 
 scripts3D_amd/out*
 scripts3D_amd/prof*
+scripts3D_amd/*.e
+scripts3D_amd/*.o

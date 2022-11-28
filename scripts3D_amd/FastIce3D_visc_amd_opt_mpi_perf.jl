@@ -243,7 +243,7 @@ end
     dim        = (0,0,0)
     me,dims,nprocs,coords,comm_cart = init_global_grid(nx,ny,nz;dimx=dim[1],dimy=dim[2],dimz=dim[3])
     ϵtol       = (1e-6,1e-6,1e-6,1e-6)
-    maxiter    = 20#100min(nx_g(),ny_g(),nz_g())
+    maxiter    = 30#100min(nx_g(),ny_g(),nz_g())
     ncheck     = 1000#ceil(Int,5min(nx_g(),ny_g(),nz_g()))
     r          = 0.6
     re_mech    = 5.2π
@@ -421,9 +421,9 @@ end
                     A_eff = 24/1e9*nx*ny*nz*sizeof(Float64)
                     T_eff = A_eff/t_it
                     println("Sample (t_it global max): t_it=$(round(t_it,sigdigits=6)) T_eff=$(round(T_eff,sigdigits=6))")
-                    # open("./out_perf/out_perf_mpi_$(nprocs)_$(nx).txt","a") do io
-                    #     println(io, "$(nprocs) $(nx_g()) $(ny_g()) $(nz_g()) $(round(t_it,sigdigits=4)) $(A_eff) $(round(T_eff,sigdigits=6))")
-                    # end
+                    open("./out_perf/out_perf_mpi_$(nprocs)_$(nx).txt","a") do io
+                        println(io, "$(nprocs) $(nx_g()) $(ny_g()) $(nz_g()) $(round(t_it,sigdigits=4)) $(A_eff) $(round(T_eff,sigdigits=6))")
+                    end
                 end
             end
             iter += 1
