@@ -1,14 +1,8 @@
-macro get_thread_idx() esc(:( begin
-    ix = (blockIdx().x-1)*blockDim().x + threadIdx().x
-    iy = (blockIdx().y-1)*blockDim().y + threadIdx().y
-    iz = (blockIdx().z-1)*blockDim().z + threadIdx().z
-    end ))
-end
-
 function _init_level_set!(ls,mask,dem,rc,dem_rc,cutoff,R)
     @get_thread_idx()
     if !(ix ∈ axes(ls,1)) || !(iy ∈ axes(ls,2)) || !(iz ∈ axes(ls,3)) return end
-    P = R*Point3(getindex.(rc,(ix,iy,iz))...)
+    x,y,z = rc[1][ix],rc[2][iy],rc[3][iz]
+    P = R*Point3(x,y,z)
     ud,sgn = LevelSets.sd_dem(P,cutoff,dem,dem_rc)
     ls[ix,iy,iz]   = ud*sgn
     mask[ix,iy,iz] = ud < cutoff

@@ -34,9 +34,12 @@ end
 @inline inc(I) = I + oneunit(I)
 
 @inline function triangle_pair(Iv,dem,rc)
-    sample_dem(I) = Point3(getindex.(rc,Tuple(I))...,dem[I])
+    @inline function sample_dem(I)
+        x,y = rc[1][I[1]],rc[2][I[2]]
+        Point3(x,y,dem[I])
+    end
     T_BL = Triangle(sample_dem(Iv)       ,sample_dem(inc(Iv,1)),sample_dem(inc(Iv,2)))
-    T_TR = Triangle(sample_dem(inc(Iv,2)),sample_dem(inc(Iv,1))  ,sample_dem(inc(Iv)))
+    T_TR = Triangle(sample_dem(inc(Iv,2)),sample_dem(inc(Iv,1)),sample_dem(inc(Iv)))
     return T_BL,T_TR
 end
 

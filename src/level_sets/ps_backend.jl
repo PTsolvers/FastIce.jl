@@ -25,6 +25,7 @@ Initialise level set as a signed distance function in a narrow band around a hei
 """
 function init_level_set!(ls,mask,dem,rc,dem_rc,cutoff,R)
     @parallel (1:size(ls,1),1:size(ls,2),1:size(ls,3)) _init_level_set!(ls,mask,dem,rc,dem_rc,cutoff,R)
+    return
 end
 
 

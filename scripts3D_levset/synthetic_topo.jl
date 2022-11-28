@@ -13,10 +13,10 @@ function generate_synthetic_topo(nx,ny)
         @write io lx; @write io ly
         @write io ox; @write io oy
     end
-    fig = Figure(fontsize=32,resolution=(2000,1600))
-    ax  = Axis3(fig[1,1];aspect=:data)
-    surface!(ax,xc,yc,bed;colormap=:turbo)
-    surface!(ax,xc,yc,bed.+mask.*ice;colormap=:winter)
-    display(fig)
+    # fig = Figure(fontsize=32,resolution=(2000,1600))
+    # ax  = Axis3(fig[1,1];aspect=:data)
+    # surface!(ax,xc,yc,bed;colormap=:turbo)
+    # surface!(ax,xc,yc,bed.+mask.*ice;colormap=:winter)
+    # display(fig)
     return
 end

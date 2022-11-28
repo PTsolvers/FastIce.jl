@@ -7,6 +7,13 @@ using ..LevelSets
 
 export init_level_set!,solve_eikonal!
 
+macro get_thread_idx() esc(:( begin
+    ix = (blockIdx().x-1)*blockDim().x + threadIdx().x
+    iy = (blockIdx().y-1)*blockDim().y + threadIdx().y
+    iz = (blockIdx().z-1)*blockDim().z + threadIdx().z
+    end ))
+end
+
 include("kernels.jl")
 
 """
@@ -22,6 +29,7 @@ function init_level_set!(ls,mask,dem,rc,dem_rc,cutoff,R)
     nthreads = (8,8,4)
     nblocks  = cld.(size(ls),nthreads)
     CUDA.@sync @cuda threads=nthreads blocks=nblocks _init_level_set!(ls,mask,dem,rc,dem_rc,cutoff,R)
+    return
 end
 
 
