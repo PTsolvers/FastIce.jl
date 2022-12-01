@@ -1,7 +1,6 @@
 [deps]
 DBFTables = "75c7ada1-017a-5fb6-b8c7-2125ff2d6c93"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-GeoArrays = "2fb1d81b-e6a0-5fc5-82e6-8e06903437ab"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
