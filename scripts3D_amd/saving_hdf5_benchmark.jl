@@ -16,14 +16,16 @@ end
 function main()
     MPI.Init()
     nnodes    = MPI.Comm_size(MPI.COMM_WORLD)
-    dims      = MPI.Dims_create!(nnodes,(0,0,0))
-    comm_cart = MPI.Cart_create(MPI.COMM_WORLD,dims,(0,0,0),1)
+    dims      = MPI.Dims_create!(nnodes,[0,0,0])
+    comm_cart = MPI.Cart_create(MPI.COMM_WORLD,dims,[0,0,0],1)
     me        = MPI.Comm_rank(comm_cart)
-    comm_node = MPI.Comm_split_type(comm_cart, MPI.MPI_COMM_TYPE_SHARED, me)
+    coords    = MPI.Cart_coords(comm_cart,me)
+    comm_node = MPI.Comm_split_type(comm_cart, MPI.COMM_TYPE_SHARED, me)
     me_local  = MPI.Comm_rank(comm_node)
-    group     = MPI.Comm_group(comm_node)
-    me_node   = MPI_group_rank(group)
-    println("rank # $me , node # $me_node, local # $me_local")
+    node_name = MPI.Get_processor_name()
+    println("process # $me_local on node # '$node_name' says 'Hi!'")
+    A = rand(Float32,511,511,511)
+    
     MPI.Finalize()
     return
 end
