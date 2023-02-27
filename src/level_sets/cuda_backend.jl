@@ -45,10 +45,11 @@ function solve_eikonal!(ls,dldt,mask,dx,dy,dz;ϵtol = 1e-8)
     minsteps,maxsteps = extrema(size(ls))
     ncheck = cld(minsteps,4)
     for istep in 1:maxsteps
-        CUDA.@sync @cuda threads=nthreads blocks=nblocks _update_dldt!(dldt,ls,mask,dx,dy,dz)
+    CUDA.@sync @cuda threads=nthreads blocks=nblocks _update_dldt!(dldt,ls,mask,dx,dy,dz)
         CUDA.@sync @cuda threads=nthreads blocks=nblocks _update_ls!(ls,dldt,dt)
         if istep % ncheck == 0
             err = maximum(abs.(dldt))
+            @printf("iteration # %d , error = %1.3e\n",istep,err)
             @debug @sprintf("iteration # %d , error = %1.3e\n",istep,err)
             if err < ϵtol break end
         end
