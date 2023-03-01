@@ -8,6 +8,8 @@ using GLMakie
 include("load_dem.jl")
 include("signed_distances.jl")
 include("level_sets.jl")
+include("volume_fractions.jl")
+include("bcs.jl")
 
 @views av1(A) = 0.5.*(A[1:end-1].+A[2:end])
 
@@ -21,6 +23,7 @@ include("level_sets.jl")
     # load DEM
     @info "loading DEM data from the file '$greenland_path'"
     (;x,y,bed,surface) = load_dem(greenland_path,global_region)
+    @info "DEM resolution: $(size(bed,1)) × $(size(bed,2))"
 
     # TODO: remove
     # exagerrating the elevation
@@ -96,60 +99,50 @@ end
         fluid  = field_array(Float64,nx+1,ny+1,nz+1),
         liquid = field_array(Float64,nx+1,ny+1,nz+1),
     )
-    # wt = (
-    #     c = (
-    #         fluid  = field_array(Float64,nx,ny,nz),
-    #         liquid = field_array(Float64,nx,ny,nz),
-    #     ),
-    #     x = (
-    #         fluid  = field_array(Float64,nx+1,ny,nz),
-    #         liquid = field_array(Float64,nx+1,ny,nz),
-    #     ),
-    #     y = (
-    #         fluid  = field_array(Float64,nx,ny+1,nz),
-    #         liquid = field_array(Float64,nx,ny+1,nz),
-    #     ),
-    #     z = (
-    #         fluid  = field_array(Float64,nx,ny,nz+1),
-    #         liquid = field_array(Float64,nx,ny,nz+1),
-    #     ),
-    #     xy = (
-    #         fluid  = field_array(Float64,nx-1,ny-1,nz-2),
-    #         liquid = field_array(Float64,nx-1,ny-1,nz-2),
-    #     ),
-    #     xz = (
-    #         fluid  = field_array(Float64,nx-1,ny-2,nz-1),
-    #         liquid = field_array(Float64,nx-1,ny-2,nz-1),
-    #     ),
-    #     yz = (
-    #         fluid  = field_array(Float64,nx-2,ny-1,nz-1),
-    #         liquid = field_array(Float64,nx-2,ny-1,nz-1),
-    #     ),
-    # )
+    wt = (
+        fluid = (
+            c  = field_array(Float64,nx  ,ny  ,nz  ),
+            x  = field_array(Float64,nx+1,ny  ,nz  ),
+            y  = field_array(Float64,nx  ,ny+1,nz  ),
+            z  = field_array(Float64,nx  ,ny  ,nz+1),
+            xy = field_array(Float64,nx-1,ny-1,nz-2),
+            xz = field_array(Float64,nx-1,ny-2,nz-1),
+            yz = field_array(Float64,nx-2,ny-1,nz-1),
+        ),
+        liquid = (
+            c  = field_array(Float64,nx  ,ny  ,nz  ),
+            x  = field_array(Float64,nx+1,ny  ,nz  ),
+            y  = field_array(Float64,nx  ,ny+1,nz  ),
+            z  = field_array(Float64,nx  ,ny  ,nz+1),
+            xy = field_array(Float64,nx-1,ny-1,nz-2),
+            xz = field_array(Float64,nx-1,ny-2,nz-1),
+            yz = field_array(Float64,nx-2,ny-1,nz-1),
+        )
+    )
     # mechanics
-    # Pr = field_array(Float64,nx,ny,nz)
-    # τ  = (
-    #     xx = field_array(Float64,nx  ,ny  ,nz  ),
-    #     yy = field_array(Float64,nx  ,ny  ,nz  ),
-    #     zz = field_array(Float64,nx  ,ny  ,nz  ),
-    #     xy = field_array(Float64,nx-1,ny-1,nz-2),
-    #     xz = field_array(Float64,nx-1,ny-2,nz-1),
-    #     yz = field_array(Float64,nx-2,ny-1,nz-1),
-    # )
-    # V = (
-    #     x = field_array(Float64,nx+1,ny,nz),
-    #     y = field_array(Float64,nx,ny+1,nz),
-    #     z = field_array(Float64,nx,ny,nz+1),
-    # )
-    # residuals
-    # Res = (
-    #     Pr = field_array(Float64,nx,ny,nz),
-    #     V = (
-    #         x = field_array(Float64,nx-1,ny-2,nz-2),
-    #         y = field_array(Float64,nx-2,ny-1,nz-2),
-    #         z = field_array(Float64,nx-2,ny-2,nz-1),
-    #     )
-    # )
+    Pr = field_array(Float64,nx,ny,nz)
+    τ  = (
+        xx = field_array(Float64,nx  ,ny  ,nz  ),
+        yy = field_array(Float64,nx  ,ny  ,nz  ),
+        zz = field_array(Float64,nx  ,ny  ,nz  ),
+        xy = field_array(Float64,nx-1,ny-1,nz-2),
+        xz = field_array(Float64,nx-1,ny-2,nz-1),
+        yz = field_array(Float64,nx-2,ny-1,nz-1),
+    )
+    V = (
+        x = field_array(Float64,nx+1,ny,nz),
+        y = field_array(Float64,nx,ny+1,nz),
+        z = field_array(Float64,nx,ny,nz+1),
+    )
+    residuals
+    Res = (
+        Pr = field_array(Float64,nx,ny,nz),
+        V = (
+            x = field_array(Float64,nx-1,ny-2,nz-2),
+            y = field_array(Float64,nx-2,ny-1,nz-2),
+            z = field_array(Float64,nx-2,ny-2,nz-1),
+        )
+    )
 
     # figures
     fig = Figure(resolution=(1500,700),fontsize=32)
@@ -159,9 +152,13 @@ end
             surface = Axis3(fig[1,2][1,1];title="surface",aspect=:data),
         ),
         Ψ = (
-            fluid  = Axis3(fig[2,1][1,1];title="bed"    ,aspect=:data),
-            liquid = Axis3(fig[2,2][1,1];title="surface",aspect=:data),
+            fluid  = Axis3(fig[2,1][1,1];title="fluid" ,aspect=:data),
+            liquid = Axis3(fig[2,2][1,1];title="liquid",aspect=:data),
         ),
+        wt = (
+            fluid  = Axis(fig[3,1][1,1];title="fluid" ),
+            liquid = Axis(fig[3,2][1,1];title="liquid"),
+        )
     )
     plts = (
         dem = (
@@ -172,14 +169,20 @@ end
             fluid  = volume!(axs.Ψ.fluid ,xv_l,yv_l,zv_l,Array(Ψ.fluid) ;algorithm=:iso,isovalue=0.0),
             liquid = volume!(axs.Ψ.liquid,xv_l,yv_l,zv_l,Array(Ψ.liquid);algorithm=:iso,isovalue=0.0),
         ),
+        wt = (
+            fluid  = heatmap!(axs.wt.fluid ,xc_l,zc_l,Array(wt.fluid.c[:,64,:] );colormap=:grays),
+            liquid = heatmap!(axs.wt.liquid,xc_l,zc_l,Array(wt.liquid.c[:,64,:]);colormap=:grays),
+        ),
     )
-    # Colorbar(fig[1,1][1,2],plts.Ψ.fluid )
-    # Colorbar(fig[1,2][1,2],plts.Ψ.liquid)
+    Colorbar(fig[1,1][1,2],plts.dem.bed)
+    Colorbar(fig[1,2][1,2],plts.dem.surface)
+    Colorbar(fig[3,1][1,2],plts.wt.fluid)
+    Colorbar(fig[3,2][1,2],plts.wt.liquid)
 
     # initialisation
-    # for comp in eachindex(V) fill!(V[comp],0.0) end
-    # for comp in eachindex(τ) fill!(τ[comp],0.0) end
-    # fill!(Pr,0.0)
+    for comp in eachindex(V) fill!(V[comp],0.0) end
+    for comp in eachindex(τ) fill!(τ[comp],0.0) end
+    fill!(Pr,0.0)
 
     # compute level sets from DEM data
     dem_grid = (dem_data.x,dem_data.y)
@@ -187,13 +190,20 @@ end
     
     @info "computing the level set for the ice surface"
     compute_level_set_from_dem!(Ψ.liquid,to_device(dem_data.surface),dem_grid,Ψ_grid)
-    
+
     @info "computing the level set for the bedrock surface"
     compute_level_set_from_dem!(Ψ.fluid,to_device(dem_data.bed),dem_grid,Ψ_grid)
 
+    @info "computing volume fractions from level sets"
+    for phase in eachindex(Ψ)
+        compute_volume_fractions_from_level_set!(wt[phase],Ψ[phase],dx,dy,dz)
+    end
+
     # update plots
-    plts.Ψ.fluid[4]  = Array(Ψ.fluid)
-    plts.Ψ.liquid[4] = Array(Ψ.liquid)
+    plts.Ψ.fluid[4]   = Array(Ψ.fluid)
+    plts.Ψ.liquid[4]  = Array(Ψ.liquid)
+    plts.wt.fluid[3]  = Array(wt.fluid.c[:,64,:] )
+    plts.wt.liquid[3] = Array(wt.liquid.c[:,64,:])
     display(fig)
 
     finalize_global_grid(;finalize_MPI=false)
@@ -201,4 +211,4 @@ end
     return
 end
 
-main((128,128,32))
+main((256,256,64))
