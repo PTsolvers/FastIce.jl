@@ -14,8 +14,8 @@ function update_V!(V, Pr, τ, ηs, wt, nudτ, ρg, dx, dy, dz; bwidth)
     ie,oe =  hide_comm(ranges) do ndrange
         _update_V!(V_inn, Pr, τ, ηs, wt, nudτ, ρg, dx, dy, dz; ndrange)
     end
-    wait(oe)
-    update_halo!(Vx,Vy,Vz)
+    wait.(oe)
+    update_halo!(V.x,V.y,V.z)
     bc_x_neumann!(0.0,V.y,V.z)
     bc_y_neumann!(0.0,V.x,V.z)
     bc_z_neumann!(0.0,V.x,V.y)

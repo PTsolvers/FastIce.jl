@@ -2,8 +2,8 @@ using FastIce
 using MPI
 using ImplicitGlobalGrid
 using TinyKernels
-
-using GLMakie
+using HDF5
+using LightXML
 
 include("load_dem.jl")
 include("signed_distances.jl")
@@ -21,6 +21,12 @@ include("hide_communication.jl")
 @views inn(A)   = A[2:end-1,2:end-1,2:end-1]
 
 @views function main(grid_dims)
+    # init MPI and IGG
+    MPI.Init()
+    me, dims, nprocs, coords, comm_cart = init_global_grid(grid_dims...;init_MPI=false)
+    dims   = Tuple(dims)
+    coords = Tuple(coords)
+
     # path to DEM data
     greenland_path = "data/BedMachine/greenland.jld2"
 
@@ -28,9 +34,9 @@ include("hide_communication.jl")
     global_region = (xlims = (1100.0e3,1200.0e3), ylims = (1000.0e3,1100.0e3))
 
     # load DEM
-    @info "loading DEM data from the file '$greenland_path'"
+    (me==0) && @info "loading DEM data from the file '$greenland_path'"
     (;x,y,bed,surface) = load_dem(greenland_path,global_region)
-    @info "DEM resolution: $(size(bed,1)) × $(size(bed,2))"
+    (me==0) && @info "DEM resolution: $(size(bed,1)) × $(size(bed,2))"
 
     # compute origin and size of the domain (required for scaling and computing the grid size)
     ox,oy,oz = x[1], y[1], minimum(bed)
@@ -45,35 +51,17 @@ include("hide_communication.jl")
     @. bed     = (bed     - oz)/lz
     @. surface = (surface - oz)/lz
 
-    # plot the selected region
-    fig = Figure(resolution=(1500,700),fontsize=32)
-    axs = (
-        bed     = Axis(fig[1,1][1,1];aspect=DataAspect(),title="bed"),
-        surface = Axis(fig[1,2][1,1];aspect=DataAspect(),title="surface"),
-    )
-    plts = (
-        bed     = heatmap!(axs.bed    ,x,y,bed    ),
-        surface = heatmap!(axs.surface,x,y,surface),
-    )
-    Colorbar(fig[1,1][1,2],plts.bed)
-    Colorbar(fig[1,2][1,2],plts.surface)
-    display(fig)
-
     # run simulation
     dem_data = (;x,y,bed,surface)
-    @info "running the simulation"
-    run_simulation(dem_data,grid_dims)
+    (me==0) && @info "running the simulation"
+    run_simulation(dem_data,grid_dims,me,dims,coords,comm_cart)
     
+    finalize_global_grid(;finalize_MPI=false)
+    MPI.Finalize()
     return
 end
 
-@views function run_simulation(dem_data,grid_dims)
-    # init MPI
-    MPI.Initialized() || MPI.Init()
-    me, dims, nprocs, coords, comm_cart = init_global_grid(grid_dims...;init_MPI=false)
-    dims   = Tuple(dims)
-    coords = Tuple(coords)
-
+@views function run_simulation(dem_data,grid_dims,me,dims,coords,comm_cart)
     # physics
     # global domain origin and size
     ox_g, oy_g, oz_g = dem_data.x[1], dem_data.y[1], 0.0
@@ -89,18 +77,20 @@ end
 
     # numerics
     nx,ny,nz = grid_dims
-    dx,dy,dz = lx_g/nx_g(), ly_g/ny_g(), lz_g/nz_g()
     bwidth   = (8,4,4)
-
+    
     # preprocessing
+    dx,dy,dz = lx_g/nx_g(), ly_g/ny_g(), lz_g/nz_g()
+    (me==0) && @info "grid spacing: dx = $dx, dy = $dy, dz = $dz"
+
     xv_l = LinRange(ox_l,ox_l+lx_l,nx+1)
     yv_l = LinRange(oy_l,oy_l+ly_l,ny+1)
     zv_l = LinRange(oz_l,oz_l+lz_l,nz+1)
     xc_l,yc_l,zc_l = av1.((xv_l,yv_l,zv_l))
-
+    
     # PT params
     r          = 0.7
-    lτ_re_mech = 0.2min(lx_g,ly_g,lz_g)/π
+    lτ_re_mech = 0.5min(lx_g,ly_g,lz_g)/π
     vdτ        = min(dx,dy,dz)/sqrt(10.1)
     θ_dτ       = lτ_re_mech*(r+4/3)/vdτ
     nudτ       = vdτ*lτ_re_mech
@@ -157,44 +147,13 @@ end
             z = field_array(Float64,nx-2,ny-2,nz-1),
         )
     )
-
-    # figures
-    fig = Figure(resolution=(1500,700),fontsize=32)
-    axs = (
-        dem = (
-            bed     = Axis3(fig[1,1][1,1];title="bed"    ,aspect=:data),
-            surface = Axis3(fig[1,2][1,1];title="surface",aspect=:data),
-        ),
-        Ψ = (
-            fluid  = Axis3(fig[2,1][1,1];title="fluid" ,aspect=:data),
-            liquid = Axis3(fig[2,2][1,1];title="liquid",aspect=:data),
-        ),
-        wt = (
-            fluid  = Axis(fig[3,1][1,1];title="fluid" ),
-            liquid = Axis(fig[3,2][1,1];title="liquid"),
-        ),
-        Pr = Axis(fig[4,1][1,1];title="Pr"),
+    # visualisation
+    Vmag = field_array(Float64,nx-2,ny-2,nz-2)
+    τII  = field_array(Float64,nx-2,ny-2,nz-2)
+    Ψav  = (
+        liquid = field_array(Float64,nx-2,ny-2,nz-2),
+        fluid = field_array(Float64,nx-2,ny-2,nz-2),
     )
-    plts = (
-        dem = (
-            bed     = surface!(axs.dem.bed    ,dem_data.x,dem_data.y,dem_data.bed    ),
-            surface = surface!(axs.dem.surface,dem_data.x,dem_data.y,dem_data.surface),
-        ),
-        Ψ = (
-            fluid  = volume!(axs.Ψ.fluid ,xv_l,yv_l,zv_l,Array(Ψ.fluid) ;algorithm=:iso,isovalue=0.0),
-            liquid = volume!(axs.Ψ.liquid,xv_l,yv_l,zv_l,Array(Ψ.liquid);algorithm=:iso,isovalue=0.0),
-        ),
-        wt = (
-            fluid  = heatmap!(axs.wt.fluid ,xc_l,zc_l,Array(wt.fluid.c[:,64,:] );colormap=:grays),
-            liquid = heatmap!(axs.wt.liquid,xc_l,zc_l,Array(wt.liquid.c[:,64,:]);colormap=:grays),
-        ),
-        Pr = heatmap!(axs.Pr,xc_l,zc_l,Array(Pr[:,64,:]);colormap=:turbo),
-    )
-    Colorbar(fig[1,1][1,2],plts.dem.bed)
-    Colorbar(fig[1,2][1,2],plts.dem.surface)
-    Colorbar(fig[3,1][1,2],plts.wt.fluid)
-    Colorbar(fig[3,2][1,2],plts.wt.liquid)
-    Colorbar(fig[4,1][1,2],plts.Pr)
 
     # initialisation
     for comp in eachindex(V) fill!(V[comp],0.0) end
@@ -215,37 +174,26 @@ end
     @. Ψ.fluid *= -1.0
     TinyKernels.device_synchronize(get_device())
 
-    @info "computing volume fractions from level sets"
+    (me==0) && @info "computing volume fractions from level sets"
     for phase in eachindex(Ψ)
         compute_volume_fractions_from_level_set!(wt[phase],Ψ[phase],dx,dy,dz)
     end
     
-    # update plots
-    plts.Ψ.fluid[4]   = Array(Ψ.fluid)
-    plts.Ψ.liquid[4]  = Array(Ψ.liquid)
-    plts.wt.fluid[3]  = Array(wt.fluid.c[:,256,:] )
-    plts.wt.liquid[3] = Array(wt.liquid.c[:,256,:])
-    display(fig)
-
     (me==0) && @info "iteration loop"
     for iter in 1:1000
-        println("  iter: $iter")
+        (me==0) && println("  iter: $iter")
         update_σ!(Pr,τ,V,ηs,wt,r,θ_dτ,dτ_r,dx,dy,dz)
         update_V!(V,Pr,τ,ηs,wt,nudτ,ρg,dx,dy,dz;bwidth)
-        if iter % 50 == 0
-            plts.Pr[3] = Array(Pr[:,256,:])
-            yield()
-        end
     end
 
     (me==0) && @info "saving results on disk"
     dim_g = (nx_g()-2, ny_g()-2, nz_g()-2)
-    update_vis_fields!(Vmag,τII,V,τ)
+    update_vis_fields!(Vmag,τII,Ψav,V,τ,Ψ)
     out_h5 = "results.h5"
     ndrange = CartesianIndices(( (coords[1]*(nx-2) + 1):(coords[1]+1)*(nx-2),
                                  (coords[2]*(ny-2) + 1):(coords[2]+1)*(ny-2),
                                  (coords[3]*(nz-2) + 1):(coords[3]+1)*(nz-2) ))
-    fields = Dict("LS_ice"=>inn(Ψ.liquid),"LS_bed"=>inn(Ψ.fluid),"Vmag"=>Vmag,"TII"=>τII,"Pr"=>inn(Pr))
+    fields = Dict("LS_ice"=>Ψav.liquid,"LS_bed"=>Ψav.fluid,"Vmag"=>Vmag,"TII"=>τII,"Pr"=>inn(Pr))
     (me==0) && @info "saving HDF5 file"
     write_h5(out_h5,fields,dim_g,ndrange,comm_cart,MPI.Info())
 
@@ -254,14 +202,26 @@ end
         write_xdmf("results.xdmf3",out_h5,fields,(xc_l[2],yc_l[2],zc_l[2]),(dx,dy,dz),dim_g)
     end
 
-    finalize_global_grid(;finalize_MPI=false)
-    MPI.Finalize()
     return
 end
 
-@tiny function _kernel_update_vis_fields!(Vmag, τII, V, τ)
+@tiny function _kernel_update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ)
     ix,iy,iz = @indices
     @inline isin(A) = checkbounds(Bool,A,ix,iy,iz)
+    @inbounds if isin(Ψ.liquid)
+        pav = 0.0
+        for idz = 1:2, idy=1:2, idx = 1:2
+            pav += Ψ.liquid[ix+idx,iy+idy,iz+idz]
+        end
+        Ψav.liquid[ix,iy,iz] = pav/8
+    end
+    @inbounds if isin(Ψ.fluid)
+        pav = 0.0
+        for idz = 1:2, idy=1:2, idx = 1:2
+            pav += Ψ.fluid[ix+idx,iy+idy,iz+idz]
+        end
+        Ψav.fluid[ix,iy,iz] = pav/8
+    end
     @inbounds if isin(Vmag)
         vxc = 0.5*(V.x[ix+1,iy+1,iz+1] + V.x[ix+2,iy+1,iz+1])
         vyc = 0.5*(V.y[ix+1,iy+1,iz+1] + V.y[ix+1,iy+2,iz+1])
@@ -269,9 +229,9 @@ end
         Vmag[ix,iy,iz] = sqrt(vxc^2 + vyc^2 + vzc^2)
     end
     @inbounds if isin(τII)
-        τxyc = 0.25*(τxy[ix,iy,iz]+τxy[ix+1,iy,iz]+τxy[ix,iy+1,iz]+τxy[ix+1,iy+1,iz])
-        τxzc = 0.25*(τxz[ix,iy,iz]+τxz[ix+1,iy,iz]+τxz[ix,iy,iz+1]+τxz[ix+1,iy,iz+1])
-        τyzc = 0.25*(τyz[ix,iy,iz]+τyz[ix,iy+1,iz]+τyz[ix,iy,iz+1]+τyz[ix,iy+1,iz+1])
+        τxyc = 0.25*(τ.xy[ix,iy,iz]+τ.xy[ix+1,iy,iz]+τ.xy[ix,iy+1,iz]+τ.xy[ix+1,iy+1,iz])
+        τxzc = 0.25*(τ.xz[ix,iy,iz]+τ.xz[ix+1,iy,iz]+τ.xz[ix,iy,iz+1]+τ.xz[ix+1,iy,iz+1])
+        τyzc = 0.25*(τ.yz[ix,iy,iz]+τ.yz[ix,iy+1,iz]+τ.yz[ix,iy,iz+1]+τ.yz[ix,iy+1,iz+1])
         τII[ix,iy,iz] = sqrt(0.5*(τ.xx[ix+1,iy+1,iz+1]^2 + τ.yy[ix+1,iy+1,iz+1]^2 + τ.zz[ix+1,iy+1,iz+1]^2) + τxyc^2 + τxzc^2 + τyzc^2)
     end
     return
@@ -279,9 +239,9 @@ end
 
 const _update_vis_fields! = Kernel(_kernel_update_vis_fields!,get_device())
 
-function update_vis_fields!(Vmag, τII, V, τ)
-    wait(_update_vis_fields!(Vmag, τII, V, τ; ndrange=axes(Vmag)))
+function update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ)
+    wait(_update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ; ndrange=axes(Vmag)))
     return
 end
 
-main((512,512,32))
+main((1024,1024,64))

@@ -10,12 +10,10 @@ const BACKEND = @load_preference("backend","CUDA")
 
 @static if BACKEND == "CUDA"
     using CUDA
-    @assert CUDA.functional()
     using TinyKernels.CUDABackend
     const DEVICE = CUDABackend.CUDADevice()
 elseif BACKEND == "AMDGPU"
     using AMDGPU
-    @assert AMDGPU.functional()
     using TinyKernels.ROCBackend
     const DEVICE = ROCBackend.ROCDevice()
 else

@@ -1,7 +1,7 @@
 using JLD2
 using NetCDF
 
-const GREENLAND_PATH = "../../Datasets/BedMachine/BedMachineGreenland-v5.nc"
+const GREENLAND_PATH = "data/BedMachine/BedMachineGreenland-v5.nc"
 
 function prepare_greenland()
     x = ncread(GREENLAND_PATH,"x")
