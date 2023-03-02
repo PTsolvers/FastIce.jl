@@ -119,9 +119,6 @@ include("volume_fraction_kernels.jl")
 const _compute_volume_fractions_from_level_set! = Kernel(_kernel_compute_volume_fractions_from_level_set!,get_device())
 
 function compute_volume_fractions_from_level_set!(wt,Ψ,dx,dy,dz)
-    @views inn_x(A) = A[2:end-1,:,:]
-    @views inn_y(A) = A[:,2:end-1,:]
-    @views inn_z(A) = A[:,:,2:end-1]
     wt_inn = (;c=wt.c,x=inn_x(wt.x),y=inn_y(wt.y),z=inn_z(wt.z),xy=wt.xy,xz=wt.xz,yz=wt.yz)
     wait(_compute_volume_fractions_from_level_set!(wt_inn,Ψ,dx,dy,dz;ndrange=axes(Ψ)))
     bc_x_neumann!(0.0,wt.x)
