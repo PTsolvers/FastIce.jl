@@ -128,17 +128,3 @@ end
     end
     return
 end
-
-# @kernel function _update_vis_fields!(Vmag, τII, @Const(Vx), @Const(Vy), @Const(τxx), @Const(τyy), @Const(τxy))
-#     ix, iy = @index(Global, NTuple)
-#     @inbounds if ix ∈ axes(Vmag, 1) && iy ∈ axes(Vmag, 2)
-#         vxc = 0.5 * (Vx[ix, iy] + Vx[ix+1, iy])
-#         vyc = 0.5 * (Vy[ix, iy] + Vy[ix, iy+1])
-#         Vmag[ix, iy] = sqrt(vxc^2 + vyc^2)
-#     end
-#     @inbounds if ix ∈ axes(τII, 1) && iy ∈ axes(τII, 2)
-#         τxxv = 0.25 * (τxx[ix, iy] + τxx[ix+1, iy] + τxx[ix, iy+1] + τxx[ix+1, iy+1])
-#         τyyv = 0.25 * (τyy[ix, iy] + τyy[ix+1, iy] + τyy[ix, iy+1] + τyy[ix+1, iy+1])
-#         τII[ix, iy] = sqrt(0.5 * (τxxv^2 + τyyv^2) + τxy[ix, iy]^2)
-#     end
-# end
