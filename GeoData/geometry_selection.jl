@@ -8,8 +8,8 @@ using DBFTables, DataFrames, Shapefile, Rasters, Plots
 # SGI_ID  = "B73/12"
 # name    = "ArollaHaut"
 
-SGI_ID  = "B43/03"
-name    = "Rhone"
+# SGI_ID  = "B43/03"
+# name    = "Rhone"
 
 # SGI_ID  = "B36/26"
 # name    = "Aletsch"
@@ -17,8 +17,8 @@ name    = "Rhone"
 # SGI_ID  = "A55f/03"
 # name    = "PlaineMorte"
 
-# SGI_ID  = "E22/03"
-# name    = "Morteratsch"
+SGI_ID  = "E22/03"
+name    = "Morteratsch"
 
 # SGI_ID  = "B73/14"
 # name    = "Arolla"
