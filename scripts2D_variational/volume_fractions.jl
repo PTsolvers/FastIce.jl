@@ -48,7 +48,7 @@ const _compute_volume_fractions_from_level_set! = _kernel_compute_volume_fractio
 
 function compute_volume_fractions_from_level_set!(wt, Ψ, dx, dy)
     wt_inn = (; c=wt.c, x=inn_x(wt.x), y=inn_y(wt.y), xy=wt.xy)
-    wait(_compute_volume_fractions_from_level_set!(wt_inn, Ψ, dx, dy; ndrange=axes(Ψ)))
+    wait(_compute_volume_fractions_from_level_set!(wt_inn, Ψ, dx, dy; ndrange=axes(wt.c)))
     bc_x_neumann!(0.0, wt.x)
     bc_y_neumann!(0.0, wt.y)
     return
