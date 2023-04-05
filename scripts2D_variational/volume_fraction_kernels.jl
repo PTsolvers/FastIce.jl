@@ -2,8 +2,8 @@
     ix, iy = @indices
     cell = Rect(Vec(0.0, 0.0), Vec(dx, dy))
     ω = GeometryBasics.volume(cell)
-    @inline Ψ_ax(dix, diy) = 0.5 * (Ψ[ix+dix, iy+diy] + Ψ[ix+dix+1, iy+diy])
-    @inline Ψ_ay(dix, diy) = 0.5 * (Ψ[ix+dix, iy+diy] + Ψ[ix+dix, iy+diy+1])
+    @inline Ψ_ax(dix, diy) = 0.5 * (Ψ[ix+dix, iy+diy] + Ψ[ix+dix+1, iy+diy  ])
+    @inline Ψ_ay(dix, diy) = 0.5 * (Ψ[ix+dix, iy+diy] + Ψ[ix+dix  , iy+diy+1])
     @inline Ψ_axy(dix, diy) = 0.25 * (Ψ[ix+dix, iy+diy  ] + Ψ[ix+dix+1, iy+diy  ] +
                                       Ψ[ix+dix, iy+diy+1] + Ψ[ix+dix+1, iy+diy+1])
     @inline isin(A) = checkbounds(Bool, A, ix, iy)
