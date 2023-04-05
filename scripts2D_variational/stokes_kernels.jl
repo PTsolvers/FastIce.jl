@@ -72,7 +72,7 @@ end
     return
 end
 
-@tiny function _kernel_compute_residual!(Res, Pr, V, τ, wt, ρg, dx, dy)
+@tiny function _kernel_compute_residual_P!(Res, V, wt, dx, dy)
     ix, iy = @indices
     @inline isin(A) = checkbounds(Bool, A, ix, iy)
     # detect and eliminate null spaces
@@ -86,6 +86,13 @@ end
     else
         Res.Pr[ix, iy] = 0.0
     end
+    return
+end
+
+@tiny function _kernel_compute_residual_V!(Res, Pr, V, τ, wt, ρg, dx, dy)
+    ix, iy = @indices
+    @inline isin(A) = checkbounds(Bool, A, ix, iy)
+    # TODO: check which volume fraction (non-air or non-solid) really determines the null spaces
     @inbounds if isin(V.x)
         # detect and eliminate null spaces
         isnull = (wt.not_solid.c[ix+1, iy+1] ≈ 0) || (wt.not_solid.c[ix, iy+1] ≈ 0) ||
