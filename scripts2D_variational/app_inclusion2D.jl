@@ -16,9 +16,9 @@ include("volume_fractions.jl")
 @views av1(A) = 0.5 .* (A[1:end-1] .+ A[2:end])
 @views inn_x(A) = A[2:end-1,:]
 @views inn_y(A) = A[:,2:end-1]
-@views inn(A)   = A[2:end-1,2:end-1]
+@views inn(A) = A[2:end-1,2:end-1]
 
-@views function runsim(::Type{DAT}; nx=127) where DAT
+@views function runsim(::Type{DAT}; nx=127) where {DAT}
     # physics
     lx, ly   = 1.0, 1.0
     ox, oy   = -0.5lx, -0.5ly
@@ -31,8 +31,8 @@ include("volume_fractions.jl")
     α        = 0.0
     # numerics
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
-    maxiter  = 100#20nx
-    ncheck   = 10#2nx
+    maxiter  = 20nx
+    ncheck   = 2nx
     ϵtol     = (1e-6, 1e-6, 1e-6)
     nt       = 1
     # preprocessing
@@ -52,12 +52,12 @@ include("volume_fractions.jl")
     dτ_r     = 1.0 / (θ_dτ + 1.0)
     # level set
     Ψ  = (
-        not_solid = field_array(DAT, nx + 1, ny + 1), # fluid
-        not_air   = field_array(DAT, nx + 1, ny + 1)  # liquid
+        # not_solid = field_array(DAT, nx + 1, ny + 1), # fluid
+        not_air   = field_array(DAT, nx + 1, ny + 1),  # liquid
     )
     wt = (
         not_solid = volfrac_field(DAT, nx, ny), # fluid
-        not_air   = volfrac_field(DAT, nx, ny)  # liquid
+        not_air   = volfrac_field(DAT, nx, ny), # liquid
     )
     # mechanics
     Pr = scalar_field(DAT, nx, ny)
@@ -66,7 +66,7 @@ include("volume_fractions.jl")
     ηs = scalar_field(DAT, nx, ny)
     # residuals
     Res = (
-        Pr = scalar_field(DAT, nx, ny),
+        Pr = scalar_field(DAT, nx    , ny    ),
         V  = vector_field(DAT, nx - 2, ny - 2),
     )
     # visualisation
@@ -82,11 +82,14 @@ include("volume_fractions.jl")
     init!(Pr, τ, V, ηs, ebg, ηs0, xv, yv)
     compute_levelset!(Ψ.not_air, xv, yv, mc1)
     Ψ.not_air .= .-Ψ.not_air
+    # Ψ.not_solid .= .-Ψ.not_solid
 
     @info "computing volume fractions from level sets"
-    for phase in eachindex(Ψ)
-        compute_volume_fractions_from_level_set!(wt[phase], Ψ[phase], dx, dy)
-    end
+    # for phase in eachindex(Ψ)
+    #     compute_volume_fractions_from_level_set!(wt[phase], Ψ[phase], dx, dy)
+    # end
+    compute_volume_fractions_from_level_set!(wt.not_air, Ψ.not_air, dx, dy)
+    for comp in eachindex(wt.not_solid) fill!(wt.not_solid[comp], 1.0) end
 
     update_vis!(Vmag, τII, Ψav, V, τ, Ψ)
     # convergence history
@@ -106,7 +109,7 @@ include("volume_fractions.jl")
             Pr  =heatmap!(ax.Pr  , xc, yc, to_host(Pr  ); colormap=:turbo),
             τII =heatmap!(ax.τII , xc, yc, to_host(τII ); colormap=:turbo),
             Vmag=heatmap!(ax.Vmag, xv, yc, to_host(Vmag); colormap=:turbo),
-            wt  =heatmap!(ax.wt  , xv, yv, to_host(wt.not_air.c); colormap=Reverse(:grays)),
+            wt  =heatmap!(ax.wt  , xc, yc, to_host(wt.not_air.c); colormap=Reverse(:grays)),
         ),
         errs=[scatterlines!(ax.errs, Point2.(iter_evo, errs_evo[ir, :])) for ir in eachindex(ϵtol)],
     )
@@ -122,29 +125,31 @@ include("volume_fractions.jl")
         # iteration loop
         empty!(iter_evo); resize!(errs_evo, length(ϵtol), 0)
         iter = 0; errs = 2.0 .* ϵtol
-        while #=any(errs .>= ϵtol) &&=# (iter += 1) <= maxiter
+        while any(errs .>= ϵtol) && (iter += 1) <= maxiter
             update_σ!(Pr, τ, V, ηs, wt, r, θ_dτ, dτ_r, dx, dy)
             update_V!(V, Pr, τ, ηs, wt, nudτ, ρg, dx, dy)
             if iter % ncheck == 0
                 compute_residual!(Res, Pr, V, τ, wt, ρg, dx, dy)
                 errs = (maximum(abs.(Res.V.x)), maximum(abs.(Res.V.y)), maximum(abs.(Res.Pr)))
-                @printf "  iter/ny # %2.1f, errs: [ Vx = %1.3e, Vy = %1.3e, Pr = %1.3e ]\n" iter / ny errs...
+                @printf "  iter/nx # %2.1f, errs: [ Vx = %1.3e, Vy = %1.3e, Pr = %1.3e ]\n" iter / nx errs...
                 push!(iter_evo, iter / nx); append!(errs_evo, errs)
                 # visu
                 for ir in eachindex(plt.errs)
                     plt.errs[ir][1] = Point2.(iter_evo, errs_evo[ir, :])
                 end
-                # autolimits!(ax.errs)
+                autolimits!(ax.errs)
                 update_vis!(Vmag, τII, Ψav, V, τ, Ψ)
                 plt.fields[1][3] = to_host(to_host(Pr))
                 plt.fields[2][3] = to_host(to_host(τII))
                 plt.fields[3][3] = to_host(to_host(Vmag))
+                # plt.fields[3][3] = to_host(to_host(Res.V.x[1:end-1,:]))
                 plt.fields[4][3] = to_host(to_host(wt.not_air.c))
-                yield()
+                # plt.fields[4][3] = to_host(to_host(Ψ.not_air))
+                display(fig)
             end
         end
     end
     return
 end
 
-runsim(Float64, nx=127)
+runsim(Float64, nx=15)
