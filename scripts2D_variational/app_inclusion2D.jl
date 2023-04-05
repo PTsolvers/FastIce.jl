@@ -88,7 +88,7 @@ include("volume_fractions.jl")
         compute_volume_fractions_from_level_set!(wt[phase], Ψ[phase], dx, dy)
     end
 
-    update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ)
+    update_vis!(Vmag, τII, Ψav, V, τ, Ψ)
     # convergence history
     iter_evo = Float64[]
     errs_evo = ElasticArray{Float64}(undef, length(ϵtol), 0)
@@ -135,7 +135,7 @@ include("volume_fractions.jl")
                     plt.errs[ir][1] = Point2.(iter_evo, errs_evo[ir, :])
                 end
                 # autolimits!(ax.errs)
-                update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ)
+                update_vis!(Vmag, τII, Ψav, V, τ, Ψ)
                 plt.fields[1][3] = to_host(to_host(Pr))
                 plt.fields[2][3] = to_host(to_host(τII))
                 plt.fields[3][3] = to_host(to_host(Vmag))
