@@ -108,7 +108,7 @@ include("volume_fractions.jl")
         fields=(
             Pr  =heatmap!(ax.Pr  , xc, yc, to_host(Pr  ); colormap=:turbo),
             τII =heatmap!(ax.τII , xc, yc, to_host(τII ); colormap=:turbo),
-            Vmag=heatmap!(ax.Vmag, xv, yc, to_host(Vmag); colormap=:turbo),
+            Vmag=heatmap!(ax.Vmag, xc, yc, to_host(Vmag); colormap=:turbo),
             wt  =heatmap!(ax.wt  , xc, yc, to_host(wt.not_air.c); colormap=Reverse(:grays)),
         ),
         errs=[scatterlines!(ax.errs, Point2.(iter_evo, errs_evo[ir, :])) for ir in eachindex(ϵtol)],
