@@ -152,4 +152,4 @@ include("volume_fractions.jl")
     return
 end
 
-runsim(Float64, nx=15)
+runsim(Float64, nx=127)

@@ -9,22 +9,22 @@
     @inline isin(A) = checkbounds(Bool, A, ix, iy)
     # cell centers
     @inbounds if isin(wt.c)
-        Ψs = Vec{4}(Ψ[ix, iy], Ψ[ix+1, iy], Ψ[ix, iy+1], Ψ[ix+1, iy+1])
+        Ψs = Vec{4}(Ψ[ix, iy], Ψ[ix+1, iy], Ψ[ix+1, iy+1], Ψ[ix, iy+1])
         wt.c[ix, iy] = volfrac(cell, Ψs) / ω
     end
     # x faces
     @inbounds if isin(wt.x)
-        Ψs = Vec{4}(Ψ_ax(0, 0), Ψ_ax(1, 0), Ψ_ax(0, 1), Ψ_ax(1, 1))
+        Ψs = Vec{4}(Ψ_ax(0, 0), Ψ_ax(1, 0), Ψ_ax(1, 1), Ψ_ax(0, 1))
         wt.x[ix, iy] = volfrac(cell, Ψs) / ω
     end
     # y faces
     @inbounds if isin(wt.y)
-        Ψs = Vec{4}(Ψ_ay(0, 0), Ψ_ay(1, 0), Ψ_ay(0, 1), Ψ_ay(1, 1))
+        Ψs = Vec{4}(Ψ_ay(0, 0), Ψ_ay(1, 0), Ψ_ay(1, 1), Ψ_ay(0, 1))
         wt.y[ix, iy] = volfrac(cell, Ψs) / ω
     end
     # xy edges
     @inbounds if isin(wt.xy)
-        Ψs = Vec{4}(Ψ_axy(0, 0), Ψ_axy(1, 0), Ψ_axy(0, 1), Ψ_axy(1, 1))
+        Ψs = Vec{4}(Ψ_axy(0, 0), Ψ_axy(1, 0), Ψ_axy(1, 1), Ψ_axy(0, 1))
         wt.xy[ix, iy] = volfrac(cell, Ψs) / ω
     end
     return
