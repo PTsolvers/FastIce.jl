@@ -9,20 +9,17 @@ using TinyKernels
 const BACKEND = @load_preference("backend", "CPU")
 
 @static if BACKEND == "CPU"
-    using TinyKernels.CPUBackend
-    const DEVICE = CPUBackend.CPUDevice()
+    const DEVICE = CPUDevice()
 elseif BACKEND == "CUDA"
-    using CUDA
-    using TinyKernels.CUDABackend
-    const DEVICE = CUDABackend.CUDADevice()
+    using CUDA; @assert CUDA.functional()
+    const DEVICE = CUDADevice()
 elseif BACKEND == "AMDGPU"
-    using AMDGPU
-    using TinyKernels.ROCBackend
-    const DEVICE = ROCBackend.ROCDevice()
+    using AMDGPU; @assert AMDGPU.functional()
+    device = AMDGPUDevice()
+    const DEVICE = AMDGPUDevice()
 elseif BACKEND == "Metal"
-    using Metal
-    using TinyKernels.MetalBackend
-    const DEVICE = MetalBackend.MetalDevice()
+    using Metal; @assert Metal.functional()
+    const DEVICE = MetalDevice()
 else
     error("unsupported backend \"$BACKEND\"")
 end

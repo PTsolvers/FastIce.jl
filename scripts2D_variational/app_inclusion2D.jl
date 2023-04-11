@@ -1,11 +1,8 @@
 using FastIce
 using TinyKernels
-# using GLMakie
 using CairoMakie
 using ElasticArrays
 using Printf
-
-# Makie.inline!(true)
 
 include("bcs.jl")
 include("helpers_tmp.jl")
@@ -20,18 +17,21 @@ include("volume_fractions.jl")
 
 @views function runsim(::Type{DAT}; nx=127) where {DAT}
     # physics
+    # lx, ly   = 2.0, 1.0
     lx, ly   = 1.0, 1.0
     ox, oy   = -0.5lx, -0.5ly
+    # xb1, yb1 = ox + 0.5lx, oy + 0.0ly
+    # xb2, yb2 = ox + 0.5lx, oy + 3.0ly
     xb1, yb1 = ox + 0.5lx, oy + 0.5ly
-    # xb2, yb2 = ox + 0.4lx, oy + 0.35ly
-    rinc     = 0.1lx
+    rinc     = 0.14ly
+    # rair     = 2.3ly
     ηs0      = 1.0
     ebg      = 1.0
     ρg0      = 0.0
     α        = 0.0
     # numerics
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
-    maxiter  = 20nx
+    maxiter  = 40nx
     ncheck   = 2nx
     ϵtol     = (1e-6, 1e-6, 1e-6)
     nt       = 1
@@ -40,7 +40,7 @@ include("volume_fractions.jl")
     xv, yv   = LinRange(ox, ox + lx, nx + 1), LinRange(oy, oy + ly, ny + 1)
     xc, yc   = av1(xv), av1(yv)
     mc1      = to_device(make_marker_chain_circle(Point(xb1, yb1), rinc, min(dx, dy)))
-    # mc2      = to_device(make_marker_chain_circle(Point(xb2, yb2), rinc, min(dx, dy)))
+    # mc2      = to_device(make_marker_chain_circle(Point(xb2, yb2), rair, min(dx, dy)))
     ρg       = (x=ρg0 .* sin(α), y=ρg0 .* cos(α))
     # PT parameters
     r        = 0.7
@@ -52,7 +52,6 @@ include("volume_fractions.jl")
     dτ_r     = 1.0 / (θ_dτ + 1.0)
     # level set
     Ψ  = (
-        # not_solid = field_array(DAT, nx + 1, ny + 1), # fluid
         not_air   = field_array(DAT, nx + 1, ny + 1),  # liquid
     )
     wt = (
@@ -63,6 +62,7 @@ include("volume_fractions.jl")
     Pr = scalar_field(DAT, nx, ny)
     τ  = tensor_field(DAT, nx, ny)
     V  = vector_field(DAT, nx, ny)
+    ηs = scalar_field(DAT, nx, ny)
     ηs = scalar_field(DAT, nx, ny)
     # residuals
     Res = (
@@ -80,14 +80,12 @@ include("volume_fractions.jl")
     @info "computing the level set for the inclusion"
     for comp in eachindex(Ψ) fill!(Ψ[comp], 1.0) end
     init!(Pr, τ, V, ηs, ebg, ηs0, xv, yv)
+    Ψ.not_air .= Inf # needs init now
     compute_levelset!(Ψ.not_air, xv, yv, mc1)
+    # compute_levelset!(Ψ.not_air, xv, yv, mc2)
     Ψ.not_air .= .-Ψ.not_air
-    # Ψ.not_solid .= .-Ψ.not_solid
 
     @info "computing volume fractions from level sets"
-    # for phase in eachindex(Ψ)
-    #     compute_volume_fractions_from_level_set!(wt[phase], Ψ[phase], dx, dy)
-    # end
     compute_volume_fractions_from_level_set!(wt.not_air, Ψ.not_air, dx, dy)
     for comp in eachindex(wt.not_solid) fill!(wt.not_solid[comp], 1.0) end
 
@@ -142,7 +140,6 @@ include("volume_fractions.jl")
                 plt.fields[1][3] = to_host(to_host(Pr))
                 plt.fields[2][3] = to_host(to_host(τII))
                 plt.fields[3][3] = to_host(to_host(Vmag))
-                # plt.fields[3][3] = to_host(to_host(Res.V.x[1:end-1,:]))
                 plt.fields[4][3] = to_host(to_host(wt.not_air.c))
                 # plt.fields[4][3] = to_host(to_host(Ψ.not_air))
                 display(fig)
@@ -152,4 +149,4 @@ include("volume_fractions.jl")
     return
 end
 
-runsim(Float64, nx=127)
+runsim(Float64, nx=63)
