@@ -28,7 +28,7 @@
     end
 end
 
-@tiny function _kernel_update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ)
+@tiny function _kernel_update_vis_fields!(Vmag, Ψav, V, Ψ)
     ix, iy = @indices
     @inline isin(A) = checkbounds(Bool, A, ix, iy)
     @inbounds if isin(Ψ.not_air)
@@ -50,10 +50,6 @@ end
         vyc = 0.5 * (V.y[ix+1, iy+1] + V.y[ix+1, iy+2])
         Vmag[ix, iy] = sqrt(vxc^2 + vyc^2)
     end
-    @inbounds if isin(τII)
-        τxyc = 0.25 * (τ.xy[ix, iy] + τ.xy[ix+1, iy] + τ.xy[ix, iy+1] + τ.xy[ix+1, iy+1])
-        τII[ix, iy] = sqrt(0.5 * (τ.xx[ix+1, iy+1]^2 + τ.yy[ix+1, iy+1]^2) + τxyc^2)
-    end
     return
 end
 
@@ -65,7 +61,7 @@ function init!(Pr, τ, V, ηs, ebg, ηs0, xv, yv)
     return
 end
 
-function update_vis!(Vmag, τII, Ψav, V, τ, Ψ)
-    wait(_update_vis!(Vmag, τII, Ψav, V, τ, Ψ; ndrange=axes(Vmag)))
+function update_vis!(Vmag, Ψav, V, Ψ)
+    wait(_update_vis!(Vmag, Ψav, V, Ψ; ndrange=axes(Vmag)))
     return
 end
