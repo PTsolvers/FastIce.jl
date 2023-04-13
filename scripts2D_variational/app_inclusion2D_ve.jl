@@ -26,7 +26,7 @@ include("volume_fractions.jl")
     ρg0      = 0.0
     α        = 0.0
     npow     = 1.1
-    τ_y      = 2.01
+    τ_y      = 2.0
     sinϕ     = sind(30)
     ε̇bg      = 1.0
     ξ        = 2.0

@@ -30,7 +30,6 @@ const _increment_τ! = _kernel_increment_τ!(get_device())
 const _compute_xyc! = _kernel_compute_xyc!(get_device())
 const _compute_trial_τII! = _kernel_compute_trial_τII!(get_device())
 const _update_τ! = _kernel_update_τ!(get_device())
-# const _compute_check_τII! = _kernel_compute_check_τII!(get_device())
 const _compute_Fchk_xII_η! = _kernel_compute_Fchk_xII_η!(get_device())
 
 function increment_τ!(Pr, ε, δτ, τ, τ_o, V, ηs, G, dt, wt, r, θ_dτ, dx, dy)
@@ -57,11 +56,6 @@ function update_τ!(Pr, ε, δτ, τ, τ_o, ηs, G, dt, τII, F, λ, τ_y, sinϕ
     wait(_update_τ!(Pr, ε, δτ, τ, τ_o, ηs, G, dt, τII, F, λ, τ_y, sinϕ, η_reg, χλ, θ_dτ, wt; ndrange=axes(Pr)))
     return
 end
-
-# function compute_check_τII!(τII, Fchk, Pr, τ, λ, τ_y, sinϕ, η_reg)
-#     wait(_compute_check_τII!(τII, Fchk, Pr, τ, λ, τ_y, sinϕ, η_reg; ndrange=axes(τII)))
-#     return
-# end
 
 function compute_Fchk_xII_η!(τII, Fchk, εII, ηs, Pr, τ, ε, λ, τ_y, sinϕ, η_reg, wt, χ, mpow, ηmax)
     wait(_compute_Fchk_xII_η!(τII, Fchk, εII, ηs, Pr, τ, ε, λ, τ_y, sinϕ, η_reg, wt, χ, mpow, ηmax; ndrange=axes(τII)))

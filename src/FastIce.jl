@@ -15,7 +15,6 @@ elseif BACKEND == "CUDA"
     const DEVICE = CUDADevice()
 elseif BACKEND == "AMDGPU"
     using AMDGPU; @assert AMDGPU.functional()
-    device = AMDGPUDevice()
     const DEVICE = AMDGPUDevice()
 elseif BACKEND == "Metal"
     using Metal; @assert Metal.functional()

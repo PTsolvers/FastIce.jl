@@ -11,7 +11,7 @@ end
     @inline Ψ_x(_ix, _iy) = 0.5 * (Ψ[_ix, _iy] + Ψ[_ix+1, _iy])
     @inline Ψ_y(_ix, _iy) = 0.5 * (Ψ[_ix, _iy] + Ψ[_ix, _iy+1])
     ix, iy = @indices
-    if Ψ[ix, iy] > 0 && Ψ[ix+1, iy] > 0 && Ψ[ix, iy+1] > 0 && Ψ[ix+1, iy+1] > 0
+    @inbounds if Ψ[ix, iy] > 0 && Ψ[ix+1, iy] > 0 && Ψ[ix, iy+1] > 0 && Ψ[ix+1, iy+1] > 0
         s = S(Ψ_c(ix, iy))
         ∇Ψx = (Ψ_y(ix + 1, iy) - Ψ_y(ix, iy)) / Δx
         ∇Ψy = (Ψ_x(ix, iy + 1) - Ψ_x(ix, iy)) / Δy
