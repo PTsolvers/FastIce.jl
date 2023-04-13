@@ -150,7 +150,7 @@ include("volume_fractions.jl")
 
     @info "running simulation 🚀"
     for it in 1:nt
-        @printf "it # %d, dt = %1.3e) \n" it dt
+        @printf "it # %d, dt = %1.3e \n" it dt
         # bc_x_dirichlet!((-xv[1], -xv[end]) .* ε̇bg, V.x)
         # bc_y_dirichlet!(( yv[1],  yv[end]) .* ε̇bg, V.y)
         update_old!(τ_o, τ, λ)
