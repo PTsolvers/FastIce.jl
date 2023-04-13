@@ -76,7 +76,7 @@ end
 end
 
 const _init! = _kernel_init!(get_device())
-const _set_ε̇bg! = _kernel_set_ε̇bg!(get_device())
+# const _set_ε̇bg! = _kernel_set_ε̇bg!(get_device())
 const _update_vis! = _kernel_update_vis_fields!(get_device())
 
 function init!(Pr, τ, δτ, ε, V, ηs, ε̇bg, ηs0, xv, yv)
