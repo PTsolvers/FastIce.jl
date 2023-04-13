@@ -11,15 +11,12 @@ const BACKEND = @load_preference("backend", "CPU")
 @static if BACKEND == "CPU"
     const DEVICE = CPUDevice()
 elseif BACKEND == "CUDA"
-    using CUDA; @assert CUDA.functional()
-    const DEVICE = CUDADevice()
+    using CUDA; const DEVICE = CUDADevice()
 elseif BACKEND == "AMDGPU"
-    using AMDGPU; @assert AMDGPU.functional()
-    device = AMDGPUDevice()
+    using AMDGPU; device = AMDGPUDevice()
     const DEVICE = AMDGPUDevice()
 elseif BACKEND == "Metal"
-    using Metal; @assert Metal.functional()
-    const DEVICE = MetalDevice()
+    using Metal; const DEVICE = MetalDevice()
 else
     error("unsupported backend \"$BACKEND\"")
 end
@@ -34,8 +31,6 @@ function set_backend!(new_backend)
     @set_preferences!("backend" => new_backend)
     @info("new backend set; restart your Julia session for this change to take effect")
 end
-
-@inline field_array(::Type{T}, args...) where {T} = TinyKernels.device_array(T, DEVICE, args...)
 
 @static if BACKEND == "CPU"
     @inline to_device(array::AbstractArray) = array
@@ -56,5 +51,7 @@ elseif BACKEND == "Metal"
     @inline to_host(array::MtlArray)        = Array(array)
     @inline to_host(array::AbstractArray)   = array
 end
+
+include("fields.jl")
 
 end # module
