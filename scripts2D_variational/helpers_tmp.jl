@@ -10,8 +10,8 @@
                                                       y   = field_array(T, nx    , ny + 1),
                                                       xy  = field_array(T, nx - 1, ny - 1))
 
-@tiny function _kernel_init!(Pr, τ, δτ, ε, V, ηs, ebg, ηs0, xv, yv)
-    ix, iy = @indices()
+@tiny function _kernel_init!(Pr, τ, δτ, ε, V, ηs, ε̇bg, ηs0, xv, yv)
+    ix, iy = @indices
     @inbounds if ix ∈ axes(Pr, 1) && iy ∈ axes(Pr, 2)
         Pr[ix, iy]     = 0.0
         τ.xx[ix, iy]   = 0.0
@@ -31,12 +31,24 @@
         ε.xy[ix, iy]  = 0.0
     end
     if ix ∈ axes(V.x, 1) && iy ∈ axes(V.x, 2)
-        @inbounds V.x[ix, iy] = -xv[ix] * ebg
+        @inbounds V.x[ix, iy] = -xv[ix] * ε̇bg
     end
     if ix ∈ axes(V.y, 1) && iy ∈ axes(V.y, 2)
-        @inbounds V.y[ix, iy] = yv[iy] * ebg
+        @inbounds V.y[ix, iy] = yv[iy] * ε̇bg
     end
+    return
 end
+
+# @tiny function _kernel_set_ε̇bg!(V, ε̇bg, xv, yv)
+#     ix, iy = @indices
+#     if ix ∈ axes(V.x, 1) && iy ∈ axes(V.x, 2)
+#         @inbounds V.x[ix, iy] += -xv[ix] * ε̇bg
+#     end
+#     if ix ∈ axes(V.y, 1) && iy ∈ axes(V.y, 2)
+#         @inbounds V.y[ix, iy] += yv[iy] * ε̇bg
+#     end
+#     return
+# end
 
 @tiny function _kernel_update_vis_fields!(Vmag, Ψav, V, Ψ)
     ix, iy = @indices
@@ -64,10 +76,16 @@ end
 end
 
 const _init! = _kernel_init!(get_device())
+const _set_ε̇bg! = _kernel_set_ε̇bg!(get_device())
 const _update_vis! = _kernel_update_vis_fields!(get_device())
 
-function init!(Pr, τ, δτ, ε, V, ηs, ebg, ηs0, xv, yv)
-    wait(_init!(Pr, τ, δτ, ε, V, ηs, ebg, ηs0, xv, yv; ndrange=size(Pr) .+ 1))
+function init!(Pr, τ, δτ, ε, V, ηs, ε̇bg, ηs0, xv, yv)
+    wait(_init!(Pr, τ, δτ, ε, V, ηs, ε̇bg, ηs0, xv, yv; ndrange=size(Pr) .+ 1))
+    return
+end
+
+function set_ε̇bg!(V, ε̇bg, xv, yv)
+    wait(_set_ε̇bg!(V, ε̇bg, xv, yv; ndrange=size(V.x) .+ (0, 1)))
     return
 end
 

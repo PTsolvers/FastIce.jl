@@ -26,22 +26,24 @@ include("volume_fractions.jl")
     rinc     = 0.1ly
     # rair     = 2.3ly
     ηs0      = 1.0
-    ebg      = 1.0
     ρg0      = 0.0
     α        = 0.0
     npow     = 1.1
     τ_y      = 2.05
     sinϕ     = sind(30)
+    ε̇bgTot   = 1.1
+    ε̇bg      = 0.9
+    dε̇bgdt   = 1.0
+    dt       = 0.1
     # numerics
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
     maxiter  = 400nx
-    ncheck   = 20nx
+    ncheck   = 10nx
     ϵtol     = (1e-6, 1e-6, 1e-6)
-    nt       = 1
-    χ        = 0.2       # viscosity relaxation
+    χ        = 0.8       # viscosity relaxation
     ηmax     = 1e1       # viscosity cut-off
     χλ       = 0.2       # λ relaxation
-    η_reg    = 2e-2      # Plastic regularisation
+    η_reg    = 1e-2      # Plastic regularisation
     # preprocessing
     dx, dy   = lx / nx, ly / ny
     xv, yv   = LinRange(ox, ox + lx, nx + 1), LinRange(oy, oy + ly, ny + 1)
@@ -52,9 +54,9 @@ include("volume_fractions.jl")
     mpow     = -(1 - 1 / npow) / 2
     # PT parameters
     r        = 0.7
-    re_mech  = 4π
+    re_mech  = 7π
     lτ       = min(lx, ly)
-    vdτ      = min(dx, dy) / sqrt(2.1) / 1.1
+    vdτ      = min(dx, dy) / sqrt(2.1) / 1.0
     θ_dτ     = lτ * (r + 4 / 3) / (re_mech * vdτ)
     nudτ     = vdτ * lτ / re_mech
     dτ_r     = 1.0 / (θ_dτ + 1.0)
@@ -92,7 +94,7 @@ include("volume_fractions.jl")
     # initial and boundary conditions
     @info "computing the level set for the inclusion"
     for comp in eachindex(Ψ) fill!(Ψ[comp], 1.0) end
-    init!(Pr, τ, δτ, ε, V, ηs, ebg, ηs0, xv, yv)
+    init!(Pr, τ, δτ, ε, V, ηs, ε̇bg, ηs0, xv, yv)
     fill!(τII, 0.0)
     fill!(εII, 0.0)
     fill!(F, -1.0)
@@ -150,8 +152,13 @@ include("volume_fractions.jl")
     mask[mask.<1.0] .= NaN
 
     @info "running simulation 🚀"
-    for it in 1:nt
-        @printf "it # %d\n" it
+    it = 0
+    while ε̇bg < ε̇bgTot
+        ε̇bg += dt*dε̇bgdt; it += 1
+        @printf "it # %d, ε̇bg = %1.3e (∆ε̇bg = %1.3e, ε̇bgTot = %1.3e) \n" it ε̇bg dt*dε̇bgdt ε̇bgTot
+        # set_ε̇bg!(V, ε̇bg, xv, yv)
+        bc_x_dirichlet!((-xv[1], -xv[end]) .* ε̇bg, V.x)
+        bc_y_dirichlet!(( yv[1],  yv[end]) .* ε̇bg, V.y)
         # iteration loop
         empty!(iter_evo); resize!(errs_evo, length(ϵtol), 0)
         iter = 0; errs = 2.0 .* ϵtol
@@ -166,7 +173,7 @@ include("volume_fractions.jl")
                 compute_residual!(Res, Pr, V, τ, wt, ρg, dx, dy)
                 errs = (maximum(abs.(Res.V.x)), maximum(abs.(Res.V.y)), maximum(abs.(Res.Pr)))
                 @printf "  iter/nx # %2.1f, errs: [ Vx = %1.3e, Vy = %1.3e, Pr = %1.3e ]\n" iter / nx errs...
-                @printf "  max(F) = %1.3e, max(τII) = %1.3e \n" maximum(Fchk) maximum(τII)
+                @printf "    max(F) = %1.3e, max(τII) = %1.3e \n" maximum(Fchk) maximum(τII)
                 push!(iter_evo, iter / nx); append!(errs_evo, errs)
                 # visu
                 for ir in eachindex(plt.errs)
@@ -190,4 +197,4 @@ include("volume_fractions.jl")
     return
 end
 
-runsim(Float64, nx=160)
+runsim(Float64, nx=127)
