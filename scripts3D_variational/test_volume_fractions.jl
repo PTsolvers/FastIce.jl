@@ -237,7 +237,7 @@ end
     return
 end
 
-const _update_vis_fields! = Kernel(_kernel_update_vis_fields!,get_device())
+const _update_vis_fields! = _kernel_update_vis_fields!(get_device())
 
 function update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ)
     wait(_update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ; ndrange=axes(Vmag)))

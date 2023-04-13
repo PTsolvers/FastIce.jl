@@ -1,7 +1,7 @@
 include("stokes_kernels.jl")
 
-const _update_σ! = Kernel(_kernel_update_σ!,get_device())
-const _update_V! = Kernel(_kernel_update_V!,get_device())
+const _update_σ! = _kernel_update_σ!(get_device())
+const _update_V! = _kernel_update_V!(get_device())
 
 function update_σ!(Pr, τ, V, ηs, wt, r, θ_dτ, dτ_r, dx, dy, dz)
     wait(_update_σ!(Pr, τ, V, ηs, wt, r, θ_dτ, dτ_r, dx, dy, dz; ndrange=axes(Pr)))
