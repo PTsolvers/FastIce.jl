@@ -74,12 +74,12 @@ include("hide_communication.jl")
     # run simulation
     dem_data = (; x, y, bed, surface)
     @info "running the simulation"
-    run_simulation(dem_data, grid_dims, me, dims, coords, comm_cart)
+    run_simulation(dem_data, grid_dims, me, dims, coords)
 
     return
 end
 
-@views function run_simulation(dem_data, grid_dims, me, dims, coords, comm_cart)
+@views function run_simulation(dem_data, grid_dims, me, dims, coords)
     # physics
     # global domain origin and size
     ox_g, oy_g, oz_g = dem_data.x[1], dem_data.y[1], 0.0
