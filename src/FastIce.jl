@@ -52,6 +52,7 @@ elseif BACKEND == "Metal"
     @inline to_host(array::AbstractArray)   = array
 end
 
+include("logging.jl")
 include("fields.jl")
 
 end # module
