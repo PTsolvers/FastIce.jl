@@ -20,13 +20,13 @@ include("volume_fractions.jl")
     lx, ly   = 1.0, 1.0
     ox, oy   = -0.5lx, -0.5ly
     xb1, yb1 = ox + 0.5lx, oy + 0.5ly
-    rinc     = 0.1ly
+    rinc     = 0.1lx
     ηs0      = 1.0
     G        = 1.0
     ρg0      = 0.0
     α        = 0.0
-    npow     = 1.1
-    τ_y      = 2.0
+    npow     = 3.0
+    τ_y      = 1.9
     sinϕ     = sind(30)
     ε̇bg      = 1.0
     ξ        = 2.0
@@ -36,7 +36,7 @@ include("volume_fractions.jl")
     maxiter  = 400nx
     ncheck   = 10nx
     ϵtol     = (1e-6, 1e-6, 1e-6)
-    χ        = 0.8       # viscosity relaxation
+    χ        = 0.2       # viscosity relaxation
     ηmax     = 1e1       # viscosity cut-off
     χλ       = 0.2       # λ relaxation
     η_reg    = 1e-2      # Plastic regularisation
@@ -150,6 +150,7 @@ include("volume_fractions.jl")
 
     @info "running simulation 🚀"
     for it in 1:nt
+        (it >= 6 && it <= 10) ? dt = 0.25 : dt = 0.5 # if npow=3
         @printf "it # %d, dt = %1.3e \n" it dt
         # bc_x_dirichlet!((-xv[1], -xv[end]) .* ε̇bg, V.x)
         # bc_y_dirichlet!(( yv[1],  yv[end]) .* ε̇bg, V.y)
