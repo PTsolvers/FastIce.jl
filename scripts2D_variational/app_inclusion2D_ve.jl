@@ -55,7 +55,6 @@ include("volume_fractions.jl")
     vdτ      = min(dx, dy) / sqrt(2.1) / 1.0
     θ_dτ     = lτ * (r + 4 / 3) / (re_mech * vdτ)
     nudτ     = vdτ * lτ / re_mech
-    dτ_r     = 1.0 / (θ_dτ + 1.0)
     # level set
     Ψ  = (
         not_air = field_array(DAT, nx + 1, ny + 1), # liquid
