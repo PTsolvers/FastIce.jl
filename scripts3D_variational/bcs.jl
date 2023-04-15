@@ -1,12 +1,12 @@
 include("bc_kernels.jl")
 
-const _bc_x_dirichlet! = Kernel(_kernel_bc_x_dirichlet!, get_device())
-const _bc_y_dirichlet! = Kernel(_kernel_bc_y_dirichlet!, get_device())
-const _bc_z_dirichlet! = Kernel(_kernel_bc_z_dirichlet!, get_device())
+const _bc_x_dirichlet! = _kernel_bc_x_dirichlet!(get_device())
+const _bc_y_dirichlet! = _kernel_bc_y_dirichlet!(get_device())
+const _bc_z_dirichlet! = _kernel_bc_z_dirichlet!(get_device())
 
-const _bc_x_neumann! = Kernel(_kernel_bc_x_neumann!, get_device())
-const _bc_y_neumann! = Kernel(_kernel_bc_y_neumann!, get_device())
-const _bc_z_neumann! = Kernel(_kernel_bc_z_neumann!, get_device())
+const _bc_x_neumann! = _kernel_bc_x_neumann!(get_device())
+const _bc_y_neumann! = _kernel_bc_y_neumann!(get_device())
+const _bc_z_neumann! = _kernel_bc_z_neumann!(get_device())
 
 for fname in (:bx_x_dirichlet!,:bc_x_neumann!)
     @eval begin
