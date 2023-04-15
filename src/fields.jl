@@ -13,7 +13,8 @@ export field_array, scalar_field, vector_field, tensor_field, volfrac_field
 @inline tensor_field(::Type{T}, nx, ny) where {T} = (
     xx=field_array(T, nx, ny),
     yy=field_array(T, nx, ny),
-    xy=field_array(T, nx - 1, ny - 1)
+    xy=field_array(T, nx - 1, ny - 1),
+    xyc=field_array(T, nx, ny)
 )
 
 @inline volfrac_field(::Type{T}, nx, ny) where {T} = (

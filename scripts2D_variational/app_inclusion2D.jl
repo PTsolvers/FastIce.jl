@@ -5,7 +5,7 @@ using ElasticArrays
 using Printf
 
 include("bcs.jl")
-include("helpers_tmp.jl")
+include("init_vis.jl")
 include("level_sets.jl")
 include("stokes.jl")
 include("volume_fractions.jl")
@@ -91,19 +91,27 @@ include("volume_fractions.jl")
         not_solid = field_array(DAT, nx - 2, ny - 2),
         not_air   = field_array(DAT, nx - 2, ny - 2),
     )
-    # initial and boundary conditions
+    # initialisation
+    for comp in eachindex(τ)  fill!(τ[comp] , 0.0) end
+    for comp in eachindex(δτ) fill!(δτ[comp], 0.0) end
+    for comp in eachindex(ε)  fill!(ε[comp] , 0.0) end
+    fill!(Pr  , 0.0)
+    fill!(ηs  , ηs0)
+    fill!(τII , 0.0)
+    fill!(εII , 1e-10)
+    fill!(F   , -1.0)
+    fill!(Fchk, 0.0)
+    fill!(λ   , 0.0)
+
+    init!(V, ε̇bg, xv, yv)
+
     @info "computing the level set for the inclusion"
     for comp in eachindex(Ψ) fill!(Ψ[comp], 1.0) end
-    init!(Pr, τ, δτ, ε, V, ηs, ε̇bg, ηs0, xv, yv)
-    fill!(τII, 0.0)
-    fill!(εII, 0.0)
-    fill!(F, -1.0)
-    fill!(Fchk, 0.0)
-    fill!(λ, 0.0)
+    TinyKernels.device_synchronize(get_device())
     Ψ.not_air .= Inf # needs init now
     compute_levelset!(Ψ.not_air, xv, yv, mc1)
-    # compute_levelset!(Ψ.not_air, xv, yv, mc2)
-    Ψ.not_air .= .-Ψ.not_air
+    @. Ψ.not_air = -Ψ.not_air
+    TinyKernels.device_synchronize(get_device())
 
     @info "computing volume fractions from level sets"
     compute_volume_fractions_from_level_set!(wt.not_air, Ψ.not_air, dx, dy)
