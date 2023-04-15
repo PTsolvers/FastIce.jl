@@ -13,8 +13,7 @@ const BACKEND = @load_preference("backend", "CPU")
 elseif BACKEND == "CUDA"
     using CUDA; const DEVICE = CUDADevice()
 elseif BACKEND == "AMDGPU"
-    using AMDGPU; device = AMDGPUDevice()
-    const DEVICE = AMDGPUDevice()
+    using AMDGPU; const DEVICE = AMDGPUDevice()
 elseif BACKEND == "Metal"
     using Metal; const DEVICE = MetalDevice()
 else
