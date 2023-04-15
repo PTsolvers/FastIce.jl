@@ -1,4 +1,4 @@
-include("stokes_ve_kernels.jl")
+include("stokes_kernels_ve.jl")
 
 const _update_old! = _kernel_update_old!(get_device())
 const _update_V! = _kernel_update_V!(get_device())
