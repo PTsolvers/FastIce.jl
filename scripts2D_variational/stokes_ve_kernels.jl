@@ -102,7 +102,7 @@ end
         # nonlin visc
         εII[ix, iy] = sqrt(0.5 * (ε.xx[ix, iy]^2 + ε.yy[ix, iy]^2) + ε.xyc[ix, iy]^2)
         ηs_τ = εII[ix, iy]^mpow
-        ηs[ix, iy] = wt.not_air.c[ix, iy] * min((1.0 - χ) * ηs[ix, iy] + χ * ηs_τ, ηmax)
+        ηs[ix, iy] = min((1.0 - χ) * ηs[ix, iy] + χ * ηs_τ, ηmax)# * wt.not_air.c[ix, iy]
     end
     @inbounds if isin(τ.xy)
         τ.xy[ix, iy] = av_xy(τ.xyc)
