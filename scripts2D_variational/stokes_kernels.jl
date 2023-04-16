@@ -125,7 +125,7 @@ end
 # @tiny function _kernel_update_σ!(Pr, ε, τ, V, ηs, wt, r, θ_dτ, dτ_r, dx, dy)
 #     ix, iy = @indices
 #     @inline isin(A) = checkbounds(Bool, A, ix, iy)
-#     #=@inbounds=# if isin(Pr)
+#     @inbounds if isin(Pr)
 #         # detect and eliminate null spaces
 #         isnull = (wt.not_air.x[ix, iy] ≈ 0.0) || (wt.not_air.x[ix+1, iy] ≈ 0.0) ||
 #                  (wt.not_air.y[ix, iy] ≈ 0.0) || (wt.not_air.y[ix, iy+1] ≈ 0.0)
@@ -144,7 +144,7 @@ end
 #             τ.yy[ix, iy] = 0.0
 #         end
 #     end
-#     #=@inbounds=# if isin(τ.xy)
+#     @inbounds if isin(τ.xy)
 #         # detect and eliminate null spaces
 #         isnull = (wt.not_air.x[ix+1, iy+1] ≈ 0.0) || (wt.not_air.x[ix+1, iy] ≈ 0.0) ||
 #                  (wt.not_air.y[ix+1, iy+1] ≈ 0.0) || (wt.not_air.y[ix, iy+1] ≈ 0.0)
