@@ -102,7 +102,7 @@ include("volume_fractions.jl")
     fill!(τII , 0.0)
     fill!(εII , 1e-10)
     fill!(F   , -1.0)
-    fill!(Fchk, 0.0)
+    fill!(Fchk, -1.0)
     fill!(λ   , 0.0)
 
     init!(V, ε̇bg, xv, yv)
@@ -146,6 +146,7 @@ include("volume_fractions.jl")
             ηs  =heatmap!(ax.ηs  , xc, yc, to_host(log10.(ηs)); colormap=:turbo),
             λ   =heatmap!(ax.λ   , xc, yc, to_host(λ   ); colormap=:turbo),
             F   =heatmap!(ax.F   , xc, yc, to_host(F   ); colormap=:turbo),
+            # F   =scatter!(ax.F   , Point2f.(to_host(Pr_c)[:], to_host(Fchk)[:]), color=Pr_c[:], colormap=:thermal),
         ),
         errs=[scatterlines!(ax.errs, Point2.(iter_evo, errs_evo[ir, :])) for ir in eachindex(ϵtol)],
     )
@@ -157,6 +158,7 @@ include("volume_fractions.jl")
     Colorbar(fig[2, 3][1, 2], plt.fields.ηs  )
     Colorbar(fig[3, 1][1, 2], plt.fields.λ   )
     Colorbar(fig[3, 2][1, 2], plt.fields.F   )
+    # Colorbar(fig[3, 2][1, 2], colormap=:thermal)
     display(fig)
     mask = copy(to_host(wt.not_air.c))
     mask[mask.<1.0] .= NaN
@@ -196,6 +198,7 @@ include("volume_fractions.jl")
                 plt.fields[6][3] = to_host(log10.(ηs)) .* mask
                 plt.fields[7][3] = to_host(λ) .* mask
                 plt.fields[8][3] = to_host(Fchk) .* mask
+                # plt.fields[8][1] = Point2f.(to_host(Pr_c)[:], to_host(Fchk)[:])
                 display(fig)
             end
         end
