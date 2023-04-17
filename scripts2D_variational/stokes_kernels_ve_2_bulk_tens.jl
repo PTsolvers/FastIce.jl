@@ -85,16 +85,16 @@ end
         if !isnull && (wt.not_air.c[ix, iy] > 0.0)
             dτ_r = 1.0 / (θ_dτ + ηs[ix, iy] / (G * dt) + 1.0)
             # plastic business
-            # Ft[ix, iy] = τII[ix, iy] - τ_y - Pr[ix, iy] * tanϕt
+            Ft[ix, iy] = τII[ix, iy] - τ_y - Pr[ix, iy] * tanϕt
             Fs[ix, iy] = τII[ix, iy] - τ_y - Pr[ix, iy] * sinϕs
 
-            # Γ[ix, iy] = (Ft[ix, iy] > 0.0) ? 1 : 0
-            # Γ[ix, iy] = (Fs[ix, iy] > 0.0) ? 2 : 0
+            Γ[ix, iy] = (Ft[ix, iy] > 0.0) ? 1 : 0
+            Γ[ix, iy] = (Fs[ix, iy] > 0.0) ? 2 : 0
             # Γ[ix, iy] = (Fs[ix, iy] > 0.0 && Ft[ix, iy] > 0.0) ? 3 : 0
 
-            # λt[ix, iy] = (Γ[ix, iy] == 1) ? ((1.0 - χλ) * λt[ix, iy] + χλ * (max(Ft[ix, iy], 0.0) / (ηs[ix, iy] * dτ_r + η_reg + K * dt * tanϕt * tanψt))) : 0.0
-            # λs[ix, iy] = (Γ[ix, iy] == 2) ? ((1.0 - χλ) * λs[ix, iy] + χλ * (max(Fs[ix, iy], 0.0) / (ηs[ix, iy] * dτ_r + η_reg + K * dt * sinϕs * sinψs))) : 0.0
-            λs[ix, iy] = (1.0 - χλ) * λs[ix, iy] + χλ * (max(Fs[ix, iy], 0.0) / (ηs[ix, iy] * dτ_r + η_reg + K * dt * sinϕs * sinψs))
+            λt[ix, iy] = (Γ[ix, iy] == 1) ? ((1.0 - χλ) * λt[ix, iy] + χλ * (max(Ft[ix, iy], 0.0) / (ηs[ix, iy] * dτ_r + η_reg + K * dt * tanϕt * tanψt))) : 0.0
+            λs[ix, iy] = (Γ[ix, iy] == 2) ? ((1.0 - χλ) * λs[ix, iy] + χλ * (max(Fs[ix, iy], 0.0) / (ηs[ix, iy] * dτ_r + η_reg + K * dt * sinϕs * sinψs))) : 0.0
+            # λs[ix, iy] = (1.0 - χλ) * λs[ix, iy] + χλ * (max(Fs[ix, iy], 0.0) / (ηs[ix, iy] * dτ_r + η_reg + K * dt * sinϕs * sinψs))
 
             εII_ve = sqrt(0.5 * (ε_ve.xx[ix, iy]^2 + ε_ve.yy[ix, iy]^2) + ε_ve.xyc[ix, iy]^2)
             # η_ve = τII_ve / 2.0 / εII_ve
@@ -103,12 +103,12 @@ end
             # η_vep = τII / 2.0 / εII_ve - λ[ix, iy] * η_ve[ix, iy] / 2.0 / εII_ve
             # η_vep = η_ve[ix, iy] * (1.0 - λ[ix, iy] / 2.0 / εII_ve) # fancy
 
-            # η_vep = (Γ[ix, iy] == 1) ? (η_ve[ix, iy] - λt[ix, iy] * η_ve[ix, iy] / 2.0 / εII_ve) : η_ve[ix, iy]
-            η_vep = η_ve[ix, iy] - λs[ix, iy] * η_ve[ix, iy] / 2.0 / εII_ve
+            η_vep = (Γ[ix, iy] == 1) ? (η_ve[ix, iy] - λt[ix, iy] * η_ve[ix, iy] / 2.0 / εII_ve) : η_ve[ix, iy]
+            η_vep = (Γ[ix, iy] == 2) ? (η_ve[ix, iy] - λs[ix, iy] * η_ve[ix, iy] / 2.0 / εII_ve) : η_ve[ix, iy]
             # η_vep = (Γ[ix, iy] == 3) ? (τ_y / 2.0 / εII_ve) : η_ve[ix, iy]
 
-            # Pr_c[ix, iy] = (Γ[ix, iy] == 1) ? (Pr[ix, iy] + K * dt * λt[ix, iy] * tanψt) : Pr[ix, iy]
-            Pr_c[ix, iy] = Pr[ix, iy] + K * dt * λs[ix, iy] * sinψs
+            Pr_c[ix, iy] = (Γ[ix, iy] == 1) ? (Pr[ix, iy] + K * dt * λt[ix, iy] * tanψt) : Pr[ix, iy]
+            Pr_c[ix, iy] = (Γ[ix, iy] == 2) ? (Pr[ix, iy] + K * dt * λs[ix, iy] * sinψs) : Pr[ix, iy]
             # Pr_c[ix, iy] = (Γ[ix, iy] == 3) ? P_y : Pr[ix, iy]
 
             τ.xx[ix, iy]  += (-τ.xx[ix, iy]  + 2.0 * η_vep * ε_ve.xx[ix, iy])  * dτ_r * ηs[ix, iy] / η_ve[ix, iy]

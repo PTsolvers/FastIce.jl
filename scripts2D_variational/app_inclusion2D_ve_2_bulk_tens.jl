@@ -38,8 +38,8 @@ nonan!(A) = .!isnan.(A) .* A
     P_y      = 0.0
     sinϕs    = sind(30)
     sinψs    = sind(5)
-    tanϕt    = tand(0)
-    tanψt    = tand(0)
+    tanϕt    = tand(85)
+    tanψt    = tand(85)
     ε̇bg      = 1#e-10
     ξ        = 2.0
     # numerics
@@ -139,7 +139,7 @@ nonan!(A) = .!isnan.(A) .* A
     compute_levelset!(Ψ.not_air, xv, yv, mc1)
     # compute_levelset!(Ψ.not_air, xv, yv, mc2)
     TinyKernels.device_synchronize(get_device())
-    # Ψ.not_air .= min.( .-(0.0 .* xv .+ yv' .+ oy .+ 0.1), Ψ.not_air)
+    # Ψ.not_air .= min.( .-(0.0 .* xv .+ yv' .+ oy .+ 0.05), Ψ.not_air)
     @. Ψ.not_air = -Ψ.not_air
 
     @info "computing the level set for the bedrock"
@@ -229,7 +229,8 @@ nonan!(A) = .!isnan.(A) .* A
                 plt.fields[5][3] = to_host(εII) .* mask
                 plt.fields[6][3] = to_host(log10.(ηs)) .* mask
                 plt.fields[7][3] = to_host(λs) .* mask
-                plt.fields[8][3] = to_host(Fschk) .* mask
+                # plt.fields[8][3] = to_host(Fschk) .* mask
+                plt.fields[8][3] = to_host(Γ) .* mask
                 display(fig)
             end
         end
