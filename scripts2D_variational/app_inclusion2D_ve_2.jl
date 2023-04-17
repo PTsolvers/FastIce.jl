@@ -14,9 +14,16 @@ include("volume_fractions.jl")
 @views inn_x(A) = A[2:end-1,:]
 @views inn_y(A) = A[:,2:end-1]
 @views inn(A) = A[2:end-1,2:end-1]
+nonan!(A) = .!isnan.(A) .* A
 
 @views function runsim(::Type{DAT}; nx=127) where {DAT}
     # physics
+    # lx, ly   = 2.0, 1.0
+    # ox, oy   = -0.5lx, -0.0ly
+    # xb1, yb1 = ox + 0.5lx, oy - 0.05ly
+    # xb2, yb2 = ox + 0.5lx, oy + 4.6ly
+    # rinc     = 0.4ly
+    # rair     = 3.8ly
     lx, ly   = 1.0, 1.0
     ox, oy   = -0.5lx, -0.5ly
     xb1, yb1 = ox + 0.5lx, oy + 0.5ly
@@ -28,14 +35,14 @@ include("volume_fractions.jl")
     npow     = 3.0
     τ_y      = 1.9
     sinϕ     = sind(30)
-    ε̇bg      = 1.0
+    ε̇bg      = 1#e-10
     ξ        = 2.0
     # numerics
     nt       = 50
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
     maxiter  = 400nx
     ncheck   = 10nx
-    ϵtol     = (1e-6, 1e-6, 1e-6)
+    ϵtol     = (1e-4, 1e-4, 1e-6)
     χ        = 0.5       # viscosity relaxation
     ηmax     = 1e1       # viscosity cut-off
     χλ       = 0.5       # λ relaxation
@@ -45,19 +52,21 @@ include("volume_fractions.jl")
     xv, yv   = LinRange(ox, ox + lx, nx + 1), LinRange(oy, oy + ly, ny + 1)
     xc, yc   = av1(xv), av1(yv)
     mc1      = to_device(make_marker_chain_circle(Point(xb1, yb1), rinc, min(dx, dy)))
+    # mc2      = to_device(make_marker_chain_circle(Point(xb2, yb2), rair, min(dx, dy)))
     ρg       = (x=ρg0 .* sin(α), y=ρg0 .* cos(α))
     mpow     = -(1 - 1 / npow) / 2
-    dt       = ηs0 / (G * ξ)
+    dt0      = ηs0 / (G * ξ)
     # PT parameters
     r        = 0.7
-    re_mech  = 7π
+    re_mech  = 8π
     lτ       = min(lx, ly)
     vdτ      = min(dx, dy) / sqrt(2.1) / 1.1
     θ_dτ     = lτ * (r + 4 / 3) / (re_mech * vdτ)
     nudτ     = vdτ * lτ / re_mech
     # level set
     Ψ  = (
-        not_air = field_array(DAT, nx + 1, ny + 1), # liquid
+        not_solid = field_array(DAT, nx + 1, ny + 1), # fluid
+        not_air   = field_array(DAT, nx + 1, ny + 1), # liquid
     )
     wt = (
         not_solid = volfrac_field(DAT, nx, ny), # fluid
@@ -104,17 +113,24 @@ include("volume_fractions.jl")
     fill!(λ   , 0.0)
 
     init!(V, ε̇bg, xv, yv)
+    # V.y .= 0.0
 
-    @info "computing the level set for the inclusion"
+    # compute level sets
     for comp in eachindex(Ψ) fill!(Ψ[comp], 1.0) end
-    TinyKernels.device_synchronize(get_device())
     Ψ.not_air .= Inf # needs init now
+    @info "computing the level set for the inclusion"
     compute_levelset!(Ψ.not_air, xv, yv, mc1)
-    @. Ψ.not_air = -Ψ.not_air
+    # compute_levelset!(Ψ.not_air, xv, yv, mc2)
     TinyKernels.device_synchronize(get_device())
+    # Ψ.not_air .= min.( .-(0.0 .* xv .+ yv' .+ oy .+ 0.1), Ψ.not_air)
+    @. Ψ.not_air = -Ψ.not_air
+
+    @info "computing the level set for the bedrock"
+    @. Ψ.not_solid = -(0.0 * xv + yv' - 0.05)
 
     @info "computing volume fractions from level sets"
     compute_volume_fractions_from_level_set!(wt.not_air, Ψ.not_air, dx, dy)
+    # compute_volume_fractions_from_level_set!(wt.not_solid, Ψ.not_solid, dx, dy)
     for comp in eachindex(wt.not_solid) fill!(wt.not_solid[comp], 1.0) end
 
     update_vis!(Vmag, Ψav, V, Ψ)
@@ -156,12 +172,15 @@ include("volume_fractions.jl")
     Colorbar(fig[3, 1][1, 2], plt.fields.λ   )
     Colorbar(fig[3, 2][1, 2], plt.fields.F   )
     display(fig)
-    mask = copy(to_host(wt.not_air.c))
-    mask[mask.<1.0] .= NaN
+    maskA = copy(to_host(wt.not_air.c))
+    maskS = copy(to_host(wt.not_solid.c))
+    maskA[maskA.<1.0] .= NaN
+    maskS[maskS.<1.0] .= NaN
+    mask = maskA .* maskS
 
     @info "running simulation 🚀"
     for it in 1:nt
-        (it >= 6 && it <= 10) ? dt = 0.25 : dt = 0.5 # if npow=3
+        (it >= 6 && it <= 10) ? dt = dt0 / 2 : dt = dt0 # if npow=3
         @printf "it # %d, dt = %1.3e \n" it dt
         update_old!(τ_o, τ, λ)
         # iteration loop
@@ -178,7 +197,7 @@ include("volume_fractions.jl")
                 compute_residual!(Res, Pr, V, τ, wt, ρg, dx, dy)
                 errs = (maximum(abs.(Res.V.x)), maximum(abs.(Res.V.y)), maximum(abs.(Res.Pr)))
                 @printf "  iter/nx # %2.1f, errs: [ Vx = %1.3e, Vy = %1.3e, Pr = %1.3e ]\n" iter / nx errs...
-                @printf "    max(F) = %1.3e, max(τII) = %1.3e \n" maximum(Fchk) maximum(τII)
+                @printf "    max(F) = %1.3e, max(τII) = %1.3e \n" maximum(nonan!(Fchk)) maximum(nonan!(τII))
                 push!(iter_evo, iter / nx); append!(errs_evo, errs)
                 # visu
                 for ir in eachindex(plt.errs)
