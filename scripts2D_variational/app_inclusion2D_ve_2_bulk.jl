@@ -36,7 +36,7 @@ nonan!(A) = .!isnan.(A) .* A
     npow     = 3.0
     τ_y      = 1.9
     sinϕ     = sind(30)
-    sinψ     = sind(0)
+    sinψ     = sind(5)
     ε̇bg      = 1#e-10
     ξ        = 2.0
     # numerics
@@ -47,7 +47,7 @@ nonan!(A) = .!isnan.(A) .* A
     ϵtol     = (5e-6, 5e-6, 1e-6)
     χ        = 0.5       # viscosity relaxation
     ηmax     = 1e1       # viscosity cut-off
-    χλ       = 0.5       # λ relaxation
+    χλ       = 0.4       # λ relaxation
     η_reg    = 1e-2      # Plastic regularisation
     # preprocessing
     dx, dy   = lx / nx, ly / ny
