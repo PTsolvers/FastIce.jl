@@ -105,7 +105,7 @@ nonan!(A) = .!isnan.(A) .* A
     for comp in eachindex(ε_ve) fill!(ε_ve[comp] , 0.0) end
     fill!(Pr  , 0.0)
     fill!(ηs  , ηs0)
-    fill!(η_ve, (1.0 / ηs0 + 1.0 / (G * dt))^-1)
+    fill!(η_ve, (1.0 / ηs0 + 1.0 / (G * dt0))^-1)
     fill!(τII , 0.0)
     fill!(εII , 1e-10)
     fill!(F   , -1.0)
