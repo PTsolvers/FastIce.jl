@@ -34,12 +34,12 @@ nonan!(A) = .!isnan.(A) .* A
     ρg0      = 0.0
     α        = 0.0
     npow     = 3.0
-    τ_y      = 1.9
-    P_y      = 0.0
     sinϕs    = sind(30)
     sinψs    = sind(5)
-    tanϕt    = tand(85)
-    tanψt    = tand(85)
+    tanϕt    = tand(75)
+    tanψt    = tand(75)
+    τ_y      = 1.9 # C * cos(ϕs) = 2.19 * cosd(30)
+    P_y      = -0.5
     ε̇bg      = 1#e-10
     ξ        = 2.0
     # numerics
@@ -154,6 +154,15 @@ nonan!(A) = .!isnan.(A) .* A
     # convergence history
     iter_evo = Float64[]
     errs_evo = ElasticArray{Float64}(undef, length(ϵtol), 0)
+
+    # Plot yield functions
+    P = collect(LinRange(-2.5, 2.5, 200))
+    (_, iP) = findmin(abs.(P .- P_y))
+    Ps = P[iP-10:end]
+    Pt = P[1:iP+10]
+    τIIs = τ_y .+ Ps .* sinϕs
+    τIIt = τ_y*1.5 .+ Pt .* tanϕt
+
     # figures
     fig = Figure(resolution=(2500, 1800), fontsize=32)
     ax = (
@@ -164,7 +173,8 @@ nonan!(A) = .!isnan.(A) .* A
         εII =Axis(fig[2, 2][1, 1]; aspect=DataAspect(), title="εII"),
         ηs  =Axis(fig[2, 3][1, 1]; aspect=DataAspect(), title="log10(ηs)"),
         λs  =Axis(fig[3, 1][1, 1]; aspect=DataAspect(), title="λ"),
-        Fs  =Axis(fig[3, 2][1, 1]; aspect=DataAspect(), title="F"),
+        # Fs  =Axis(fig[3, 2][1, 1]; aspect=DataAspect(), title="F"),
+        Fs  =Axis(fig[3, 2][1, 1]; title="F", xlabel="P", ylabel="τII"),
         errs=Axis(fig[3, 3]      ; yscale=log10, title="Convergence", xlabel="#iter/ny", ylabel="error"),
     )
     plt = (
@@ -176,7 +186,10 @@ nonan!(A) = .!isnan.(A) .* A
             εII =heatmap!(ax.εII , xc, yc, to_host(εII ); colormap=:turbo),
             ηs  =heatmap!(ax.ηs  , xc, yc, to_host(log10.(ηs)); colormap=:turbo),
             λs  =heatmap!(ax.λs  , xc, yc, to_host(λs  ); colormap=:turbo),
-            Fs  =heatmap!(ax.Fs  , xc, yc, to_host(Fs  ); colormap=:turbo),
+            # Fs  =heatmap!(ax.Fs  , xc, yc, to_host(Fs  ); colormap=:turbo),
+            Fs  =scatter!(ax.Fs  , Point2f.(to_host(Pr_c)[:], to_host(τII)[:]), color=Fschk[:], colormap=:thermal),#markerspace=:data, markersize=r0
+            Fs2 =lines!(ax.Fs, Ps, τIIs, label="shear", linewidth=4),
+            Fs3 =lines!(ax.Fs, Pt, τIIt; label="tension", linewidth=4),
         ),
         errs=[scatterlines!(ax.errs, Point2.(iter_evo, errs_evo[ir, :])) for ir in eachindex(ϵtol)],
     )
@@ -188,6 +201,7 @@ nonan!(A) = .!isnan.(A) .* A
     Colorbar(fig[2, 3][1, 2], plt.fields.ηs  )
     Colorbar(fig[3, 1][1, 2], plt.fields.λs  )
     Colorbar(fig[3, 2][1, 2], plt.fields.Fs  )
+    axislegend(ax.Fs, position=:rb)
     display(fig)
     maskA = copy(to_host(wt.not_air.c))
     maskS = copy(to_host(wt.not_solid.c))
@@ -223,14 +237,15 @@ nonan!(A) = .!isnan.(A) .* A
                 autolimits!(ax.errs)
                 update_vis!(Vmag, Ψav, V, Ψ)
                 plt.fields[1][3] = to_host(Pr) .* mask
-                plt.fields[2][3] = to_host(τII) .* mask
+                plt.fields[2][3] = to_host(τII) #.* mask
                 plt.fields[3][3] = to_host(wt.not_air.c)
                 plt.fields[4][3] = to_host(Vmag) .* inn(mask)
                 plt.fields[5][3] = to_host(εII) .* mask
                 plt.fields[6][3] = to_host(log10.(ηs)) .* mask
                 plt.fields[7][3] = to_host(λs) .* mask
                 # plt.fields[8][3] = to_host(Fschk) .* mask
-                plt.fields[8][3] = to_host(Γ) .* mask
+                plt.fields[8][1] = Point2f.(to_host(Pr_c)[:], to_host(τII)[:]); plt.fields[8].color[] = Fschk[:]
+                # plt.fields[8][3] = to_host(Γ) .* mask
                 display(fig)
             end
         end
