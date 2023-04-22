@@ -27,8 +27,16 @@ docs/site/
 Manifest.toml
 LocalPreferences.toml
 GeoData/Manifest.toml
+
+# OSX-specific files
 .DS_Store
+
+# VSCode-specific files
 .vscode
+
+# Project-specific files
 out_visu/
 gitignore/
 data/
+*.h5
+*.xdmf3
