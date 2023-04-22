@@ -80,14 +80,12 @@ end
 
 @views function run_simulation(dem_data,grid_dims)
     # physics
-    # global domain origin and size
     ox,oz = dem_data.x[1], 0.0
     lx    = dem_data.x[end] - ox
     lz    = 1.2max(
         maximum(getindex.(dem_data.bed,2)),
         maximum(getindex.(dem_data.ice,2))
     )
-
     ρg  = (x=0.0,y=1.0)
 
     # numerics
@@ -166,7 +164,7 @@ end
     errs_evo = ElasticArray{Float64}(undef, length(ϵtol), 0)
 
     # figures
-    fig = Figure(resolution=(2500,1000),fontsize=32)
+    fig = Figure(resolution=(2500,1200),fontsize=32)
     axs = (
         hmaps = (
             Pr   = Axis(fig[1,1][1,1];aspect=DataAspect(),title="p"),
@@ -185,8 +183,8 @@ end
         τII  = heatmap!(axs.hmaps.τII ,xv,zv,to_host(τII );colormap=:turbo),
         Vmag = heatmap!(axs.hmaps.Vmag,xv,zv,to_host(Vmag);colormap=:turbo),
         Ψ_c  = (
-            bed =  poly!(axs.hmaps.Pr,dem_data.bed;strokewidth=2),
-            ice = lines!(axs.hmaps.Pr,dem_data.ice;strokewidth=2),
+            bed =  poly!(axs.hmaps.Pr,dem_data.bed;strokewidth=2,color=:black),
+            ice = lines!(axs.hmaps.Pr,dem_data.ice;strokewidth=2,color=:black),
         ),
         errs=[scatterlines!(axs.errs, Point2.(iter_evo, errs_evo[ir, :])) for ir in eachindex(ϵtol)],
     )
