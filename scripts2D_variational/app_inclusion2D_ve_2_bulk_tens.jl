@@ -40,7 +40,7 @@ nonan!(A) = .!isnan.(A) .* A
     ψt       = 85
     P_y      = 0.0
     C0       = 1.7
-    ε̇bg      = 1#e-10
+    ε̇bg      = -1#e-10
     ξ        = 4.0
     # numerics
     nt       = 50
