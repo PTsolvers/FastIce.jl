@@ -54,12 +54,12 @@ function compute_trial_τII!(τII, δτ, τ)
     return
 end
 
-function update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, Ft, Fs, λt, λs, Γ, τ_y, P_y, sinϕs, tanϕt, sinψs, tanψt, η_reg, χλ, θ_dτ, wt)
-    wait(_update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, Ft, Fs, λt, λs, Γ, τ_y, P_y, sinϕs, tanϕt, sinψs, tanψt, η_reg, χλ, θ_dτ, wt; ndrange=axes(Pr)))
+function update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, Ft, Fs, λt, λs, Γ, C, cosϕs, P_y, sinϕs, tanϕt, sinψs, tanψt, η_reg, χλ, θ_dτ, wt)
+    wait(_update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, Ft, Fs, λt, λs, Γ, C, cosϕs, P_y, sinϕs, tanϕt, sinψs, tanψt, η_reg, χλ, θ_dτ, wt; ndrange=axes(Pr)))
     return
 end
 
-function compute_Fchk_xII_η!(τII, Ftchk, Fschk, εII, ηs, Pr_c, τ, ε, λt, λs, τ_y, sinϕs, tanϕt, η_reg, wt, χ, mpow, ηmax)
-    wait(_compute_Fchk_xII_η!(τII, Ftchk, Fschk, εII, ηs, Pr_c, τ, ε, λt, λs, τ_y, sinϕs, tanϕt, η_reg, wt, χ, mpow, ηmax; ndrange=axes(τII)))
+function compute_Fchk_xII_η!(τII, Fchk, εII, ηs, Pr_c, τ, ε, λt, λs, Γ, C, cosϕs, sinϕs, tanϕt, η_reg, wt, χ, mpow, ηmax)
+    wait(_compute_Fchk_xII_η!(τII, Fchk, εII, ηs, Pr_c, τ, ε, λt, λs, Γ, C, cosϕs, sinϕs, tanϕt, η_reg, wt, χ, mpow, ηmax; ndrange=axes(τII)))
     return
 end
