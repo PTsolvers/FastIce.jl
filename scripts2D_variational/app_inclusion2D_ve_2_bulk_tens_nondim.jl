@@ -18,30 +18,39 @@ nonan!(A) = .!isnan.(A) .* A
 
 @views function runsim(::Type{DAT}; nx=127) where {DAT}
     # physics
-    # lx, ly   = 2.0, 1.0
-    # ox, oy   = -0.5lx, -0.0ly
-    # xb1, yb1 = ox + 0.5lx, oy - 0.05ly
-    # xb2, yb2 = ox + 0.5lx, oy + 4.6ly
-    # rinc     = 0.4ly
-    # rair     = 3.8ly
-    lx, ly   = 1.0, 1.0
+    ly       = 10.0 # m
+    A0       = 1.0 # Pa s ^ m
+    ρg0      = 0.0 # m / s ^ 2
+    ε̇bg      = 1.0 # shear
+    # nondim
+    ξ        = 1 / 4 # eta / G / dt
+    De       = 1.0   # Deborah num
+    npow     = 3.0
+    mpow     = -(1 - 1 / npow) / 2
+    # scales
+    l_sc     = ly
+    # τ_sc     = ρg0 * l_sc                # buoyancy
+    # t_sc     = (A0 / τ_sc) ^ (1 / mpow)  # buoyancy
+    τ_sc     = A0 * ε̇bg ^ mpow  # shear
+    t_sc     = 1 / ε̇bg          # shear
+    η_sc     = τ_sc * t_sc
+    # dependent
+    lx       = 1.0 * ly
     ox, oy   = -0.5lx, -0.5ly
     xb1, yb1 = ox + 0.5lx, oy + 0.5ly
     rinc     = 0.1lx
-    ηs0      = 1.0
-    G        = 1.0
+    G        = τ_sc / De
     K        = 4.0 * G
-    ρg0      = 0.0
+    dt0      = ξ * η_sc / G
     α        = 0.0
-    npow     = 3.0
     ϕs       = 30
     ψs       = 5
     ϕt       = 85
     ψt       = 85
-    P_y      = 0.0
-    C0       = 1.7
-    ε̇bg      = 1#e-10
-    ξ        = 4.0
+    P_y      = 0.0 * τ_sc # yield pressure
+    P_s      = 2.0 * τ_sc # shift in pressure
+    C0       = 1.7 * τ_sc
+    # ε̇bg      = 1.0e-10 / t_sc # buoyancy
     # numerics
     nt       = 50
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
@@ -65,8 +74,6 @@ nonan!(A) = .!isnan.(A) .* A
     mc1      = to_device(make_marker_chain_circle(Point(xb1, yb1), rinc, min(dx, dy)))
     # mc2      = to_device(make_marker_chain_circle(Point(xb2, yb2), rair, min(dx, dy)))
     ρg       = (x=ρg0 .* sin(α), y=ρg0 .* cos(α))
-    mpow     = -(1 - 1 / npow) / 2
-    dt0      = ηs0 / (G * ξ)
     # PT parameters
     r        = 0.7
     re_mech  = 8π
@@ -120,11 +127,11 @@ nonan!(A) = .!isnan.(A) .* A
     for comp in eachindex(δτ) fill!(δτ[comp], 0.0) end
     for comp in eachindex(ε) fill!(ε[comp] , 0.0) end
     for comp in eachindex(ε_ve) fill!(ε_ve[comp] , 0.0) end
-    fill!(Pr   , 2+P_y)
-    fill!(Pr_c , 2+P_y)
-    fill!(Pr_o , 2+P_y)
-    fill!(ηs   , ηs0)
-    fill!(η_ve , (1.0 / ηs0 + 1.0 / (G * dt0))^-1)
+    fill!(Pr   , P_s)
+    fill!(Pr_c , P_s)
+    fill!(Pr_o , P_s)
+    fill!(ηs   , η_sc)
+    fill!(η_ve , (1.0 / η_sc + 1.0 / (G * dt0))^-1)
     fill!(τII  , 0.0)
     fill!(εII  , 1e-10)
     fill!(Ft   , -1.0)
@@ -162,7 +169,7 @@ nonan!(A) = .!isnan.(A) .* A
     errs_evo = ElasticArray{Float64}(undef, length(ϵtol), 0)
 
     # Plot yield functions
-    P = collect(LinRange(-0.5+P_y, 4+P_y, 500))
+    P = collect(LinRange(-0.5, 4, 500))
     (_, iP) = findmin(abs.(P .- P_y))
     Pshear = P[iP:end]
     Ptens  = P[1:iP]
@@ -197,7 +204,7 @@ nonan!(A) = .!isnan.(A) .* A
             # Fs  =heatmap!(ax.Fs  , xc, yc, to_host(Fs  ); colormap=:turbo),
             Fs  =scatter!(ax.Fs  , Point2f.(to_host(Pr_c)[:], to_host(τII)[:]), color=Fchk[:], colormap=:turbo),#markerspace=:data, markersize=r0
             Fs2 =lines!(ax.Fs, Pshear, τIIs, label="shear", linewidth=4),
-            Fs3 =lines!(ax.Fs, Ptens, τIIt; label="tension", linewidth=4),
+            Fs3 =lines!(ax.Fs, Ptens,  τIIt; label="tension", linewidth=4),
             Fs4 =ylims!(ax.Fs, -2.5, 3.5),
         ),
         errs=[scatterlines!(ax.errs, Point2.(iter_evo, errs_evo[ir, :])) for ir in eachindex(ϵtol)],
@@ -234,6 +241,7 @@ nonan!(A) = .!isnan.(A) .* A
             update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, Ft, Fs, Fc, λ, Γ, C, cosϕs, P_y, sinϕs, tanϕt, tanϕt2, sinψs, tanψt, η_reg, χλ, θ_dτ, wt)
             compute_Fchk_xII_η!(τII, Fchk, εII, ηs, Pr_c, τ, ε, λ, Γ, C, cosϕs, P_y, sinϕs, tanϕt, η_reg, wt, χ, mpow, ηmax)
             update_V!(V, Pr_c, τ, ηs, wt, nudτ, ρg, dx, dy)
+            # Pr .= Pr_c
             if iter % ncheck == 0
                 compute_residual!(Res, Pr, Pr_o, Pr_c, V, τ, K, dt, wt, ρg, dx, dy)
                 errs = (maximum(abs.(Res.V.x)), maximum(abs.(Res.V.y)), maximum(abs.(Res.Pr)))
@@ -262,9 +270,9 @@ nonan!(A) = .!isnan.(A) .* A
                 display(fig)
             end
         end
-        # dC = 0.5 * C0
-        # C[Γ.==1.0 .|| Γ.==3.0] .-= dC
-        # C[C.<C0/50] .= C0 / 50
+        dC = 0.5 * C0
+        C[Γ.==1.0 .|| Γ.==3.0] .-= dC
+        C[C.<C0/50] .= C0 / 50
     end
     return
 end

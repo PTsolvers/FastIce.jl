@@ -5,8 +5,8 @@ const _update_V! = _kernel_update_V!(get_device())
 const _compute_residual_P! = _kernel_compute_residual_P!(get_device())
 const _compute_residual_V! = _kernel_compute_residual_V!(get_device())
 
-function update_old!(τ_o, τ, Pr_o, Pr_c, Pr, λt, λs)
-    wait(_update_old!(τ_o, τ, Pr_o, Pr_c, Pr, λt, λs; ndrange=axes(λs)))
+function update_old!(τ_o, τ, Pr_o, Pr_c, Pr, λ)
+    wait(_update_old!(τ_o, τ, Pr_o, Pr_c, Pr, λ; ndrange=axes(λ)))
     return
 end
 
@@ -54,12 +54,12 @@ function compute_trial_τII!(τII, δτ, τ)
     return
 end
 
-function update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, Ft, Fs, λt, λs, Γ, C, cosϕs, P_y, sinϕs, tanϕt, sinψs, tanψt, η_reg, χλ, θ_dτ, wt)
-    wait(_update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, Ft, Fs, λt, λs, Γ, C, cosϕs, P_y, sinϕs, tanϕt, sinψs, tanψt, η_reg, χλ, θ_dτ, wt; ndrange=axes(Pr)))
+function update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, Ft, Fs, Fc, λ, Γ, C, cosϕs, P_y, sinϕs, tanϕt, tanϕt2, sinψs, tanψt, η_reg, χλ, θ_dτ, wt)
+    wait(_update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, Ft, Fs, Fc, λ, Γ, C, cosϕs, P_y, sinϕs, tanϕt, tanϕt2, sinψs, tanψt, η_reg, χλ, θ_dτ, wt; ndrange=axes(Pr)))
     return
 end
 
-function compute_Fchk_xII_η!(τII, Fchk, εII, ηs, Pr_c, τ, ε, λt, λs, Γ, C, cosϕs, sinϕs, tanϕt, η_reg, wt, χ, mpow, ηmax)
-    wait(_compute_Fchk_xII_η!(τII, Fchk, εII, ηs, Pr_c, τ, ε, λt, λs, Γ, C, cosϕs, sinϕs, tanϕt, η_reg, wt, χ, mpow, ηmax; ndrange=axes(τII)))
+function compute_Fchk_xII_η!(τII, Fchk, εII, ηs, Pr_c, τ, ε, λ, Γ, C, cosϕs, P_y, sinϕs, tanϕt, η_reg, wt, χ, mpow, ηmax)
+    wait(_compute_Fchk_xII_η!(τII, Fchk, εII, ηs, Pr_c, τ, ε, λ, Γ, C, cosϕs, P_y, sinϕs, tanϕt, η_reg, wt, χ, mpow, ηmax; ndrange=axes(τII)))
     return
 end
