@@ -127,7 +127,7 @@ nonan!(A) = .!isnan.(A) .* A
     fill!(εII  , 1e-10)
     fill!(τII  , 0.0)
     fill!(τII_c, 0.0)
-    fill!(F    , -1.0)
+    fill!(F    , 0.0)
     fill!(λ    , 0.0)
     fill!(dλdτ , 0.0)
     fill!(C    , C0)
@@ -187,7 +187,7 @@ nonan!(A) = .!isnan.(A) .* A
             λ   =heatmap!(ax.λ   , xc, yc, to_host(λ   ); colormap=:turbo),
             F   =scatter!(ax.F   , Point2f.(to_host(Pr_c)[:], to_host(τII_c)[:]), color=to_host(dλdτ[:]), colormap=:turbo),#markerspace=:data, markersize=r0
             F2  =contour!(ax.F   , Pp, τIIp, Fp, levels=-0.0:0.1:0.0, linewidth=4, label="yield"),
-            F3  =ylims!(ax.F, -0.5, 6.0),
+            F3  =  ylims!(ax.F   , -0.5, 6.0),
         ),
         errs=[scatterlines!(ax.errs, Point2.(iter_evo, errs_evo[ir, :])) for ir in eachindex(ϵtol)],
     )
@@ -250,4 +250,4 @@ nonan!(A) = .!isnan.(A) .* A
     return
 end
 
-runsim(Float64, nx=127)
+runsim(Float64, nx=180)
