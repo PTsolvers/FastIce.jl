@@ -216,8 +216,8 @@ nonan!(A) = .!isnan.(A) .* A
         @printf "it # %d, dt = %1.3e \n" it dt
         update_old!(τ_o, τ, Pr_o, Pr_c, Pr, λ)
         if it > 2
-            C0 = min(C0 * 0.95, 0.6); fill!(C, C0)
-            σt = min(σt * 0.99, 0.1)
+            C0 = max(C0 * 0.98, 0.6); fill!(C, C0)
+            σt = max(σt * 0.99, 0.1)
         end
         @printf "  C0 = %1.3e, σt  %1.3e \n" C0 σt
         # iteration loop
