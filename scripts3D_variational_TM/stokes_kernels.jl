@@ -39,11 +39,11 @@ end
         ε̇.xx[ix,iy,iz] = (V.x[ix+1,iy  ,iz  ]*wt.not_solid.x[ix+1,iy  ,iz  ] - V.x[ix,iy,iz]*wt.not_solid.x[ix,iy,iz])/dx
         ε̇.yy[ix,iy,iz] = (V.y[ix  ,iy+1,iz  ]*wt.not_solid.y[ix  ,iy+1,iz  ] - V.y[ix,iy,iz]*wt.not_solid.y[ix,iy,iz])/dy
         ε̇.zz[ix,iy,iz] = (V.z[ix  ,iy  ,iz+1]*wt.not_solid.z[ix  ,iy  ,iz+1] - V.z[ix,iy,iz]*wt.not_solid.z[ix,iy,iz])/dz
-        ∇V = ε̇xx[ix,iy,iz] + ε̇yy[ix,iy,iz] + ε̇zz[ix,iy,iz]
+        ∇V = ε̇.xx[ix,iy,iz] + ε̇.yy[ix,iy,iz] + ε̇.zz[ix,iy,iz]
         Pr[ix,iy,iz] -= ∇V*ηs[ix,iy,iz]*r/θ_dτ
-        τ.xx[ix,iy,iz] += (-τ.xx[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(exx-∇V/3.0)) * dτ_r
-        τ.yy[ix,iy,iz] += (-τ.yy[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(eyy-∇V/3.0)) * dτ_r
-        τ.zz[ix,iy,iz] += (-τ.zz[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(ezz-∇V/3.0)) * dτ_r
+        τ.xx[ix,iy,iz] += (-τ.xx[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(ε̇.xx[ix,iy,iz]-∇V/3.0)) * dτ_r
+        τ.yy[ix,iy,iz] += (-τ.yy[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(ε̇.yy[ix,iy,iz]-∇V/3.0)) * dτ_r
+        τ.zz[ix,iy,iz] += (-τ.zz[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(ε̇.xy[ix,iy,iz]-∇V/3.0)) * dτ_r
     else
         Pr[ix,iy,iz] = 0.0
         τ.xx[ix,iy,iz] = 0.0
@@ -157,4 +157,73 @@ end
         end
     end
     return
+end
+
+@tiny function _kernel_compute_residual!(Res, Pr, V, τ, wt, ρg, dx, dy, dz)
+    ns,na = wt.not_solid, wt.not_air
+    ix,iy,iz = @indices
+    @inline isin(A) = checkbounds(Bool,A,ix,iy,iz)
+    if isin(Pr)
+        # detect and eliminate null spaces
+        isnull = (na.x[ix,iy,iz] ≈ 0.0) || (na.x[ix+1,iy  ,iz  ] ≈ 0.0) ||
+                 (na.y[ix,iy,iz] ≈ 0.0) || (na.y[ix  ,iy+1,iz  ] ≈ 0.0) ||
+                 (na.z[ix,iy,iz] ≈ 0.0) || (na.z[ix  ,iy  ,iz+1] ≈ 0.0)
+        if !isnull && (na.c[ix,iy,iz] > 0.0)
+            ε̇xx = (V.x[ix+1,iy  ,iz  ]*ns.x[ix+1,iy  ,iz  ] - V.x[ix,iy,iz]*ns.x[ix,iy,iz])/dx
+            ε̇yy = (V.y[ix  ,iy+1,iz  ]*ns.y[ix  ,iy+1,iz  ] - V.y[ix,iy,iz]*ns.y[ix,iy,iz])/dy
+            ε̇zz = (V.z[ix  ,iy  ,iz+1]*ns.z[ix  ,iy  ,iz+1] - V.z[ix,iy,iz]*ns.z[ix,iy,iz])/dz
+            ∇V = ε̇xx + ε̇yy + ε̇zz
+            Res.Pr[ix,iy,iz] = ∇V
+        else
+            Res.Pr[ix,iy,iz] = 0.0
+        end
+    end
+    @inbounds if isin(Res.V.x)
+        # detect and eliminate null spaces
+        isnull = ( ns.c[ix+1,iy+1,iz+1] ≈ 0) || ( ns.c[ix,iy+1,iz+1] ≈ 0) ||
+                 (ns.xy[ix  ,iy+1,iz  ] ≈ 0) || (ns.xy[ix,iy  ,iz  ] ≈ 0) ||
+                 (ns.xz[ix  ,iy  ,iz+1] ≈ 0) || (ns.xz[ix,iy  ,iz  ] ≈ 0)
+        if !isnull && (na.x[ix+1,iy+1,iz+1] > 0) && (ns.x[ix+1,iy+1,iz+1] > 0)
+            # TODO: check which cells contribute to the momentum balance to verify ηs_x is computed correctly
+            ∂σxx_∂x = ((-Pr[ix+1,iy+1,iz+1]+τ.xx[ix+1,iy+1,iz+1])*na.c[ix+1,iy+1,iz+1] -
+                       (-Pr[ix  ,iy+1,iz+1]+τ.xx[ix  ,iy+1,iz+1])*na.c[ix  ,iy+1,iz+1])/dx
+            ∂τxy_∂y = (τ.xy[ix,iy+1,iz]*na.xy[ix,iy+1,iz] - τ.xy[ix,iy,iz]*na.xy[ix,iy,iz])/dy
+            ∂τxz_∂z = (τ.xz[ix,iy,iz+1]*na.xz[ix,iy,iz+1] - τ.xz[ix,iy,iz]*na.xz[ix,iy,iz])/dz
+            Res.V.x[ix,iy,iz] = ∂σxx_∂x + ∂τxy_∂y + ∂τxz_∂z - ρg.x
+        else
+            Res.V.x[ix,iy,iz] = 0.0
+        end
+    end
+    @inbounds if isin(Res.V.y)
+        # detect and eliminate null spaces
+        isnull = ( ns.c[ix+1,iy+1,iz+1] ≈ 0) || ( ns.c[ix+1,iy,iz+1] ≈ 0) ||
+                 (ns.xy[ix+1,iy  ,iz  ] ≈ 0) || (ns.xy[ix  ,iy,iz  ] ≈ 0) ||
+                 (ns.yz[ix  ,iy  ,iz+1] ≈ 0) || (ns.yz[ix  ,iy,iz  ] ≈ 0)
+        if !isnull && (na.y[ix+1,iy+1,iz+1] > 0) && (ns.y[ix+1,iy+1,iz+1] > 0)
+            # TODO: check which cells contribute to the momentum balance to verify ηs_y is computed correctly
+            ∂σyy_∂y = ((-Pr[ix+1,iy+1,iz+1] + τ.yy[ix+1,iy+1,iz+1])*na.c[ix+1,iy+1,iz+1] - 
+                       (-Pr[ix+1,iy  ,iz+1] + τ.yy[ix+1,iy  ,iz+1])*na.c[ix+1,iy  ,iz+1])/dy
+            ∂τxy_∂x = (τ.xy[ix+1,iy,iz  ]*na.xy[ix+1,iy,iz] - τ.xy[ix,iy,iz]*na.xy[ix,iy,iz])/dx
+            ∂τyz_∂z = (τ.yz[ix  ,iy,iz+1]*na.yz[ix,iy,iz+1] - τ.yz[ix,iy,iz]*na.yz[ix,iy,iz])/dz
+            Res.V.y[ix,iy,iz] = ∂σyy_∂y + ∂τxy_∂x + ∂τyz_∂z - ρg.y
+        else
+            Res.V.y[ix,iy,iz] = 0.0
+        end
+    end
+    @inbounds if isin(Res.V.z)
+        # detect and eliminate null spaces
+        isnull = ( ns.c[ix+1,iy+1,iz+1] ≈ 0) || ( ns.c[ix+1,iy+1,iz  ] ≈ 0) ||
+                 (ns.xy[ix+1,iy  ,iz  ] ≈ 0) || (ns.xy[ix  ,iy  ,iz  ] ≈ 0) ||
+                 (ns.yz[ix  ,iy+1,iz  ] ≈ 0) || (ns.yz[ix  ,iy  ,iz  ] ≈ 0)
+        if !isnull && (na.y[ix+1,iy+1,iz+1] > 0) && (ns.y[ix+1,iy+1,iz+1] > 0)
+            # TODO: check which cells contribute to the momentum balance to verify ηs_z is computed correctly
+            ∂σzz_∂z = ((-Pr[ix+1,iy+1,iz+1] + τ.zz[ix+1,iy+1,iz+1])*na.c[ix+1,iy+1,iz+1] - 
+                       (-Pr[ix+1,iy+1,iz  ] + τ.zz[ix+1,iy+1,iz  ])*na.c[ix+1,iy+1,iz  ])/dz
+            ∂τxz_∂x = (τ.xz[ix+1,iy,iz]*na.xz[ix+1,iy,iz] - τ.xz[ix,iy,iz]*na.xz[ix,iy,iz])/dx
+            ∂τyz_∂y = (τ.yz[ix,iy+1,iz]*na.yz[ix,iy+1,iz] - τ.yz[ix,iy,iz]*na.yz[ix,iy,iz])/dy
+            Res.V.z[ix,iy,iz] = ∂σzz_∂z + ∂τxz_∂x + ∂τyz_∂y - ρg.z
+        else
+            Res.V.z[ix,iy,iz] = 0.0
+        end
+    end
 end
