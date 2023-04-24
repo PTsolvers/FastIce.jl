@@ -60,7 +60,7 @@ nonan!(A) = .!isnan.(A) .* A
     ϵtol     = (5e-6, 5e-6, 1e-6) .* 1e2
     χ        = 0.2       # viscosity relaxation
     ηmax     = 1e1       # viscosity cut-off
-    η_reg    = 3e-2      # Plastic regularisation
+    η_reg    = 4e-2      # Plastic regularisation
     # preprocessing
     sinϕ     = sind(ϕs)
     cosϕ     = cosd(ϕs)
@@ -259,4 +259,4 @@ nonan!(A) = .!isnan.(A) .* A
     return
 end
 
-runsim(Float64, nx=180)
+runsim(Float64, nx=200)
