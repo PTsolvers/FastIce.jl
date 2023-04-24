@@ -1,10 +1,10 @@
 @tiny function _kernel_init!(V, ε̇bg, xv, yv)
     ix, iy = @indices
     if ix ∈ axes(V.x, 1) && iy ∈ axes(V.x, 2)
-        @inbounds V.x[ix, iy] = -xv[ix] * ε̇bg
+        @inbounds V.x[ix, iy] = xv[ix] * ε̇bg
     end
     if ix ∈ axes(V.y, 1) && iy ∈ axes(V.y, 2)
-        @inbounds V.y[ix, iy] = yv[iy] * ε̇bg
+        @inbounds V.y[ix, iy] = -yv[iy] * ε̇bg
     end
     return
 end

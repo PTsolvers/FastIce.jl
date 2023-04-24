@@ -75,7 +75,7 @@ end
     return
 end
 
-@tiny function _kernel_update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, Ft, Fs, Fc, λ, Γ, C, cosϕs, P_y, sinϕs, tanϕt, tanϕt2, sinψs, tanψt, η_reg, χλ, θ_dτ, wt)
+@tiny function _kernel_update_τ!(do_p, Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, Ft, Fs, Fc, λ, Γ, C, cosϕs, P_y, sinϕs, tanϕt, tanϕt2, sinψs, tanψt, η_reg, χλ, θ_dτ, wt)
     ix, iy = @indices
     @inline isin(A) = checkbounds(Bool, A, ix, iy)
     @inbounds if isin(Pr)
@@ -92,10 +92,11 @@ end
             Fc[ix, iy] = τII[ix, iy] - τs1
 
             Γ[ix, iy] = 0.0
-            Γ[ix, iy] = (Ft[ix, iy] > 0.0) ? 1.0 : Γ[ix, iy]
-            Γ[ix, iy] = (Fs[ix, iy] > 0.0) ? 2.0 : Γ[ix, iy]
-            Γ[ix, iy] = (Fs[ix, iy] > 0.0 && Ft[ix, iy] > 0.0) ? 3.0 : Γ[ix, iy]
-
+            if do_p
+                Γ[ix, iy] = (Ft[ix, iy] > 0.0) ? 1.0 : Γ[ix, iy]
+                Γ[ix, iy] = (Fs[ix, iy] > 0.0) ? 2.0 : Γ[ix, iy]
+                Γ[ix, iy] = (Fs[ix, iy] > 0.0 && Ft[ix, iy] > 0.0) ? 3.0 : Γ[ix, iy]
+            end
             # λt[ix, iy] = (1.0 - χλ) * λt[ix, iy] + χλ * (max(Ft[ix, iy], 0.0) / (ηs[ix, iy] * dτ_r + η_reg + K * dt * tanϕt * tanψt))
             # λs[ix, iy] = (1.0 - χλ) * λs[ix, iy] + χλ * (max(Fs[ix, iy], 0.0) / (ηs[ix, iy] * dτ_r + η_reg + K * dt * sinϕs * sinψs))
 
@@ -145,8 +146,8 @@ end
         τs1 = C[ix, iy] * cosϕs + P_y * sinϕs
         τII[ix, iy] = sqrt(0.5 * (τ.xx[ix, iy]^2 + τ.yy[ix, iy]^2) + τ.xyc[ix, iy]^2)
         Fchk[ix, iy] = 0.0
-        Fchk[ix, iy] = (Γ[ix, iy] == 2) ? (τII[ix, iy] - C[ix, iy] * cosϕs - Pr_c[ix, iy] * sinϕs - λ[ix, iy] * η_reg) : Fchk[ix, iy]
         Fchk[ix, iy] = (Γ[ix, iy] == 1) ? (τII[ix, iy] - C[ix, iy] * cosϕs - Pr_c[ix, iy] * tanϕt - λ[ix, iy] * η_reg) : Fchk[ix, iy]
+        Fchk[ix, iy] = (Γ[ix, iy] == 2) ? (τII[ix, iy] - C[ix, iy] * cosϕs - Pr_c[ix, iy] * sinϕs - λ[ix, iy] * η_reg) : Fchk[ix, iy]
         Fchk[ix, iy] = (Γ[ix, iy] == 3) ? (τII[ix, iy] - τs1 - λ[ix, iy] * η_reg) : Fchk[ix, iy]
         # nonlin visc
         εII[ix, iy] = sqrt(0.5 * (ε.xx[ix, iy]^2 + ε.yy[ix, iy]^2) + ε.xyc[ix, iy]^2)

@@ -16,51 +16,66 @@ include("volume_fractions.jl")
 @views inn(A) = A[2:end-1,2:end-1]
 nonan!(A) = .!isnan.(A) .* A
 
+@views function draw_yield(P, P_y, C0, cosϕs, sinϕs, tanϕt, tanϕt2)
+    (_, iP) = findmin(abs.(P .- P_y))
+    Pshear, Ptens = P[iP:end], P[1:iP]
+    τs1  = C0 * cosϕs .+ P_y .* sinϕs
+    Ct   = ((τs1 * tanϕt2) - P_y) / tanϕt2
+    τIIs = C0 * cosϕs .+ Pshear .* sinϕs
+    τIIt = Ct         .+ Ptens  .* tanϕt
+    return Pshear, Ptens, τIIs, τIIt
+end
+
 @views function runsim(::Type{DAT}; nx=127) where {DAT}
     # physics
     ly       = 1.0 # m
     A0       = 1.0 # Pa s ^ m
-    ρg0      = 0.0 # m / s ^ 2
-    ε̇bg      = 1.0 # shear
+    ρg0      = 1.0 # m / s ^ 2
+    # ε̇bg      = 1.0 # shear
     # nondim
-    ξ        = 1 / 4 # eta / G / dt
+    ξ        = 1 / 1 # eta / G / dt
     De       = 1.0   # Deborah num
     npow     = 3.0
     mpow     = -(1 - 1 / npow) / 2
     # scales
     l_sc     = ly
-    # τ_sc     = ρg0 * l_sc                # buoyancy
-    # t_sc     = (A0 / τ_sc) ^ (1 / mpow)  # buoyancy
-    τ_sc     = A0 * ε̇bg ^ mpow  # shear
-    t_sc     = 1 / ε̇bg          # shear
+    τ_sc     = ρg0 * l_sc                # buoyancy
+    t_sc     = (A0 / τ_sc) ^ (1 / mpow)  # buoyancy
+    # τ_sc     = A0 * ε̇bg ^ mpow  # shear
+    # t_sc     = 1 / ε̇bg          # shear
     η_sc     = τ_sc * t_sc
     # dependent
-    lx       = 1.0 * ly
-    ox, oy   = -0.5lx, -0.5ly
-    xb1, yb1 = ox + 0.5lx, oy + 0.5ly
-    rinc     = 0.1lx
+    lx       = 4.0 * ly
+    ox, oy   = -0.5lx, 0.0ly
+    xb1, yb1 = ox + 0.5lx, oy - 0.8ly
+    xb2, yb2 = ox + 0.5lx, oy + 4.6ly
+    rinc     = 1.25ly
+    rair     = 3.77ly
     G        = τ_sc / De
     K        = 4.0 * G
     dt0      = ξ * η_sc / G
     α        = 0.0
     ϕs       = 30
     ψs       = 5
-    ϕt       = 85
-    ψt       = 85
-    P_y      = 0.0 * τ_sc # yield pressure
-    P_s      = 2.0 * τ_sc # shift in pressure
-    C0       = 1.7 * τ_sc
-    # ε̇bg      = 1.0e-10 / t_sc # buoyancy
+    ϕt       = 80
+    ψt       = 80
+    P_y      = -0.6 * τ_sc
+    P_yt     = 0.0 * τ_sc # yield pressure
+    P_s      = 0.0 * τ_sc # shift in pressure
+    C0       = 1.2 * τ_sc
+    C0t      = 0.35 * τ_sc
+    ε̇bg      = 1.0e-16 / t_sc # buoyancy
     # numerics
     nt       = 50
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
     maxiter  = 400nx
     ncheck   = 10nx
-    ϵtol     = (5e-6, 5e-6, 1e-6) .* 2
+    ϵtol     = (5e-6, 5e-6, 1e-6) .* 2e1
     χ        = 0.4       # viscosity relaxation
     ηmax     = 1e1       # viscosity cut-off
-    χλ       = 0.4       # λ relaxation
-    η_reg    = 1e-2      # Plastic regularisation
+    χλ       = 0.1       # λ relaxation
+    η_reg    = 4e-2      # Plastic regularisation
+    itp      = 2
     # preprocessing
     sinϕs    = sind(ϕs)
     sinψs    = sind(ψs)
@@ -72,7 +87,7 @@ nonan!(A) = .!isnan.(A) .* A
     xv, yv   = LinRange(ox, ox + lx, nx + 1), LinRange(oy, oy + ly, ny + 1)
     xc, yc   = av1(xv), av1(yv)
     mc1      = to_device(make_marker_chain_circle(Point(xb1, yb1), rinc, min(dx, dy)))
-    # mc2      = to_device(make_marker_chain_circle(Point(xb2, yb2), rair, min(dx, dy)))
+    mc2      = to_device(make_marker_chain_circle(Point(xb2, yb2), rair, min(dx, dy)))
     ρg       = (x=ρg0 .* sin(α), y=ρg0 .* cos(α))
     # PT parameters
     r        = 0.7
@@ -143,25 +158,24 @@ nonan!(A) = .!isnan.(A) .* A
     fill!(Γ    , 0.0)
 
     init!(V, ε̇bg, xv, yv)
-    # V.y .= 0.0
 
     # compute level sets
     for comp in eachindex(Ψ) fill!(Ψ[comp], 1.0) end
     Ψ.not_air .= Inf # needs init now
     @info "computing the level set for the inclusion"
     compute_levelset!(Ψ.not_air, xv, yv, mc1)
-    # compute_levelset!(Ψ.not_air, xv, yv, mc2)
+    compute_levelset!(Ψ.not_air, xv, yv, mc2)
     TinyKernels.device_synchronize(get_device())
-    # Ψ.not_air .= min.( .-(0.0 .* xv .+ yv' .+ oy .+ 0.05), Ψ.not_air)
+    Ψ.not_air .= min.( .-(0.0 .* xv .+ yv' .+ oy .-ly .+ 0.05), Ψ.not_air)
     @. Ψ.not_air = -Ψ.not_air
 
     @info "computing the level set for the bedrock"
-    @. Ψ.not_solid = -(0.0 * xv + yv' - 0.05)
+    @. Ψ.not_solid = -(0.0 * xv + yv' - 0.04)
 
     @info "computing volume fractions from level sets"
     compute_volume_fractions_from_level_set!(wt.not_air, Ψ.not_air, dx, dy)
-    # compute_volume_fractions_from_level_set!(wt.not_solid, Ψ.not_solid, dx, dy)
-    for comp in eachindex(wt.not_solid) fill!(wt.not_solid[comp], 1.0) end
+    compute_volume_fractions_from_level_set!(wt.not_solid, Ψ.not_solid, dx, dy)
+    # for comp in eachindex(wt.not_solid) fill!(wt.not_solid[comp], 1.0) end
 
     update_vis!(Vmag, Ψav, V, Ψ)
     # convergence history
@@ -169,14 +183,8 @@ nonan!(A) = .!isnan.(A) .* A
     errs_evo = ElasticArray{Float64}(undef, length(ϵtol), 0)
 
     # Plot yield functions
-    P = collect(LinRange(-0.5, 4, 500))
-    (_, iP) = findmin(abs.(P .- P_y))
-    Pshear = P[iP:end]
-    Ptens  = P[1:iP]
-    τs1    = C0 * cosϕs .+ P_y .* sinϕs
-    Ct     = ((τs1 * tanϕt2) - P_y) / tanϕt2
-    τIIs   = C0 * cosϕs .+ Pshear .* sinϕs
-    τIIt   = Ct         .+ Ptens  .* tanϕt
+    P = collect(LinRange(-1.5, 4.5, 500))
+    Pshear, Ptens, τIIs, τIIt = draw_yield(P, P_y, C0, cosϕs, sinϕs, tanϕt, tanϕt2)
 
     # figures
     fig = Figure(resolution=(2500, 1800), fontsize=32)
@@ -203,9 +211,10 @@ nonan!(A) = .!isnan.(A) .* A
             λ   =heatmap!(ax.λ   , xc, yc, to_host(λ   ); colormap=:turbo),
             # Fs  =heatmap!(ax.Fs  , xc, yc, to_host(Fs  ); colormap=:turbo),
             Fs  =scatter!(ax.Fs  , Point2f.(to_host(Pr_c)[:], to_host(τII)[:]), color=Fchk[:], colormap=:turbo),#markerspace=:data, markersize=r0
-            Fs2 =lines!(ax.Fs, Pshear, τIIs, label="shear", linewidth=4),
-            Fs3 =lines!(ax.Fs, Ptens,  τIIt; label="tension", linewidth=4),
-            Fs4 =ylims!(ax.Fs, -2.5, 3.5),
+            Fs2 =lines!(ax.Fs, Point2f.(Pshear, τIIs); label="shear", linewidth=4),
+            Fs3 =lines!(ax.Fs, Point2f.(Ptens,  τIIt); label="tension", linewidth=4),
+            Fs4 =xlims!(ax.Fs, -1.0, 4.5),
+            Fs5 =ylims!(ax.Fs, -0.5, 2.5),
         ),
         errs=[scatterlines!(ax.errs, Point2.(iter_evo, errs_evo[ir, :])) for ir in eachindex(ϵtol)],
     )
@@ -224,13 +233,21 @@ nonan!(A) = .!isnan.(A) .* A
     maskA[maskA.<1.0] .= NaN
     maskS[maskS.<1.0] .= NaN
     mask = maskA .* maskS
-    do_p = true
+
     # error("stop")
+    do_p = false
     @info "running simulation 🚀"
     for it in 1:nt
         (it >= 6 && it <= 10) ? dt = dt0 / 1 : dt = dt0 # if npow=3
         @printf "it # %d, dt = %1.3e \n" it dt
         update_old!(τ_o, τ, Pr_o, Pr_c, Pr, λ)
+        if it > itp
+            do_p = true
+            χp1, χp2 = 0.2, 0.05
+            C0  = (1 - χp1) * C0  + χp1 * C0t
+            P_y = (1 - χp2) * P_y + χp2 * P_yt
+            fill!(C, C0)
+        end
         # iteration loop
         empty!(iter_evo); resize!(errs_evo, length(ϵtol), 0)
         iter = 0; errs = 2.0 .* ϵtol
@@ -257,24 +274,27 @@ nonan!(A) = .!isnan.(A) .* A
                 end
                 autolimits!(ax.errs)
                 update_vis!(Vmag, Ψav, V, Ψ)
+                Pshear, Ptens, τIIs, τIIt = draw_yield(P, P_y, C0, cosϕs, sinϕs, tanϕt, tanϕt2)
                 plt.fields[1][3] = to_host(Pr_c) .* mask
                 plt.fields[2][3] = to_host(τII) .* mask
                 plt.fields[3][3] = to_host(wt.not_air.c)
                 plt.fields[4][3] = to_host(Vmag) .* inn(mask)
-                plt.fields[5][3] = to_host(C) .* mask
+                plt.fields[5][3] = to_host(εII) .* mask
                 plt.fields[6][3] = to_host(log10.(ηs)) .* mask
                 plt.fields[7][3] = to_host(Γ) .* mask
                 # plt.fields[8][3] = to_host(Fchk) .* mask
-                plt.fields[8][1] = Point2f.(to_host(Pr_c)[:], to_host(τII)[:]); plt.fields[8].color[] = Γ[:] #Γ[:] #
+                plt.fields[8][1] = Point2f.(to_host(Pr_c)[:], to_host(τII)[:]); plt.fields[8].color[] = Γ[:]
+                plt.fields[9][1] = Point2f.(Pshear, τIIs)
+                plt.fields[10][1] = Point2f.(Ptens, τIIt)
                 # plt.fields[8][3] = to_host(Γ) .* mask
                 display(fig)
             end
         end
-        dC = 0.5 * C0
-        C[Γ.==1.0 .|| Γ.==3.0] .-= dC
-        C[C.<C0/50] .= C0 / 50
+        # dC = 0.5 * C0
+        # C[Γ.==1.0 .|| Γ.==3.0] .-= dC
+        # C[C.<C0/50] .= C0 / 50
     end
     return
 end
 
-runsim(Float64, nx=127)
+runsim(Float64, nx=170)
