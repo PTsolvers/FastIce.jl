@@ -21,44 +21,46 @@ nonan!(A) = .!isnan.(A) .* A
     # physics
     ly       = 1.0 # m
     A0       = 1.0 # Pa s ^ m
-    ρg0      = 0.0 # m / s ^ 2
-    ε̇bg      = 1.0 # shear
+    ρg0      = 1.0 # m / s ^ 2
+    # ε̇bg      = 1.0 # shear
     # nondim
-    ξ        = 1 / 4 # eta / G / dt
+    ξ        = 1 / 2 # eta / G / dt
     De       = 1.0   # Deborah num
     npow     = 3.0
     mpow     = -(1 - 1 / npow) / 2
     # scales
     l_sc     = ly
-    # τ_sc     = ρg0 * l_sc                # buoyancy
-    # t_sc     = (A0 / τ_sc) ^ (1 / mpow)  # buoyancy
-    τ_sc     = A0 * ε̇bg ^ mpow  # shear
-    t_sc     = 1 / ε̇bg          # shear
+    τ_sc     = ρg0 * l_sc                # buoyancy
+    t_sc     = (A0 / τ_sc) ^ (1 / mpow)  # buoyancy
+    # τ_sc     = A0 * ε̇bg ^ mpow  # shear
+    # t_sc     = 1 / ε̇bg          # shear
     η_sc     = τ_sc * t_sc
     # dependent
-    lx       = 1.0 * ly
-    ox, oy   = -0.5lx, -0.5ly
-    xb1, yb1 = ox + 0.5lx, oy + 0.5ly
-    rinc     = 0.1lx
+    lx       = 4.0 * ly
+    ox, oy   = -0.5lx, 0.0ly
+    xb1, yb1 = ox + 0.5lx, oy - 0.8ly
+    xb2, yb2 = ox + 0.5lx, oy + 4.6ly
+    rinc     = 1.25ly
+    rair     = 3.77ly
     G        = τ_sc / De
     K        = 4.0 * G
     dt0      = ξ * η_sc / G
     α        = 0.0
     ϕs       = 30
-    C0       = 1.8 * τ_sc
+    C0       = 1.2 * τ_sc
     Pd       = C0
-    σd       = C0 / 2
-    σt       = C0 / 1.1
-    # ε̇bg      = 1.0e-10 / t_sc # buoyancy
+    σd       = C0 / 2.0
+    σt       = C0 / 7.0
+    ε̇bg      = 1.0e-16 / t_sc # buoyancy
     # numerics
     nt       = 50
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
     maxiter  = 400nx
     ncheck   = 10nx
-    ϵtol     = (5e-6, 5e-6, 1e-6) .* 2
+    ϵtol     = (5e-6, 5e-6, 1e-6) .* 1e2
     χ        = 0.2       # viscosity relaxation
     ηmax     = 1e1       # viscosity cut-off
-    η_reg    = 2e-2      # Plastic regularisation
+    η_reg    = 3e-2      # Plastic regularisation
     # preprocessing
     sinϕ     = sind(ϕs)
     cosϕ     = cosd(ϕs)
@@ -66,7 +68,7 @@ nonan!(A) = .!isnan.(A) .* A
     xv, yv   = LinRange(ox, ox + lx, nx + 1), LinRange(oy, oy + ly, ny + 1)
     xc, yc   = av1(xv), av1(yv)
     mc1      = to_device(make_marker_chain_circle(Point(xb1, yb1), rinc, min(dx, dy)))
-    # mc2      = to_device(make_marker_chain_circle(Point(xb2, yb2), rair, min(dx, dy)))
+    mc2      = to_device(make_marker_chain_circle(Point(xb2, yb2), rair, min(dx, dy)))
     ρg       = (x=ρg0 .* sin(α), y=ρg0 .* cos(α))
     # PT parameters
     r        = 0.7
@@ -139,18 +141,18 @@ nonan!(A) = .!isnan.(A) .* A
     Ψ.not_air .= Inf # needs init now
     @info "computing the level set for the inclusion"
     compute_levelset!(Ψ.not_air, xv, yv, mc1)
-    # compute_levelset!(Ψ.not_air, xv, yv, mc2)
+    compute_levelset!(Ψ.not_air, xv, yv, mc2)
     TinyKernels.device_synchronize(get_device())
-    # Ψ.not_air .= min.( .-(0.0 .* xv .+ yv' .+ oy .+ 0.05), Ψ.not_air)
+    Ψ.not_air .= min.( .-(0.0 .* xv .+ yv' .+ oy .-ly .+ 0.05), Ψ.not_air)
     @. Ψ.not_air = -Ψ.not_air
 
     @info "computing the level set for the bedrock"
-    @. Ψ.not_solid = -(0.0 * xv + yv' - 0.05)
+    @. Ψ.not_solid = -(0.0 * xv + yv' - 0.04)
 
     @info "computing volume fractions from level sets"
     compute_volume_fractions_from_level_set!(wt.not_air, Ψ.not_air, dx, dy)
-    # compute_volume_fractions_from_level_set!(wt.not_solid, Ψ.not_solid, dx, dy)
-    for comp in eachindex(wt.not_solid) fill!(wt.not_solid[comp], 1.0) end
+    compute_volume_fractions_from_level_set!(wt.not_solid, Ψ.not_solid, dx, dy)
+    # for comp in eachindex(wt.not_solid) fill!(wt.not_solid[comp], 1.0) end
 
     update_vis!(Vmag, Ψav, V, Ψ)
     # convergence history
@@ -174,7 +176,7 @@ nonan!(A) = .!isnan.(A) .* A
         ηs  =Axis(fig[2, 3][1, 1]; aspect=DataAspect(), title="log10(ηs)"),
         λ   =Axis(fig[3, 1][1, 1]; aspect=DataAspect(), title="λ"),
         F   =Axis(fig[3, 2][1, 1]; title="F", xlabel="P", ylabel="τII"),
-        errs=Axis(fig[3, 3]      ; yscale=log10, title="Convergence", xlabel="# iter / nx", ylabel="error"),
+        errs=Axis(fig[3, 3]      ; yscale=log10, title="Convergence", xlabel="#iter/ny", ylabel="error"),
     )
     plt = (
         fields=(
@@ -185,9 +187,10 @@ nonan!(A) = .!isnan.(A) .* A
             εII =heatmap!(ax.εII , xc, yc, to_host(εII ); colormap=:turbo),
             ηs  =heatmap!(ax.ηs  , xc, yc, to_host(log10.(ηs)); colormap=:turbo),
             λ   =heatmap!(ax.λ   , xc, yc, to_host(λ   ); colormap=:turbo),
-            F   =scatter!(ax.F   , Point2f.(to_host(Pr_c)[:], to_host(τII_c)[:]), color=to_host(dλdτ[:]), colormap=:turbo),#markerspace=:data, markersize=r0
+            F   =scatter!(ax.F   , Point2f.(to_host(Pr_c)[:], to_host(τII_c)[:]), color=to_host(abs.(dλdτ[:])), colormap=:turbo),#markerspace=:data, markersize=r0
             F2  =contour!(ax.F   , Pp, τIIp, Fp, levels=-0.0:0.1:0.0, linewidth=4, label="yield"),
-            F3  =  ylims!(ax.F   , -0.5, 6.0),
+            F3  =  xlims!(ax.F   , -0.5, 3.0),
+            F4  =  ylims!(ax.F   , -0.2, 2.0),
         ),
         errs=[scatterlines!(ax.errs, Point2.(iter_evo, errs_evo[ir, :])) for ir in eachindex(ϵtol)],
     )
@@ -206,13 +209,17 @@ nonan!(A) = .!isnan.(A) .* A
     maskA[maskA.<1.0] .= NaN
     maskS[maskS.<1.0] .= NaN
     mask = maskA .* maskS
-
     # error("stop")
     @info "running simulation 🚀"
     for it in 1:nt
-        dt = dt0 # (it >= 6 && it <= 10) ? dt = dt0 / 1 : dt = dt0 # if npow=3
+        dt = dt0
         @printf "it # %d, dt = %1.3e \n" it dt
         update_old!(τ_o, τ, Pr_o, Pr_c, Pr, λ)
+        if it > 2
+            C0 = min(C0 * 0.95, 0.6); fill!(C, C0)
+            σt = min(σt * 0.99, 0.1)
+        end
+        @printf "  C0 = %1.3e, σt  %1.3e \n" C0 σt
         # iteration loop
         empty!(iter_evo); resize!(errs_evo, length(ϵtol), 0)
         iter = 0; errs = 2.0 .* ϵtol
@@ -235,6 +242,7 @@ nonan!(A) = .!isnan.(A) .* A
                 end
                 autolimits!(ax.errs)
                 update_vis!(Vmag, Ψav, V, Ψ)
+                @. Fp = sqrt(τ2^2 + (C0 * cosϕ - σt * sinϕ)^2) - (C0 * cosϕ + P2 * sinϕ)
                 plt.fields[1][3] = to_host(Pr_c) .* mask
                 plt.fields[2][3] = to_host(τII) .* mask
                 plt.fields[3][3] = to_host(wt.not_air.c)
@@ -242,7 +250,8 @@ nonan!(A) = .!isnan.(A) .* A
                 plt.fields[5][3] = to_host(εII) .* mask
                 plt.fields[6][3] = to_host(log10.(ηs)) .* mask
                 plt.fields[7][3] = to_host(λ) .* mask
-                plt.fields[8][1] = Point2f.(to_host(Pr_c)[:], to_host(τII_c)[:]); plt.fields[8].color[]=to_host(dλdτ[:])
+                plt.fields[8][1] = Point2f.(to_host(Pr_c)[:], to_host(τII_c)[:]); plt.fields[8].color[]=to_host(abs.(dλdτ[:]))
+                plt.fields[9][3] = Fp
                 display(fig)
             end
         end
