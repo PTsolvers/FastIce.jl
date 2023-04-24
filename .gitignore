@@ -40,3 +40,4 @@ gitignore/
 data/
 *.h5
 *.xdmf3
+*.png
