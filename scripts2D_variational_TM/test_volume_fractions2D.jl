@@ -5,10 +5,13 @@ using LightXML
 using UnicodePlots
 using LinearAlgebra
 using GeometryBasics
-using GLMakie
+using CairoMakie
 using ElasticArrays
 using Printf
 using JLD2
+
+using CUDA
+CUDA.device!(1)
 
 include("geometry.jl")
 include("signed_distances.jl")
@@ -64,7 +67,7 @@ end
     Pr      = 2e-9           # Prandtl number - ratio of thermal diffusivity to momentum diffusivity
     A_L     = 5e-2           # ratio of bump amplitude to length scale
     lx_lz   = 3e0            # ratio of horizontal to vertical domain extents
-    nbump   = 10             # number of bumps
+    nbump   = 15             # number of bumps
     Q_RT    = 2*26.0         # ratio of activation temperature to melting temperature
     # dimensionally independent parameters
     lz      = 1.0            # domain size in z-direction    [m         ]
@@ -113,9 +116,12 @@ end
     ϵtol    = (1e-4,1e-4,1e-4)
     maxiter = 50max(nx,nz)
     ncheck  = ceil(Int,0.5max(nx,nz))
-    nviz    = 1
+    nviz    = 5
     nsave   = 5
     nt      = 500
+    # nviz    = 1
+    # nsave   = 1
+    # nt      = 1
     χ       = 5e-3
     ## preprocessing ===================================================================================================
     # grid spacing
@@ -293,10 +299,10 @@ end
                 push!(iter_evo, iter/nz); append!(errs_evo, errs)
 
                 # debug viz
-                for ir in eachindex(plt.errs)
-                    plt.errs[ir][1] = Point2.(iter_evo, errs_evo[ir, :])
-                end
-                autolimits!(axs.errs)
+                # for ir in eachindex(plt.errs)
+                #     plt.errs[ir][1] = Point2.(iter_evo, errs_evo[ir, :])
+                # end
+                # autolimits!(axs.errs)
                 # update_vis_fields!(Vmag,ε̇II,Ψav,V,ε̇,Ψ)
                 # TinyKernels.device_synchronize(FastIce.get_device())
                 # plt.hmaps.Pr[3][]   = to_host(Pr)
@@ -305,7 +311,7 @@ end
                 # plt.hmaps.T[3][]    = to_host(T)
                 # plt.hmaps.ω[3][]    = to_host(ω)
                 # plt.hmaps.ηs[3][]   = to_host(log10.(ηs))
-                yield()
+                # yield()
 
                 # check convergence
                 if any(.!isfinite.(errs)) error("simulation failed") end
@@ -337,13 +343,15 @@ end
             plt.hmaps.T[3][]    = to_host(T)
             plt.hmaps.ω[3][]    = to_host(ω)
             plt.hmaps.ηs[3][]   = to_host(log10.(ηs))
+            display(fig)
             yield()
         end
         # save timestep
         if it % nsave == 0
+            @info "saving timestep"
             update_vis_fields!(Vmag,ε̇II,Ψav,V,ε̇,Ψ)
             TinyKernels.device_synchronize(FastIce.get_device())
-            jldsave(joinpath(outdir,@sprintf("%04d.h5",isave));Pr,τ,ε̇,ε̇II,V,T,ω,ηs)
+            jldsave(joinpath(outdir,@sprintf("%04d.jld2",isave));Pr,τ,ε̇,ε̇II,V,T,ω,ηs)
             isave += 1
         end
     end

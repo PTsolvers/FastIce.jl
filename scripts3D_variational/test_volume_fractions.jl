@@ -74,12 +74,12 @@ include("hide_communication.jl")
     # run simulation
     dem_data = (; x, y, bed, surface)
     @info "running the simulation"
-    run_simulation(dem_data, grid_dims, me, dims, coords)
+    run_simulation(dem_data, grid_dims, me, dims, coords, comm_cart)
 
     return
 end
 
-@views function run_simulation(dem_data, grid_dims, me, dims, coords)
+@views function run_simulation(dem_data, grid_dims, me, dims, coords, comm_cart)
     # physics
     # global domain origin and size
     ox_g, oy_g, oz_g = dem_data.x[1], dem_data.y[1], 0.0
@@ -186,7 +186,7 @@ end
                                 (coords[3]*nz+1):(coords[3]+1)*nz))
     fields = Dict("LS_ice" => Ψav.not_air, "LS_bed" => Ψav.not_solid, "Vmag" => Vmag, "TII" => τII, "Pr" => inn(Pr))
     @info "saving HDF5 file"
-    write_h5(out_h5, fields, dim_g, ndrange)
+    write_h5(out_h5, fields, dim_g, ndrange, comm_cart, MPI.Info())
 
     @info "saving XDMF file..."
     (me == 0) && write_xdmf("results.xdmf3", out_h5, fields, (xc_l[2], yc_l[2], zc_l[2]), (dx, dy, dz), dim_g)
@@ -233,16 +233,19 @@ function update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ)
     return
 end
 
-grid_dims = (1000, 1000, 50)
+grid_dims = (1000, 1000, 100)
+grid_dims_igg = grid_dims .+ 2
 
 # init MPI and IGG
 MPI.Init()
-me, dims, nprocs, coords, comm_cart = init_global_grid(grid_dims...; init_MPI=false)
+me, dims, nprocs, coords, comm_cart = init_global_grid(grid_dims_igg...; init_MPI=false)
 dims   = Tuple(dims)
 coords = Tuple(coords)
 grid   = (me,dims,nprocs,coords,comm_cart)
 
 main(grid_dims,grid)
 
+MPI.Barrier(comm_cart)
 # finalize_global_grid(; finalize_MPI=false)
-# MPI.Finalize()
+# MPI.Barrier(comm_cart)
+MPI.Finalize()
