@@ -48,9 +48,9 @@ end
                  (na.y[ix,iy,iz] ≈ 0.0) || (na.y[ix,iy+1,iz] ≈ 0.0) ||
                  (na.z[ix,iy,iz] ≈ 0.0) || (na.z[ix,iy,iz+1] ≈ 0.0)
         if !isnull && (na.c[ix,iy,iz] > 0.0 && ns.c[ix,iy,iz] > 0.0)
-            ∇qx = (qT.x[ix+1,iy,iz]*ns.x[ix+1,iy,iz] - qT.x[ix, iy,iz]*ns.x[ix,iy,iz])/dx
-            ∇qy = (qT.y[ix,iy+1,iz]*ns.y[ix,iy+1,iz] - qT.y[ix, iy,iz]*ns.y[ix,iy,iz])/dy
-            ∇qz = (qT.z[ix,iy,iz+1]*ns.z[ix,iy,iz+1] - qT.z[ix, iy,iz]*ns.z[ix,iy,iz])/dz
+            ∇qx = (qT.x[ix+1,iy,iz]*ns.x[ix+1,iy,iz] - qT.x[ix,iy,iz]*ns.x[ix,iy,iz])/dx
+            ∇qy = (qT.y[ix,iy+1,iz]*ns.y[ix,iy+1,iz] - qT.y[ix,iy,iz]*ns.y[ix,iy,iz])/dy
+            ∇qz = (qT.z[ix,iy,iz+1]*ns.z[ix,iy,iz+1] - qT.z[ix,iy,iz]*ns.z[ix,iy,iz])/dz
             ∇qT = ∇qx + ∇qy + ∇qz
             # average shear heating contribution on cell vertices
             τxyc,ε̇xyc = 0.0,0.0
@@ -67,7 +67,7 @@ end
                 τxzc += τ.xz[ix2,iy2,iz2]
                 ε̇xzc += ε̇.xz[ix2,iy2,iz2]
             end
-            τyzc *= 0.25; ε̇yzc *= 0.25
+            τxzc *= 0.25; ε̇xzc *= 0.25
             # average shear heating contribution on cell vertices
             τyzc,ε̇yzc = 0.0,0.0
             for idz = -1:0, idy = -1:0, idx = -1:-1

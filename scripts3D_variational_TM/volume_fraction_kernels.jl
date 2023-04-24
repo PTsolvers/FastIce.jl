@@ -44,14 +44,14 @@
     end
     # xz edges
     @inbounds if isin(wt.xz)
-        Ψs = Vec{8}(Ψ_axz(0,0,0),Ψ_axz(1,1,0),Ψ_axz(0,1,0),Ψ_axz(1,1,0),
-                    Ψ_axz(0,0,1),Ψ_axz(1,1,1),Ψ_axz(0,1,1),Ψ_axz(1,1,1))
+        Ψs = Vec{8}(Ψ_axz(0,0,0),Ψ_axz(1,0,0),Ψ_axz(0,1,0),Ψ_axz(1,1,0),
+                    Ψ_axz(0,0,1),Ψ_axz(1,0,1),Ψ_axz(0,1,1),Ψ_axz(1,1,1))
         wt.xz[ix,iy,iz] = volfrac(cell,Ψs)/ω
     end
     # yz edges
     @inbounds if isin(wt.yz)
-        Ψs = Ψs = Vec{8}(Ψ_ayz(0,0,0),Ψ_ayz(1,1,0),Ψ_ayz(0,1,0),Ψ_ayz(1,1,0),
-                         Ψ_ayz(0,0,1),Ψ_ayz(1,1,1),Ψ_ayz(0,1,1),Ψ_ayz(1,1,1))
+        Ψs = Ψs = Vec{8}(Ψ_ayz(0,0,0),Ψ_ayz(1,0,0),Ψ_ayz(0,1,0),Ψ_ayz(1,1,0),
+                         Ψ_ayz(0,0,1),Ψ_ayz(1,0,1),Ψ_ayz(0,1,1),Ψ_ayz(1,1,1))
         wt.yz[ix,iy,iz] = volfrac(cell,Ψs)/ω
     end
     return

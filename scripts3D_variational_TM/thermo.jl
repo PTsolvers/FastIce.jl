@@ -9,7 +9,7 @@ function update_qT!(qT,T,wt,λ,T_atm,dx,dy,dz)
         c = vf.c,
         x = inn_x(vf.x),
         y = inn_y(vf.y),
-        z = inn_y(vf.z),
+        z = inn_z(vf.z),
     )
     wt_inn = (
         not_air   = vf_inn(wt.not_air  ),

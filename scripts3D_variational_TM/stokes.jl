@@ -17,11 +17,13 @@ end
 
 function update_V!(V, Pr, τ, ηs, wt, nudτ, ρg, dx, dy, dz; bwidth)
     V_inn = (x = inn(V.x), y = inn(V.y), z = inn(V.z))
-    ranges = split_ndrange(axes(Pr),bwidth)
-    ie,oe  =  hide_comm(ranges) do ndrange
-        _update_V!(V_inn, Pr, τ, ηs, wt, nudτ, ρg, dx, dy, dz; ndrange)
-    end
-    wait.(oe)
+    # ranges = split_ndrange(axes(Pr),bwidth)
+    # ie,oe  =  hide_comm(ranges) do ndrange
+        ndrange = axes(Pr)
+        wait(_update_V!(V_inn, Pr, τ, ηs, wt, nudτ, ρg, dx, dy, dz; ndrange))
+    # end
+    # wait.(oe)
+    TinyKernels.device_synchronize(FastIce.get_device())
     bc_x_neumann!(0.0,V.y,V.z)
     bc_y_neumann!(0.0,V.x,V.z)
     bc_z_neumann!(0.0,V.x,V.y)
@@ -30,9 +32,9 @@ function update_V!(V, Pr, τ, ηs, wt, nudτ, ρg, dx, dy, dz; bwidth)
     # @. V.x[1  ,:  ,:] = V.x[2    ,:,:]*wt.not_solid.x[2    ,:,:]
     # @. V.y[:  ,end,:] = V.y[:,end-1,:]*wt.not_solid.y[:,end-1,:]
     # @. V.y[:  ,1  ,:] = V.y[:,2    ,:]*wt.not_solid.y[:,2    ,:]
-    # TinyKernels.device_synchronize(FastIce.get_device())
-    update_halo!(V.x,V.y,V.z)
-    wait(ie)
+    TinyKernels.device_synchronize(FastIce.get_device())
+    # update_halo!(V.x,V.y,V.z)
+    # wait(ie)
     return
 end
 

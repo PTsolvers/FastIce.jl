@@ -28,6 +28,82 @@ include("hide_communication.jl")
 @views inn_z(A) = A[:, :, 2:end-1]
 @views inn(A) = A[2:end-1, 2:end-1, 2:end-1]
 
+# @views function main(grid_dims,grid)
+#     # unpack values
+#     me, dims, nprocs, coords, comm_cart = grid
+
+#     # init logger
+#     global_logger(FastIce.Logging.MPILogger(0, comm_cart, global_logger()))
+
+#     # path to DEM data
+#     greenland_path = "data/BedMachine/greenland.jld2"
+
+#     # region to simulate
+#     global_region = (xlims=(1100.0e3, 1200.0e3), ylims=(1000.0e3, 1100.0e3))
+
+#     # load DEM
+#     @info "loading DEM data from the file '$greenland_path'"
+#     (; x, y, bed, surface) = load_dem(greenland_path, global_region)
+#     @info "DEM resolution: $(size(bed,1)) × $(size(bed,2))"
+
+#     @info "plot DEMs"
+#     if me == 0
+#         fig = Figure(resolution=(2000,700),fontsize=32)
+#         ax  = (
+#             bed = Axis(fig[1,1][1,1];aspect=DataAspect(),title="bedrock",xlabel="x",ylabel="y"),
+#             ice = Axis(fig[1,2][1,1];aspect=DataAspect(),title="ice"    ,xlabel="x",ylabel="y"),
+#         )
+#         plt = (
+#             bed = heatmap!(ax.bed,x,y,bed    ;colormap=:terrain),
+#             ice = heatmap!(ax.ice,x,y,surface;colormap=:terrain),
+#         )
+#         Colorbar(fig[1,1][1,2],plt.bed)
+#         Colorbar(fig[1,2][1,2],plt.ice)
+#         save("region.png",fig)
+#     end
+
+#     # compute origin and size of the domain (required for scaling and computing the grid size)
+#     ox, oy, oz = x[1], y[1], minimum(bed)
+#     lx = x[end] - ox
+#     ly = y[end] - oy
+#     lz = maximum(surface) - oz
+
+#     # shift and scale the domain before computation (center of the domain is (0,0) in x-y plane)
+#     δx, δy = ox + 0.5lx, oy + 0.5ly # required to avoid conversion to Vector  
+#     x = @. (x - δx) / lz
+#     y = @. (y - δy) / lz
+#     @. bed = (bed - oz) / lz
+#     @. surface = (surface - oz) / lz
+
+#     @. surface -= 0.05
+
+#     # run simulation
+#     dem_data = (; x, y, bed, surface)
+#     @info "running the simulation"
+#     run_simulation(dem_data, grid_dims, me, dims, coords)
+
+#     return
+# end
+
+function make_dem(ox,oy,lx,ly,Δz,rgl,ogx,ogy,ogz,nx,ny)
+    x       = LinRange(ox,ox+lx,nx+1)
+    y       = LinRange(ox,oy+ly,ny+1)
+    bed     = zeros(nx+1,ny+1)
+    for iy in axes(bed,2), ix in axes(bed,1)
+        ωx = 2π*10*(x[ix] - ox)/lx
+        ωy = 2π*10*(y[iy] - oy)/ly
+        bed[ix,iy] = 0.025*rgl*sin(ωx)*cos(ωy)
+    end
+    bed .= bed .- minimum(bed) .+ Δz
+    surface = zeros(nx+1,ny+1)
+    for iy in axes(surface,2), ix in axes(surface,1)
+        δx  = x[ix] - ogx
+        δy  = y[iy] - ogy
+        surface[ix,iy] = sqrt(max(rgl^2 - δx^2 - δy^2, 0.0)) + ogz
+    end
+    return (;x,y,bed,surface)
+end
+
 @views function main(grid_dims,grid)
     # unpack values
     me, dims, nprocs, coords, comm_cart = grid
@@ -35,51 +111,14 @@ include("hide_communication.jl")
     # init logger
     global_logger(FastIce.Logging.MPILogger(0, comm_cart, global_logger()))
 
-    # path to DEM data
-    greenland_path = "data/BedMachine/greenland.jld2"
+    lx,ly,lz = 5.0,5.0,1.0
+    ox,oy,oz = -lx/2,-ly/2,0.0
+    Δz = 0.1lz
 
-    # region to simulate
-    global_region = (xlims=(1100.0e3, 1200.0e3), ylims=(1000.0e3, 1100.0e3))
+    rgl = 4lz
+    ogx,ogy,ogz = 0.0lx,0.0ly,-3.2lz
 
-    # load DEM
-    @info "loading DEM data from the file '$greenland_path'"
-    (; x, y, bed, surface) = load_dem(greenland_path, global_region)
-    @info "DEM resolution: $(size(bed,1)) × $(size(bed,2))"
-
-    @info "plot DEMs"
-    if me == 0
-        fig = Figure(resolution=(2000,700),fontsize=32)
-        ax  = (
-            bed = Axis(fig[1,1][1,1];aspect=DataAspect(),title="bedrock",xlabel="x",ylabel="y"),
-            ice = Axis(fig[1,2][1,1];aspect=DataAspect(),title="ice"    ,xlabel="x",ylabel="y"),
-        )
-        plt = (
-            bed = heatmap!(ax.bed,x,y,bed    ;colormap=:terrain),
-            ice = heatmap!(ax.ice,x,y,surface;colormap=:terrain),
-        )
-        Colorbar(fig[1,1][1,2],plt.bed)
-        Colorbar(fig[1,2][1,2],plt.ice)
-        save("region.png",fig)
-    end
-
-    # compute origin and size of the domain (required for scaling and computing the grid size)
-    ox, oy, oz = x[1], y[1], minimum(bed)
-    lx = x[end] - ox
-    ly = y[end] - oy
-    lz = maximum(surface) - oz
-
-    # shift and scale the domain before computation (center of the domain is (0,0) in x-y plane)
-    δx, δy = ox + 0.5lx, oy + 0.5ly # required to avoid conversion to Vector  
-    x = @. (x - δx) / lz
-    y = @. (y - δy) / lz
-    @. bed = (bed - oz) / lz
-    @. surface = (surface - oz) / lz
-
-    @. surface -= 0.05
-
-    # run simulation
-    dem_data = (; x, y, bed, surface)
-    @info "running the simulation"
+    dem_data = make_dem(ox,oy,lx,ly,Δz,rgl,ogx,ogy,ogz,grid_dims[1],grid_dims[2])
     run_simulation(dem_data, grid_dims, me, dims, coords)
 
     return
@@ -99,7 +138,7 @@ end
 
     ####################################################################
     # non-dimensional numbers
-    α       = deg2rad(0)   # slope
+    α       = deg2rad(-15)   # slope
     nglen   = 3              # Glen's law power exponent
     ρr      = 0.92           # density ratio of ice to water
     cpr     = 0.5            # heat capacity ratio of ice to water
@@ -108,7 +147,7 @@ end
     Pr      = 2e-9           # Prandtl number - ratio of thermal diffusivity to momentum diffusivity
     A_L     = 5e-2           # ratio of bump amplitude to length scale
     nbump   = 10             # number of bumps
-    Q_RT    = 0*2*26.0         # ratio of activation temperature to melting temperature
+    Q_RT    = 2*26.0         # ratio of activation temperature to melting temperature
     # dimensionally independent parameters
     K       = 1.0            # consistency                   [Pa*s^(1/n)]
     ρg      = 1.0            # ice gravity pressure gradient [Pa/m      ]
@@ -139,7 +178,7 @@ end
     cp = (ice = cp_i, wat = cp_w)
     λ  = (ice = λ_i , wat = λ_i )
     # body force
-    f  = (x = ρg*sin(α), y= 0ρg, z = ρg*cos(α))
+    f  = (x = ρg*sin(α), y = 0ρg, z = ρg*cos(α))
     # thermodynamics
     @inline u_ice(T)  = cp.ice*(T-T_mlt)
     @inline u_wat(T)  = L + cp.wat*(T-T_mlt)
@@ -156,12 +195,12 @@ end
     bwidth = (8, 4, 4)
 
     ϵtol   = (1e-4,1e-4,1e-4,1e-4)
-    maxiter = 50max(nx,nz)
-    ncheck  = ceil(Int,0.5max(nx,nz))
+    maxiter = 50max(nx,ny,nz)
+    ncheck  = ceil(Int,0.5max(nx,ny,nz))
     nviz    = 1
-    nsave   = 5
-    nt      = 500
-    χ       = 1e-3
+    nsave   = 1
+    nt      = 1
+    χ       = 5e-3
 
     # preprocessing
     dx, dy, dz = lx_g / nx_g, ly_g / ny_g, lz_g / nz_g
@@ -174,9 +213,9 @@ end
     xc_l, yc_l, zc_l = av1.((xv_l, yv_l, zv_l))
 
     # PT params
-    r = 0.7
-    lτ_re_mech = 0.5min(lx_g, ly_g, lz_g) / π
-    vdτ = min(dx, dy, dz) / sqrt(100.1)
+    r = 0.6
+    lτ_re_mech = 0.25min(lx_g, ly_g, lz_g) / π
+    vdτ = min(dx, dy, dz) / sqrt(8.1)
     θ_dτ = lτ_re_mech * (r + 4 / 3) / vdτ
     nudτ = vdτ * lτ_re_mech
     dτ_r = 1.0 / (θ_dτ + 1.0)
@@ -241,8 +280,8 @@ end
     for comp in eachindex(V) fill!(V[comp], 0.0) end
     for comp in eachindex(τ) fill!(τ[comp], 0.0) end
     fill!(Pr, 0.0)
-    # fill!(ηs,0.5*K*(1e-1/t̄)^(1/nglen-1)*exp(-1/nglen*Q_R*(1/T_mlt-1/T_ini)))   
-    fill!(ηs,1.0)   
+    fill!(ηs,0.5*K*(1e-1/t̄)^(1/nglen-1)*exp(-1/nglen*Q_R*(1/T_mlt-1/T_ini)))   
+    # fill!(ηs,1.0)   
     TinyKernels.device_synchronize(get_device())
 
     @info "initialize thermo"
@@ -284,7 +323,7 @@ end
                 @printf("  iter/nz # %2.1f, errs: [ Vx = %1.3e, Vy = %1.3e, Vz = %1.3e, Pr = %1.3e ]\n", iter/nz, errs...)
                 push!(iter_evo, iter/nz); append!(errs_evo, errs)
                 # check convergence
-                if any(.!isfinite.(errs)) error("simulation failed") end
+                if any(.!isfinite.(errs)) @error("simulation failed"); break; end
                 if all(errs .< ϵtol) break end
             end
         end
@@ -309,12 +348,21 @@ end
 
     @info "saving results on disk"
     dim_g = (nx_g, ny_g, nz_g)
-    update_vis_fields!(Vmag, ε̇II, Ψav, V, τ, Ψ)
+    update_vis_fields!(Vmag, ε̇II, Ψav, V, ε̇, Ψ)
     out_h5 = "results.h5"
     ndrange = CartesianIndices(((coords[1]*nx+1):(coords[1]+1)*nx,
                                 (coords[2]*ny+1):(coords[2]+1)*ny,
                                 (coords[3]*nz+1):(coords[3]+1)*nz))
-    fields = Dict("LS_ice" => Ψav.not_air, "LS_bed" => Ψav.not_solid, "Vmag" => Vmag, "TII" => τII, "Pr" => inn(Pr), "T" => T, "omega" => ω, "etas" => ηs)
+    fields = Dict("LS_ice" => Ψav.not_air,
+                  "LS_bed" => Ψav.not_solid,
+                  "Vmag" => Vmag,
+                  "EII" => ε̇II,
+                  "Pr" => inn(Pr),
+                  "T" => inn(T),
+                  "omega" => inn(ω),
+                  "etas" => inn(ηs),
+                  "wt_na" => inn(wt.not_air.c),
+                  "wt_ns" => inn(wt.not_solid.c),)
     @info "saving HDF5 file"
     write_h5(out_h5, fields, dim_g, ndrange)
 
@@ -363,7 +411,7 @@ function update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ)
     return
 end
 
-grid_dims = (500, 500, 25)
+grid_dims = (200, 200, 50)
 
 # init MPI and IGG
 MPI.Init()

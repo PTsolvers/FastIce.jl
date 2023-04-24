@@ -67,7 +67,7 @@ end
     Pr      = 2e-9           # Prandtl number - ratio of thermal diffusivity to momentum diffusivity
     A_L     = 5e-2           # ratio of bump amplitude to length scale
     lx_lz   = 3e0            # ratio of horizontal to vertical domain extents
-    nbump   = 15             # number of bumps
+    nbump   = 13             # number of bumps
     Q_RT    = 2*26.0         # ratio of activation temperature to melting temperature
     # dimensionally independent parameters
     lz      = 1.0            # domain size in z-direction    [m         ]
