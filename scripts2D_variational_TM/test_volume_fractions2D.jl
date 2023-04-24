@@ -329,7 +329,7 @@ end
                 plt.errs[ir][1] = Point2.(iter_evo, errs_evo[ir, :])
             end
             autolimits!(axs.errs)
-            update_vis_fields!(Vmag,ε̇II,Ψav,V,τ,Ψ)
+            update_vis_fields!(Vmag,ε̇II,Ψav,V,ε̇,Ψ)
             TinyKernels.device_synchronize(FastIce.get_device())
             plt.hmaps.Pr[3][]   = to_host(Pr)
             plt.hmaps.ε̇II[3][]  = to_host(ε̇II)
@@ -341,6 +341,8 @@ end
         end
         # save timestep
         if it % nsave == 0
+            update_vis_fields!(Vmag,ε̇II,Ψav,V,ε̇,Ψ)
+            TinyKernels.device_synchronize(FastIce.get_device())
             jldsave(joinpath(outdir,@sprintf("%04d.h5",isave));Pr,τ,ε̇,ε̇II,V,T,ω,ηs)
             isave += 1
         end
