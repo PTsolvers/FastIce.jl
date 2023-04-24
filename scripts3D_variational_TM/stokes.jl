@@ -1,8 +1,9 @@
 include("stokes_kernels.jl")
 
 const _update_ηs! = _kernel_update_ηs!(get_device())
-const _update_σ! = _kernel_update_σ!(get_device())
-const _update_V! = _kernel_update_V!(get_device())
+const _update_σ!  = _kernel_update_σ!(get_device())
+const _update_V!  = _kernel_update_V!(get_device())
+const _compute_residual! = _kernel_compute_residual!(get_device())
 
 function update_ηs!(ηs,ε̇,T,wt,K,n,Q_R,T_mlt,ηreg,χ)
     wait(_update_ηs!(ηs,ε̇,T,wt,K,n,Q_R,T_mlt,ηreg,χ;ndrange=axes(ηs)))
@@ -32,5 +33,10 @@ function update_V!(V, Pr, τ, ηs, wt, nudτ, ρg, dx, dy, dz; bwidth)
     TinyKernels.device_synchronize(FastIce.get_device())
     update_halo!(V.x,V.y,V.z)
     wait(ie)
+    return
+end
+
+function compute_residual!(Res, Pr, V, τ, wt, ρg, dx, dy, dz)
+    wait(_compute_residual!(Res, Pr, V, τ, wt, ρg, dx, dy, dz; ndrange=axes(Pr)))
     return
 end

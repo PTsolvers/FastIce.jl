@@ -6,6 +6,11 @@ using TinyKernels
 using HDF5
 using LightXML
 using CairoMakie
+using Printf
+using JLD2
+using LinearAlgebra
+using GeometryBasics
+using ElasticArrays
 
 include("load_dem.jl")
 include("signed_distances.jl")
@@ -13,6 +18,7 @@ include("level_sets.jl")
 include("volume_fractions.jl")
 include("bcs.jl")
 include("stokes.jl")
+include("thermo.jl")
 include("data_io.jl")
 include("hide_communication.jl")
 
@@ -113,7 +119,6 @@ end
     t̄       = (K/σ̄)^nglen    # time scale                    [s         ]
     T̄       = T_mlt          # temperature scale             [K         ]
     # dimensionally dependent
-    lx      = lx_lz*lz       # domain length                 [m         ]
     λ_i     = Pr*σ̄*l̄^2/(T̄*t̄) # thermal conductivity          [W/m/K     ]
     ρcp     = U_P*σ̄/T̄        # ice heat capacity             [Pa/K      ]
     ρL      = L_P*σ̄          # latent heat of melting        [Pa        ]
@@ -121,7 +126,7 @@ end
     T_atm   = 0.9*T_mlt      # atmospheric temperature       [K         ]
     T_ini   = 0.9*T_mlt      # initial surface temperature   [K         ]
     amp     = A_L*l̄          # bump amplitude                [m         ]
-    rgl     = 1.2lz          # glacier radius                [m         ]
+    rgl     = 1.2l̄           # glacier radius                [m         ]
     ηreg    = 0.5*K*(1e-6/t̄)^(1/nglen-1)
     # not important (cancels in the equations)
     ρ_w     = 1.0            # density of water              [kg/m^3    ]
@@ -193,19 +198,19 @@ end
     V  = vector_field(Float64, nx_l, ny_l, nz_l)
     ηs = scalar_field(Float64, nx_l, ny_l, nz_l)
     # thermal
-    ρU = scalar_field(Float64,nx,ny,nz)
-    T  = scalar_field(Float64,nx,ny,nz)
-    qT = vector_field(Float64,nx,ny,nz)
+    ρU = scalar_field(Float64,nx_l,ny_l,nz_l)
+    T  = scalar_field(Float64,nx_l,ny_l,nz_l)
+    qT = vector_field(Float64,nx_l,ny_l,nz_l)
     # hydro
-    ω  = scalar_field(Float64,nx,ny,nz)
+    ω  = scalar_field(Float64,nx_l,ny_l,nz_l)
     # residuals
     Res = (
-        Pr=scalar_field(Float64, nx, ny, nz),
-        V =vector_field(Float64, nx, ny, nz)
+        Pr=scalar_field(Float64, nx_l, ny_l, nz_l),
+        V =vector_field(Float64, nx_l-2, ny_l-2, nz_l-2)
     )
     # visualisation
     Vmag = scalar_field(Float64, nx, ny, nz)
-    τII  = scalar_field(Float64, nx, ny, nz)
+    ε̇II  = scalar_field(Float64, nx, ny, nz)
     Ψav = (
         not_air=scalar_field(Float64,nx,ny,nz),
         not_solid=scalar_field(Float64,nx,ny,nz),
@@ -248,7 +253,7 @@ end
     # save static data
     outdir = joinpath("out_visu","egu2023/greenland")
     mkpath(outdir)
-    jldsave(joinpath(outdir,"static.h5");xc,xv,yc,yv,zc,zv,Ψ,wt,dem_data)
+    jldsave(joinpath(outdir,"static.jld2");xc,xv,yc,yv,zc,zv,Ψ,wt,dem_data)
     tcur = 0.0; isave = 1
     for it in 1:nt
         @info @sprintf("time step #%d, time = %g",it,tcur)
@@ -290,19 +295,20 @@ end
         tcur += dt
         # save timestep
         if it % nsave == 0
-            jldsave(joinpath(outdir,@sprintf("%04d.h5",isave));Pr,τ,ε̇,ε̇II,V,T,ω,ηs)
+            update_vis_fields!(Vmag, ε̇II, Ψav, V, ε̇, Ψ)
+            jldsave(joinpath(outdir,@sprintf("%04d.jld2",isave));Pr,τ,ε̇,ε̇II,V,T,ω,ηs)
             isave += 1
         end
     end
 
     @info "saving results on disk"
     dim_g = (nx_g, ny_g, nz_g)
-    update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ)
+    update_vis_fields!(Vmag, ε̇II, Ψav, V, τ, Ψ)
     out_h5 = "results.h5"
     ndrange = CartesianIndices(((coords[1]*nx+1):(coords[1]+1)*nx,
                                 (coords[2]*ny+1):(coords[2]+1)*ny,
                                 (coords[3]*nz+1):(coords[3]+1)*nz))
-    fields = Dict("LS_ice" => Ψav.not_air, "LS_bed" => Ψav.not_solid, "Vmag" => Vmag, "TII" => τII, "Pr" => inn(Pr))
+    fields = Dict("LS_ice" => Ψav.not_air, "LS_bed" => Ψav.not_solid, "Vmag" => Vmag, "TII" => τII, "Pr" => inn(Pr), "T" => T, "omega" => ω, "etas" => ηs)
     @info "saving HDF5 file"
     write_h5(out_h5, fields, dim_g, ndrange)
 
@@ -351,7 +357,7 @@ function update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ)
     return
 end
 
-grid_dims = (1000, 1000, 50)
+grid_dims = (500, 500, 25)
 
 # init MPI and IGG
 MPI.Init()
