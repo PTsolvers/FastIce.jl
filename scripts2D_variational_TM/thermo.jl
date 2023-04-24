@@ -18,7 +18,7 @@ function update_qT!(qT,T,wt,λ,T_atm,dx,dy)
     return
 end
 
-function update_ρU!(ρU,qT,τ,ηs,wt,ρU_atm,dt,dx,dy)
-    wait(_update_ρU!(ρU,qT,τ,ηs,wt,ρU_atm,dt,dx,dy; ndrange=axes(ρU)))
+function update_ρU!(ρU,qT,τ,ε̇,wt,ρU_atm,dt,dx,dy)
+    wait(_update_ρU!(ρU,qT,τ,ε̇,wt,ρU_atm,dt,dx,dy; ndrange=axes(ρU)))
     return
 end

@@ -28,7 +28,7 @@
     end
 end
 
-@tiny function _kernel_update_ρU!(ρU,qT,τ,ηs,wt,ρU_atm,dt,dx,dy)
+@tiny function _kernel_update_ρU!(ρU,qT,τ,ε̇,wt,ρU_atm,dt,dx,dy)
     ns,na = wt.not_solid, wt.not_air
     ix, iy = @indices
     @inline isin(A) = checkbounds(Bool, A, ix, iy)
@@ -39,16 +39,15 @@ end
             ∇qx = (qT.x[ix+1,iy]*ns.x[ix+1,iy] - qT.x[ix, iy]*ns.x[ix,iy])/dx
             ∇qy = (qT.y[ix,iy+1]*ns.y[ix,iy+1] - qT.y[ix, iy]*ns.y[ix,iy])/dy
             ∇qT = ∇qx + ∇qy
-
-            τxyc = 0.0
+            # average shear heating contribution on cell vertices
+            τxyc,ε̇xyc = 0.0,0.0
             for idy = -1:0, idx = -1:0
                 ix2,iy2 = clamp(ix+idx,1,size(τ.xy,1)),clamp(iy+idy,1,size(τ.xy,2))
                 τxyc += τ.xy[ix2,iy2]
+                ε̇xyc += ε̇.xy[ix2,iy2]
             end
-            τxyc *= 0.25
-            τII_sq = τ.xx[ix,iy]^2 + τ.yy[ix,iy]^2 + 2.0*τxyc^2
-            SH = 0.5.*τII_sq/ηs[ix,iy]
-
+            τxyc *= 0.25; ε̇xyc *= 0.25
+            SH = τ.xx[ix,iy]*ε̇.xx[ix,iy] + τ.yy[ix,iy]*ε̇.yy[ix,iy] + 2.0*τxyc*ε̇xyc
             ρU[ix,iy] += dt*(-∇qT + SH)
         else
             ρU[ix,iy] = ρU_atm
