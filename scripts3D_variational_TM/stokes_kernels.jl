@@ -41,9 +41,9 @@ end
         ε̇.zz[ix,iy,iz] = (V.z[ix  ,iy  ,iz+1]*wt.not_solid.z[ix  ,iy  ,iz+1] - V.z[ix,iy,iz]*wt.not_solid.z[ix,iy,iz])/dz
         ∇V = ε̇.xx[ix,iy,iz] + ε̇.yy[ix,iy,iz] + ε̇.zz[ix,iy,iz]
         Pr[ix,iy,iz] -= ∇V*ηs[ix,iy,iz]*r/θ_dτ
-        τ.xx[ix,iy,iz] += (-τ.xx[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(exx-∇V/3.0)) * dτ_r
-        τ.yy[ix,iy,iz] += (-τ.yy[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(eyy-∇V/3.0)) * dτ_r
-        τ.zz[ix,iy,iz] += (-τ.zz[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(ezz-∇V/3.0)) * dτ_r
+        τ.xx[ix,iy,iz] += (-τ.xx[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(ε̇.xx[ix,iy,iz]-∇V/3.0)) * dτ_r
+        τ.yy[ix,iy,iz] += (-τ.yy[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(ε̇.yy[ix,iy,iz]-∇V/3.0)) * dτ_r
+        τ.zz[ix,iy,iz] += (-τ.zz[ix,iy,iz] + 2.0*ηs[ix,iy,iz]*(ε̇.xy[ix,iy,iz]-∇V/3.0)) * dτ_r
     else
         Pr[ix,iy,iz] = 0.0
         τ.xx[ix,iy,iz] = 0.0

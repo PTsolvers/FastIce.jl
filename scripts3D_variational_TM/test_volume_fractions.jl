@@ -108,7 +108,7 @@ end
     Pr      = 2e-9           # Prandtl number - ratio of thermal diffusivity to momentum diffusivity
     A_L     = 5e-2           # ratio of bump amplitude to length scale
     nbump   = 10             # number of bumps
-    Q_RT    = 2*26.0         # ratio of activation temperature to melting temperature
+    Q_RT    = 0*2*26.0         # ratio of activation temperature to melting temperature
     # dimensionally independent parameters
     K       = 1.0            # consistency                   [Pa*s^(1/n)]
     ρg      = 1.0            # ice gravity pressure gradient [Pa/m      ]
@@ -161,7 +161,7 @@ end
     nviz    = 1
     nsave   = 5
     nt      = 500
-    χ       = 5e-3
+    χ       = 1e-3
 
     # preprocessing
     dx, dy, dz = lx_g / nx_g, ly_g / ny_g, lz_g / nz_g
@@ -175,8 +175,8 @@ end
 
     # PT params
     r = 0.7
-    lτ_re_mech = 1.5min(lx_g, ly_g, lz_g) / π
-    vdτ = min(dx, dy, dz) / sqrt(8.1)
+    lτ_re_mech = 0.5min(lx_g, ly_g, lz_g) / π
+    vdτ = min(dx, dy, dz) / sqrt(100.1)
     θ_dτ = lτ_re_mech * (r + 4 / 3) / vdτ
     nudτ = vdτ * lτ_re_mech
     dτ_r = 1.0 / (θ_dτ + 1.0)
@@ -241,8 +241,10 @@ end
     for comp in eachindex(V) fill!(V[comp], 0.0) end
     for comp in eachindex(τ) fill!(τ[comp], 0.0) end
     fill!(Pr, 0.0)
-    fill!(ηs,0.5*K*(1e-1/t̄)^(1/nglen-1)*exp(-1/nglen*Q_R*(1/T_mlt-1/T_ini)))   
-    
+    # fill!(ηs,0.5*K*(1e-1/t̄)^(1/nglen-1)*exp(-1/nglen*Q_R*(1/T_mlt-1/T_ini)))   
+    fill!(ηs,1.0)   
+    TinyKernels.device_synchronize(get_device())
+
     @info "initialize thermo"
     for comp in eachindex(qT) fill!(qT[comp],0.0) end
     @. T  = lerp(T_atm,T_ini,wt.not_air.c) 
@@ -250,10 +252,14 @@ end
     @. ω  = ω_lt(ρU/ρ.ice)
     TinyKernels.device_synchronize(FastIce.get_device())
 
+    # convergence tracking
+    iter_evo = Float64[]
+    errs_evo = ElasticArray{Float64}(undef, length(ϵtol), 0)
+
     # save static data
     outdir = joinpath("out_visu","egu2023/greenland")
     mkpath(outdir)
-    jldsave(joinpath(outdir,"static.jld2");xc,xv,yc,yv,zc,zv,Ψ,wt,dem_data)
+    jldsave(joinpath(outdir,"static.jld2");xc_l,xv_l,yc_l,yv_l,zc_l,zv_l,Ψ,wt,dem_data)
     tcur = 0.0; isave = 1
     for it in 1:nt
         @info @sprintf("time step #%d, time = %g",it,tcur)
