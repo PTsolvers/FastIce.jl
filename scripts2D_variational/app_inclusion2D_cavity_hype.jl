@@ -20,19 +20,19 @@ nonan!(A) = .!isnan.(A) .* A
 @views function runsim(::Type{DAT}; nx=127) where {DAT}
     # physics
     ly       = 1.0 # m
-    A0       = 1.0 # Pa s ^ m ~1e-24
+    A0       = 1.0 # Pa^-n s^-1 ~1e-24
     ρg0      = 1.0 # m / s ^ 2
     # ε̇bg      = 1.0 # shear
     # nondim
     ξ        = 10 / 1 # eta / G / dt
     De       = 1.0   # Deborah num
     npow     = 3.0
-    mpow     = -(1 - 1 / npow)
+    mpow     = (1 - npow) / npow
     # scales
     l_sc     = ly
-    τ_sc     = ρg0 * l_sc                # buoyancy
-    t_sc     = (A0 / τ_sc) ^ (1 / mpow)  # buoyancy
-    # τ_sc     = A0 * ε̇bg ^ mpow  # shear
+    τ_sc     = ρg0 * l_sc         # buoyancy
+    t_sc     = A0^-1 / τ_sc^npow  # buoyancy
+    # τ_sc     = A0^(-1/n) * ε̇bg # shear
     # t_sc     = 1 / ε̇bg          # shear
     η_sc     = τ_sc * t_sc
     # dependent
@@ -53,7 +53,7 @@ nonan!(A) = .!isnan.(A) .* A
     σt       = C0 / 1.8
     ε̇bg      = 1.0e-16 / t_sc # buoyancy
     # numerics
-    nt       = 50
+    nt       = 25
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
     maxiter  = 400nx
     ncheck   = 10nx
@@ -168,7 +168,7 @@ nonan!(A) = .!isnan.(A) .* A
     Fp = @. sqrt(τ2^2 + (C0 * cosϕ - σt * sinϕ)^2) - (C0 * cosϕ + P2 * sinϕ)
 
     # figures
-    fig = Figure(resolution=(2500, 1500), fontsize=32)
+    fig = Figure(resolution=(3300, 1000), fontsize=32)
     ax = (
         Pr  =Axis(fig[1, 1][1, 1]; aspect=DataAspect(), title="p"),
         τII =Axis(fig[1, 2][1, 1]; aspect=DataAspect(), title="τII"),
