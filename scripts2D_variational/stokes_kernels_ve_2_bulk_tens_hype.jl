@@ -75,7 +75,7 @@ end
     return
 end
 
-@tiny function _kernel_update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, τII_c, F, λ, dλdτ, C, cosϕ, sinϕ, Pd, σd, σt, η_reg, θ_dτ, wt)
+@tiny function _kernel_update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, τII_c, F, λ, dλdτ, dτ_λ, γλ, C, cosϕ, sinϕ, Pd, σd, σt, η_reg, θ_dτ, wt)
     ix, iy = @indices
     @inline isin(A) = checkbounds(Bool, A, ix, iy)
     @inbounds if isin(Pr)
@@ -84,7 +84,6 @@ end
                  (wt.not_air.y[ix, iy] ≈ 0.0) || (wt.not_air.y[ix, iy+1] ≈ 0.0)
         if !isnull && (wt.not_air.c[ix, iy] > 0.0)
             dτ_r = 1.0 / (θ_dτ + ηs[ix, iy] / (G * dt) + 1.0)
-            dτ_λ = 1e-2
             # plastic business
             F[ix, iy] = sqrt(τII[ix, iy]^2 + (C[ix, iy] * cosϕ - σt * sinϕ)^2) - (C[ix, iy] * cosϕ + Pr[ix, iy] * sinϕ)
             Pr_c[ix, iy]  = 0.0
@@ -96,7 +95,7 @@ end
 
                 Pr_c[ix, iy]  = Pr[ix, iy]  - λ[ix, iy] * K * dt * dQdP
                 τII_c[ix, iy] = τII[ix, iy] - λ[ix, iy] * η_ve[ix, iy] * dQdτ
-                dλdτ[ix, iy]  = 0.9 * dλdτ[ix, iy] + sqrt(τII_c[ix, iy]^2 + (C[ix, iy] * cosϕ - σt * sinϕ)^2) - (C[ix, iy] * cosϕ + Pr_c[ix, iy] * sinϕ) - λ[ix, iy] * η_reg
+                dλdτ[ix, iy]  = γλ * dλdτ[ix, iy] + (sqrt(τII_c[ix, iy]^2 + (C[ix, iy] * cosϕ - σt * sinϕ)^2) - (C[ix, iy] * cosϕ + Pr_c[ix, iy] * sinϕ) - λ[ix, iy] * η_reg)
                 λ[ix, iy]    += dλdτ[ix, iy] * dτ_λ
 
                 εII_ve        = sqrt(0.5 * (ε_ve.xx[ix, iy]^2 + ε_ve.yy[ix, iy]^2) + ε_ve.xyc[ix, iy]^2)

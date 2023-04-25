@@ -45,20 +45,20 @@ nonan!(A) = .!isnan.(A) .* A
     dt0      = ξ * η_sc / G
     α        = 0.0
     ϕs       = 30
-    C0       = 1.8 * τ_sc
+    C0       = 2.7 * τ_sc
     Pd       = C0
     σd       = C0 / 2
-    σt       = C0 / 1.1
+    σt       = C0 / 1.4
     # ε̇bg      = 1.0e-10 / t_sc # buoyancy
     # numerics
-    nt       = 50
+    nt       = 20
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
     maxiter  = 400nx
     ncheck   = 10nx
-    ϵtol     = (5e-6, 5e-6, 1e-6) .* 2
-    χ        = 0.2       # viscosity relaxation
+    ϵtol     = (5e-5, 5e-5, 1e-5) .* 2
+    χ        = 0.4       # viscosity relaxation
     ηmax     = 1e1       # viscosity cut-off
-    η_reg    = 2e-2      # Plastic regularisation
+    η_reg    = 1e-1      # Plastic regularisation
     # preprocessing
     sinϕ     = sind(ϕs)
     cosϕ     = cosd(ϕs)
@@ -70,11 +70,13 @@ nonan!(A) = .!isnan.(A) .* A
     ρg       = (x=ρg0 .* sin(α), y=ρg0 .* cos(α))
     # PT parameters
     r        = 0.7
-    re_mech  = 8π
+    re_mech  = 7π
     lτ       = min(lx, ly)
-    vdτ      = min(dx, dy) / sqrt(2.1) / 1.1
+    vdτ      = min(dx, dy) / sqrt(2.1) / 1.2
     θ_dτ     = lτ * (r + 4 / 3) / (re_mech * vdτ)
     nudτ     = vdτ * lτ / re_mech
+    dτ_λ     = 1e-2 # lamda pseudo-step
+    γλ       = 0.0  # lambda damping...
     # level set
     Ψ  = (
         not_solid = field_array(DAT, nx + 1, ny + 1), # fluid
@@ -133,6 +135,7 @@ nonan!(A) = .!isnan.(A) .* A
     fill!(C    , C0)
 
     init!(V, ε̇bg, xv, yv)
+    # V.y .= 0.0
 
     # compute level sets
     for comp in eachindex(Ψ) fill!(Ψ[comp], 1.0) end
@@ -158,7 +161,7 @@ nonan!(A) = .!isnan.(A) .* A
     errs_evo = ElasticArray{Float64}(undef, length(ϵtol), 0)
 
     # Plot yield functions
-    Pp, τIIp = collect(LinRange(-1 * C0, 5 * C0, 500)), collect(LinRange(0, 5 * C0, 500))
+    Pp, τIIp = collect(LinRange(-2 * C0, 5 * C0, 500)), collect(LinRange(0, 5 * C0, 500))
     P2 = Pp .+ 0.0 * τIIp'
     τ2 = 0.0 * Pp .+ τIIp'
     Fp = @. sqrt(τ2^2 + (C0 * cosϕ - σt * sinϕ)^2) - (C0 * cosϕ + P2 * sinϕ)
@@ -171,7 +174,7 @@ nonan!(A) = .!isnan.(A) .* A
         wt  =Axis(fig[1, 3][1, 1]; aspect=DataAspect(), title="Volume fraction"),
         Vmag=Axis(fig[2, 1][1, 1]; aspect=DataAspect(), title="|v|"),
         εII =Axis(fig[2, 2][1, 1]; aspect=DataAspect(), title="εII"),
-        ηs  =Axis(fig[2, 3][1, 1]; aspect=DataAspect(), title="log10(ηs)"),
+        η_ve=Axis(fig[2, 3][1, 1]; aspect=DataAspect(), title="log10(η_ve)"),
         λ   =Axis(fig[3, 1][1, 1]; aspect=DataAspect(), title="λ"),
         F   =Axis(fig[3, 2][1, 1]; title="F", xlabel="P", ylabel="τII"),
         errs=Axis(fig[3, 3]      ; yscale=log10, title="Convergence", xlabel="# iter / nx", ylabel="error"),
@@ -183,11 +186,12 @@ nonan!(A) = .!isnan.(A) .* A
             wt  =heatmap!(ax.wt  , xc, yc, to_host(wt.not_air.c); colormap=Reverse(:grays)),
             Vmag=heatmap!(ax.Vmag, xc, yc, to_host(Vmag); colormap=:turbo),
             εII =heatmap!(ax.εII , xc, yc, to_host(εII ); colormap=:turbo),
-            ηs  =heatmap!(ax.ηs  , xc, yc, to_host(log10.(ηs)); colormap=:turbo),
+            η_ve=heatmap!(ax.η_ve, xc, yc, to_host(log10.(η_ve)); colormap=:turbo),
             λ   =heatmap!(ax.λ   , xc, yc, to_host(λ   ); colormap=:turbo),
             F   =scatter!(ax.F   , Point2f.(to_host(Pr_c)[:], to_host(τII_c)[:]), color=to_host(dλdτ[:]), colormap=:turbo),#markerspace=:data, markersize=r0
             F2  =contour!(ax.F   , Pp, τIIp, Fp, levels=-0.0:0.1:0.0, linewidth=4, label="yield"),
-            F3  =  ylims!(ax.F   , -0.5, 6.0),
+            F3  =  xlims!(ax.F   , -2.5, 4.0),
+            F4  =  ylims!(ax.F   , -0.5, 6.0),
         ),
         errs=[scatterlines!(ax.errs, Point2.(iter_evo, errs_evo[ir, :])) for ir in eachindex(ϵtol)],
     )
@@ -196,7 +200,7 @@ nonan!(A) = .!isnan.(A) .* A
     Colorbar(fig[1, 3][1, 2], plt.fields.wt  )
     Colorbar(fig[2, 1][1, 2], plt.fields.Vmag)
     Colorbar(fig[2, 2][1, 2], plt.fields.εII )
-    Colorbar(fig[2, 3][1, 2], plt.fields.ηs  )
+    Colorbar(fig[2, 3][1, 2], plt.fields.η_ve)
     Colorbar(fig[3, 1][1, 2], plt.fields.λ   )
     Colorbar(fig[3, 2][1, 2], plt.fields.F   )
     axislegend(ax.F, position=:lt)
@@ -220,7 +224,7 @@ nonan!(A) = .!isnan.(A) .* A
             increment_τ!(Pr, Pr_o, ε, ε_ve, δτ, τ, τ_o, V, η_ve, ηs, G, K, dt, wt, r, θ_dτ, dx, dy)
             compute_xyc!(ε, ε_ve, δτ, τ, τ_o, η_ve, ηs, G, dt, θ_dτ, wt)
             compute_trial_τII!(τII, δτ, τ)
-            update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, τII_c, F, λ, dλdτ, C, cosϕ, sinϕ, Pd, σd, σt, η_reg, θ_dτ, wt)
+            update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, τII_c, F, λ, dλdτ, dτ_λ, γλ, C, cosϕ, sinϕ, Pd, σd, σt, η_reg, θ_dτ, wt)
             compute_εII_η!(εII, ηs, τ, ε, wt, χ, mpow, npow, A0, ηmax)
             update_V!(V, Pr_c, τ, ηs, wt, nudτ, ρg, dx, dy)
             if iter % ncheck == 0
@@ -240,7 +244,7 @@ nonan!(A) = .!isnan.(A) .* A
                 plt.fields[3][3] = to_host(wt.not_air.c)
                 plt.fields[4][3] = to_host(Vmag) .* inn(mask)
                 plt.fields[5][3] = to_host(εII) .* mask
-                plt.fields[6][3] = to_host(log10.(ηs)) .* mask
+                plt.fields[6][3] = to_host(log10.(η_ve)) .* mask
                 plt.fields[7][3] = to_host(λ) .* mask
                 plt.fields[8][1] = Point2f.(to_host(Pr_c)[:], to_host(τII_c)[:]); plt.fields[8].color[]=to_host(dλdτ[:])
                 display(fig)
@@ -250,4 +254,4 @@ nonan!(A) = .!isnan.(A) .* A
     return
 end
 
-runsim(Float64, nx=180)
+runsim(Float64, nx=160)

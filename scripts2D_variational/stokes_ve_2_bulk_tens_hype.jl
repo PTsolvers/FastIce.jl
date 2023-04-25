@@ -54,8 +54,8 @@ function compute_trial_τII!(τII, δτ, τ)
     return
 end
 
-function update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, τII_c, F, λ, dλdτ, C, cosϕ, sinϕ, Pd, σd, σt, η_reg, θ_dτ, wt)
-    wait(_update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, τII_c, F, λ, dλdτ, C, cosϕ, sinϕ, Pd, σd, σt, η_reg, θ_dτ, wt; ndrange=axes(Pr)))
+function update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, τII_c, F, λ, dλdτ, dτ_λ, γλ, C, cosϕ, sinϕ, Pd, σd, σt, η_reg, θ_dτ, wt)
+    wait(_update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, τII_c, F, λ, dλdτ, dτ_λ, γλ, C, cosϕ, sinϕ, Pd, σd, σt, η_reg, θ_dτ, wt; ndrange=axes(Pr)))
     return
 end
 
