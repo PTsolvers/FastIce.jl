@@ -59,7 +59,7 @@ function update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, τII_c, F, 
     return
 end
 
-function compute_εII_η!(εII, ηs, τ, ε, wt, χ, mpow, ηmax)
-    wait(_compute_εII_η!(εII, ηs, τ, ε, wt, χ, mpow, ηmax; ndrange=axes(εII)))
+function compute_εII_η!(εII, ηs, τ, ε, wt, χ, mpow, npow, A0, ηmax)
+    wait(_compute_εII_η!(εII, ηs, τ, ε, wt, χ, mpow, npow, A0, ηmax; ndrange=axes(εII)))
     return
 end

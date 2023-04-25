@@ -27,7 +27,7 @@ nonan!(A) = .!isnan.(A) .* A
     ξ        = 1 / 4 # eta / G / dt
     De       = 1.0   # Deborah num
     npow     = 3.0
-    mpow     = -(1 - 1 / npow) / 2
+    mpow     = -(1 - 1 / npow)
     # scales
     l_sc     = ly
     # τ_sc     = ρg0 * l_sc                # buoyancy
@@ -221,7 +221,7 @@ nonan!(A) = .!isnan.(A) .* A
             compute_xyc!(ε, ε_ve, δτ, τ, τ_o, η_ve, ηs, G, dt, θ_dτ, wt)
             compute_trial_τII!(τII, δτ, τ)
             update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, τII_c, F, λ, dλdτ, C, cosϕ, sinϕ, Pd, σd, σt, η_reg, θ_dτ, wt)
-            compute_εII_η!(εII, ηs, τ, ε, wt, χ, mpow, ηmax)
+            compute_εII_η!(εII, ηs, τ, ε, wt, χ, mpow, npow, A0, ηmax)
             update_V!(V, Pr_c, τ, ηs, wt, nudτ, ρg, dx, dy)
             if iter % ncheck == 0
                 compute_residual!(Res, Pr, Pr_o, Pr_c, V, τ, K, dt, wt, ρg, dx, dy)

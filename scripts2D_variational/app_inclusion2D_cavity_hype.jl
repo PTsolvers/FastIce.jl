@@ -20,14 +20,14 @@ nonan!(A) = .!isnan.(A) .* A
 @views function runsim(::Type{DAT}; nx=127) where {DAT}
     # physics
     ly       = 1.0 # m
-    A0       = 1.0 # Pa s ^ m
+    A0       = 1.0 # Pa s ^ m ~1e-24
     ρg0      = 1.0 # m / s ^ 2
     # ε̇bg      = 1.0 # shear
     # nondim
     ξ        = 1 / 2 # eta / G / dt
     De       = 1.0   # Deborah num
     npow     = 3.0
-    mpow     = -(1 - 1 / npow) / 2
+    mpow     = -(1 - 1 / npow)
     # scales
     l_sc     = ly
     τ_sc     = ρg0 * l_sc                # buoyancy
@@ -166,7 +166,7 @@ nonan!(A) = .!isnan.(A) .* A
     Fp = @. sqrt(τ2^2 + (C0 * cosϕ - σt * sinϕ)^2) - (C0 * cosϕ + P2 * sinϕ)
 
     # figures
-    fig = Figure(resolution=(2500, 1800), fontsize=32)
+    fig = Figure(resolution=(2500, 1500), fontsize=32)
     ax = (
         Pr  =Axis(fig[1, 1][1, 1]; aspect=DataAspect(), title="p"),
         τII =Axis(fig[1, 2][1, 1]; aspect=DataAspect(), title="τII"),
@@ -216,8 +216,8 @@ nonan!(A) = .!isnan.(A) .* A
         @printf "it # %d, dt = %1.3e \n" it dt
         update_old!(τ_o, τ, Pr_o, Pr_c, Pr, λ)
         if it > 2
-            C0 = max(C0 * 0.98, 0.6); fill!(C, C0)
-            σt = max(σt * 0.99, 0.1)
+            C0 = max(C0 * 0.95, 0.6); fill!(C, C0)
+            σt = max(σt * 0.95, 0.1)
         end
         @printf "  C0 = %1.3e, σt  %1.3e \n" C0 σt
         # iteration loop
@@ -228,7 +228,7 @@ nonan!(A) = .!isnan.(A) .* A
             compute_xyc!(ε, ε_ve, δτ, τ, τ_o, η_ve, ηs, G, dt, θ_dτ, wt)
             compute_trial_τII!(τII, δτ, τ)
             update_τ!(Pr, Pr_c, ε_ve, τ, ηs, η_ve, G, K, dt, τII, τII_c, F, λ, dλdτ, C, cosϕ, sinϕ, Pd, σd, σt, η_reg, θ_dτ, wt)
-            compute_εII_η!(εII, ηs, τ, ε, wt, χ, mpow, ηmax)
+            compute_εII_η!(εII, ηs, τ, ε, wt, χ, mpow, npow, A0, ηmax)
             update_V!(V, Pr_c, τ, ηs, wt, nudτ, ρg, dx, dy)
             if iter % ncheck == 0
                 compute_residual!(Res, Pr, Pr_o, Pr_c, V, τ, K, dt, wt, ρg, dx, dy)
