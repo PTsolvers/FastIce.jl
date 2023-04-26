@@ -32,7 +32,7 @@ nonan!(A) = .!isnan.(A) .* A
     l_sc     = ly
     τ_sc     = ρg0 * l_sc         # buoyancy
     t_sc     = A0^-1 / τ_sc^npow  # buoyancy
-    # τ_sc     = A0^(-1/n) * ε̇bg # shear
+    # τ_sc     = A0^(-1 / npow) * ε̇bg  # shear
     # t_sc     = 1 / ε̇bg          # shear
     η_sc     = τ_sc * t_sc
     # dependent

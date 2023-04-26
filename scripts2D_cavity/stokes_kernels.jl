@@ -61,7 +61,7 @@ end
             ε_vexyc[ix, iy] = εxyc[ix, iy] + τ_oxyc[ix, iy] / 2.0 / (G * dt)
             δτxyc[ix, iy] = (-τxyc[ix, iy] + 2.0 * η_ve[ix, iy] * ε_vexyc[ix, iy]) * dτ_r * ηs[ix, iy] / η_ve[ix, iy]
         else
-            εxyc[ix, iy]  = 0.0
+            εxyc[ix, iy] = 0.0
             δτxyc[ix, iy] = 0.0
             ε_vexyc[ix, iy] = 0.0
         end
@@ -89,17 +89,17 @@ end
             Pr_c[ix, iy]  = 0.0
             τII_c[ix, iy] = 0.0
             if F[ix, iy] > 0.0
-                c             = 0.5 * erfc(((Pr[ix, iy] - Pd) / σd))
-                dQdP          = -c * sinϕ
-                dQdτ          = τII[ix, iy] / sqrt(τII[ix, iy]^2 + (C[ix, iy] * cosϕ - σt * sinϕ)^2)
+                c    = 0.5 * erfc(((Pr[ix, iy] - Pd) / σd))
+                dQdP = -c * sinϕ
+                dQdτ = τII[ix, iy] / sqrt(τII[ix, iy]^2 + (C[ix, iy] * cosϕ - σt * sinϕ)^2)
 
                 Pr_c[ix, iy]  = Pr[ix, iy]  - λ[ix, iy] * K * dt * dQdP
                 τII_c[ix, iy] = τII[ix, iy] - λ[ix, iy] * η_ve[ix, iy] * dQdτ
                 dλdτ[ix, iy]  = γλ * dλdτ[ix, iy] + (sqrt(τII_c[ix, iy]^2 + (C[ix, iy] * cosϕ - σt * sinϕ)^2) - (C[ix, iy] * cosϕ + Pr_c[ix, iy] * sinϕ) - λ[ix, iy] * η_reg)
                 λ[ix, iy]    += dλdτ[ix, iy] * dτ_λ
 
-                εII_ve        = sqrt(0.5 * (ε_ve.xx[ix, iy]^2 + ε_ve.yy[ix, iy]^2) + ε_ve.xyc[ix, iy]^2)
-                η_vep         = τII_c[ix, iy] / 2.0 / εII_ve
+                εII_ve = sqrt(0.5 * (ε_ve.xx[ix, iy]^2 + ε_ve.yy[ix, iy]^2) + ε_ve.xyc[ix, iy]^2)
+                η_vep  = τII_c[ix, iy] / 2.0 / εII_ve
             else
                 dλdτ[ix, iy]  = 0.0
                 Pr_c[ix, iy]  = Pr[ix, iy]

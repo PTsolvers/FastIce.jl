@@ -20,7 +20,7 @@ nonan!(A) = .!isnan.(A) .* A
 @views function runsim(::Type{DAT}; nx=127) where {DAT}
     # physics
     ly       = 1.0 # m
-    A0       = 1.0 # Pa s ^ m
+    A0       = 1.0 # Pa^-n s^-1
     ρg0      = 0.0 # m / s ^ 2
     ε̇bg      = 1.0 # shear
     # nondim
@@ -30,9 +30,9 @@ nonan!(A) = .!isnan.(A) .* A
     mpow     = -(1 - 1 / npow)
     # scales
     l_sc     = ly
-    # τ_sc     = ρg0 * l_sc                # buoyancy
-    # t_sc     = (A0 / τ_sc) ^ (1 / mpow)  # buoyancy
-    τ_sc     = A0 * ε̇bg ^ mpow  # shear
+    # τ_sc     = ρg0 * l_sc         # buoyancy
+    # t_sc     = A0^-1 / τ_sc^npow  # buoyancy
+    τ_sc     = A0^(-1 / npow) * ε̇bg  # shear
     t_sc     = 1 / ε̇bg          # shear
     η_sc     = τ_sc * t_sc
     # dependent
