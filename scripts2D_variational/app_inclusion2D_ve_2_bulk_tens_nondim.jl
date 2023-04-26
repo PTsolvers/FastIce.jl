@@ -261,7 +261,7 @@ nonan!(A) = .!isnan.(A) .* A
                 plt.fields[2][3] = to_host(τII) .* mask
                 plt.fields[3][3] = to_host(wt.not_air.c)
                 plt.fields[4][3] = to_host(Vmag) .* inn(mask)
-                plt.fields[5][3] = to_host(C) .* mask
+                plt.fields[5][3] = to_host(εII) .* mask
                 plt.fields[6][3] = to_host(log10.(ηs)) .* mask
                 plt.fields[7][3] = to_host(Γ) .* mask
                 # plt.fields[8][3] = to_host(Fchk) .* mask
@@ -270,9 +270,9 @@ nonan!(A) = .!isnan.(A) .* A
                 display(fig)
             end
         end
-        dC = 0.5 * C0
-        C[Γ.==1.0 .|| Γ.==3.0] .-= dC
-        C[C.<C0/50] .= C0 / 50
+        # dC = 0.5 * C0
+        # C[Γ.==1.0 .|| Γ.==3.0] .-= dC
+        # C[C.<C0/50] .= C0 / 50
     end
     return
 end
