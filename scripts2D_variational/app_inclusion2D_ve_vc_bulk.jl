@@ -7,7 +7,7 @@ using Printf
 include("bcs.jl")
 include("init_vis.jl")
 include("level_sets.jl")
-include("stokes_ve_bulk.jl")
+include("stokes_ve_vc_bulk.jl")
 include("volume_fractions.jl")
 
 @views av1(A) = 0.5 .* (A[1:end-1] .+ A[2:end])
@@ -17,23 +17,21 @@ include("volume_fractions.jl")
 
 @views function runsim(::Type{DAT}; nx=127) where {DAT}
     # physics
-    lx, ly   = 2.0, 1.0
-    ox, oy   = -0.5lx, -0.0ly
-    xb1, yb1 = ox + 0.5lx, oy - 0.1ly
-    xb2, yb2 = ox + 0.5lx, oy + 4.6ly
-    rinc     = 0.4ly
-    rair     = 3.8ly
+    lx, ly   = 1.0, 1.0
+    ox, oy   = -0.5lx, -0.5ly
+    xb1, yb1 = ox + 0.5lx, oy + 0.5ly
+    rinc     = 0.1lx
     ηs0      = 1.0
     G        = 1.0
     K        = 4.0 * G
-    ρg0      = 1.0
+    ρg0      = 0.0
     α        = 0.0
     npow     = 3.0
-    τ_y      = 0.1#1.9
+    τ_y      = 1.9
     sinϕ     = sind(30)
     sinψ     = sind(5)
-    ε̇bg      = 1e-10
-    ξ        = 3.0
+    ε̇bg      = 1.0
+    ξ        = 2.0
     # numerics
     nt       = 50
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
@@ -49,21 +47,19 @@ include("volume_fractions.jl")
     xv, yv   = LinRange(ox, ox + lx, nx + 1), LinRange(oy, oy + ly, ny + 1)
     xc, yc   = av1(xv), av1(yv)
     mc1      = to_device(make_marker_chain_circle(Point(xb1, yb1), rinc, min(dx, dy)))
-    mc2      = to_device(make_marker_chain_circle(Point(xb2, yb2), rair, min(dx, dy)))
     ρg       = (x=ρg0 .* sin(α), y=ρg0 .* cos(α))
     mpow     = -(1 - 1 / npow) / 2
     dt       = ηs0 / (G * ξ)
     # PT parameters
     r        = 0.7
-    re_mech  = 7π
+    re_mech  = 8π
     lτ       = min(lx, ly)
     vdτ      = min(dx, dy) / sqrt(2.1) / 1.1
     θ_dτ     = lτ * (r + 4 / 3) / (re_mech * vdτ)
     nudτ     = vdτ * lτ / re_mech
     # level set
     Ψ  = (
-        not_solid = field_array(DAT, nx + 1, ny + 1), # fluid
-        not_air   = field_array(DAT, nx + 1, ny + 1), # liquid
+        not_air = field_array(DAT, nx + 1, ny + 1), # liquid
     )
     wt = (
         not_solid = volfrac_field(DAT, nx, ny), # fluid
@@ -84,6 +80,9 @@ include("volume_fractions.jl")
     Fchk = scalar_field(DAT, nx, ny)
     F    = scalar_field(DAT, nx, ny)
     λ    = scalar_field(DAT, nx, ny)
+    τIIv = scalar_field(DAT, nx - 1, ny - 1)
+    Fv   = scalar_field(DAT, nx - 1, ny - 1)
+    λv   = scalar_field(DAT, nx - 1, ny - 1)
     # residuals
     Res = (
         Pr = scalar_field(DAT, nx    , ny    ),
@@ -99,37 +98,31 @@ include("volume_fractions.jl")
     for comp in eachindex(τ)  fill!(τ[comp] , 0.0) end
     for comp in eachindex(δτ) fill!(δτ[comp], 0.0) end
     for comp in eachindex(ε)  fill!(ε[comp] , 0.0) end
-    # fill!(Pr  , 0.0)
-    # copyto!(Pr, repeat(reverse(cumsum(reverse(ones(DAT, ny) .* ρg.y)) .* dy)', nx))
     fill!(Pr  , 0.0)
     fill!(Pr_c, 0.0)
     fill!(Pr_o, 0.0)
     fill!(ηs  , ηs0)
     fill!(τII , 0.0)
+    fill!(τIIv, 0.0)
     fill!(εII , 1e-10)
     fill!(F   , -1.0)
+    fill!(Fv  , -1.0)
     fill!(Fchk, -1.0)
     fill!(λ   , 0.0)
+    fill!(λv  , 0.0)
 
     init!(V, ε̇bg, xv, yv)
-    # V.y .= 0.0
 
-    # comput level sets
-    for comp in eachindex(Ψ) fill!(Ψ[comp], 1.0) end
-    Ψ.not_air .= Inf # needs init now
     @info "computing the level set for the inclusion"
-    compute_levelset!(Ψ.not_air, xv, yv, mc1)
-    compute_levelset!(Ψ.not_air, xv, yv, mc2)
+    for comp in eachindex(Ψ) fill!(Ψ[comp], 1.0) end
     TinyKernels.device_synchronize(get_device())
-    # Ψ.not_air .= min.( .-(0.0 .* xv .+ yv' .+ oy .+ 0.05), Ψ.not_air)
+    Ψ.not_air .= Inf # needs init now
+    compute_levelset!(Ψ.not_air, xv, yv, mc1)
     @. Ψ.not_air = -Ψ.not_air
-
-    @info "computing the level set for the bedrock"
-    # Ψ.not_solid .= .-(0.0 .* xv .+ yv' .+ 0.2)
+    TinyKernels.device_synchronize(get_device())
 
     @info "computing volume fractions from level sets"
     compute_volume_fractions_from_level_set!(wt.not_air, Ψ.not_air, dx, dy)
-    # compute_volume_fractions_from_level_set!(wt.not_solid, Ψ.not_solid, dx, dy)
     for comp in eachindex(wt.not_solid) fill!(wt.not_solid[comp], 1.0) end
 
     update_vis!(Vmag, Ψav, V, Ψ)
@@ -178,17 +171,18 @@ include("volume_fractions.jl")
 
     @info "running simulation 🚀"
     for it in 1:nt
-        # (it >= 6 && it <= 10) ? dt = 0.25 : dt = 0.5 # if npow=3
+        (it >= 6 && it <= 10) ? dt = 0.25 : dt = 0.5 # if npow=3
         @printf "it # %d, dt = %1.3e \n" it dt
-        update_old!(τ_o, τ, Pr_o, Pr_c, Pr, λ)
+        update_old!(τ_o, τ, Pr_o, Pr_c, Pr, λ, λv)
         # iteration loop
         empty!(iter_evo); resize!(errs_evo, length(ϵtol), 0)
         iter = 0; errs = 2.0 .* ϵtol
         while any(errs .>= ϵtol) && (iter += 1) <= maxiter
             increment_τ!(Pr, Pr_o, ε, δτ, τ, τ_o, V, ηs, G, K, dt, wt, r, θ_dτ, dx, dy)
-            compute_xyc!(ε, δτ, τ, τ_o, ηs, G, dt, θ_dτ, wt)
+            # compute_xyc!(ε, δτ, τ, τ_o, ηs, G, dt, θ_dτ, wt)
             compute_trial_τII!(τII, δτ, τ)
-            update_τ!(Pr, Pr_c, ε, δτ, τ, τ_o, ηs, G, K, dt, τII, F, λ, τ_y, sinϕ, sinψ, η_reg, χλ, θ_dτ, wt)
+            compute_trial_τIIv!(τIIv, δτ, τ)
+            update_τ!(Pr, Pr_c, ε, δτ, τ, τ_o, ηs, G, K, dt, τII, τIIv, F, Fv, λ, λv, τ_y, sinϕ, sinψ, η_reg, χλ, θ_dτ, wt)
             compute_Fchk_xII_η!(τII, Fchk, εII, ηs, Pr_c, τ, ε, λ, τ_y, sinϕ, η_reg, wt, χ, mpow, ηmax)
             update_V!(V, Pr_c, τ, ηs, wt, nudτ, ρg, dx, dy)
             if iter % ncheck == 0
@@ -206,7 +200,7 @@ include("volume_fractions.jl")
                 plt.fields[1][3] = to_host(Pr) .* mask
                 plt.fields[2][3] = to_host(τII) .* mask
                 plt.fields[3][3] = to_host(wt.not_air.c)
-                plt.fields[4][3] = to_host(V.x)# .* inn(mask)
+                plt.fields[4][3] = to_host(Vmag) .* inn(mask)
                 plt.fields[5][3] = to_host(εII) .* mask
                 plt.fields[6][3] = to_host(log10.(ηs)) .* mask
                 plt.fields[7][3] = to_host(λ) .* mask
@@ -219,4 +213,4 @@ include("volume_fractions.jl")
     return
 end
 
-runsim(Float64, nx=160)
+runsim(Float64, nx=127)
