@@ -24,7 +24,7 @@ nonan!(A) = .!isnan.(A) .* A
     ρg0      = 0.0 # m / s ^ 2
     ε̇bg      = 1.0 # shear
     # nondim
-    ξ        = 1 / 4 # eta / G / dt
+    ξ        = 1 / 6 # eta / G / dt
     De       = 1.0   # Deborah num
     npow     = 3.0
     mpow     = -(1 - 1 / npow)
@@ -45,16 +45,16 @@ nonan!(A) = .!isnan.(A) .* A
     dt0      = ξ * η_sc / G
     α        = 0.0
     ϕs       = 30
-    C0       = 2.7 * τ_sc
+    C0       = 1.1 * τ_sc
     Pd       = C0
     σd       = C0 / 2
-    σt       = C0 / 1.4
+    σt       = C0 / 1.2
     # ε̇bg      = 1.0e-10 / t_sc # buoyancy
     # numerics
     nt       = 20
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
     maxiter  = 400nx
-    ncheck   = 10nx
+    ncheck   = 40nx
     ϵtol     = (5e-5, 5e-5, 1e-5) .* 2
     χ        = 0.4       # viscosity relaxation
     ηmax     = 1e1       # viscosity cut-off
@@ -70,9 +70,9 @@ nonan!(A) = .!isnan.(A) .* A
     ρg       = (x=ρg0 .* sin(α), y=ρg0 .* cos(α))
     # PT parameters
     r        = 0.7
-    re_mech  = 7π
+    re_mech  = 8π
     lτ       = min(lx, ly)
-    vdτ      = min(dx, dy) / sqrt(2.1) / 1.2
+    vdτ      = min(dx, dy) / sqrt(2.1) / 1.1
     θ_dτ     = lτ * (r + 4 / 3) / (re_mech * vdτ)
     nudτ     = vdτ * lτ / re_mech
     dτ_λ     = 1e-2 # lamda pseudo-step
@@ -190,8 +190,8 @@ nonan!(A) = .!isnan.(A) .* A
             λ   =heatmap!(ax.λ   , xc, yc, to_host(λ   ); colormap=:turbo),
             F   =scatter!(ax.F   , Point2f.(to_host(Pr_c)[:], to_host(τII_c)[:]), color=to_host(dλdτ[:]), colormap=:turbo),#markerspace=:data, markersize=r0
             F2  =contour!(ax.F   , Pp, τIIp, Fp, levels=-0.0:0.1:0.0, linewidth=4, label="yield"),
-            F3  =  xlims!(ax.F   , -2.5, 4.0),
-            F4  =  ylims!(ax.F   , -0.5, 6.0),
+            F3  =  xlims!(ax.F   , -1.5, 3.0),
+            F4  =  ylims!(ax.F   , -0.2, 4.0),
         ),
         errs=[scatterlines!(ax.errs, Point2.(iter_evo, errs_evo[ir, :])) for ir in eachindex(ϵtol)],
     )
@@ -254,4 +254,4 @@ nonan!(A) = .!isnan.(A) .* A
     return
 end
 
-runsim(Float64, nx=160)
+runsim(Float64, nx=159)
