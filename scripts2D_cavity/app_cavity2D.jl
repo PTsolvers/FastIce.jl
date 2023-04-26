@@ -8,7 +8,7 @@ using SpecialFunctions
 include("bcs.jl")
 include("init_vis.jl")
 include("level_sets.jl")
-include("stokes_ve_2_bulk_tens_hype.jl")
+include("stokes.jl")
 include("volume_fractions.jl")
 
 @views av1(A) = 0.5 .* (A[1:end-1] .+ A[2:end])
