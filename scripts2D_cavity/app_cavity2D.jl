@@ -61,6 +61,8 @@ nonan!(A) = .!isnan.(A) .* A
     χ        = 0.5       # viscosity relaxation
     ηmax     = 1e2       # viscosity cut-off
     η_reg    = 5e-1      # Plastic regularisation
+    dτ_λ     = 1e-2      # λ pseudo-step
+    γλ       = 0.0       # λ damping...
     # preprocessing
     sinϕ     = sind(ϕs)
     cosϕ     = cosd(ϕs)
@@ -77,8 +79,6 @@ nonan!(A) = .!isnan.(A) .* A
     vdτ      = min(dx, dy) / sqrt(2.1) / 1.1
     θ_dτ     = lτ * (r + 4 / 3) / (re_mech * vdτ)
     nudτ     = vdτ * lτ / re_mech
-    dτ_λ     = 1e-2
-    γλ       = 0.0
     # level set
     Ψ  = (
         not_solid = field_array(DAT, nx + 1, ny + 1), # fluid
@@ -137,6 +137,7 @@ nonan!(A) = .!isnan.(A) .* A
     fill!(C    , C0)
 
     init!(V, ε̇bg, xv, yv)
+    TinyKernels.device_synchronize(get_device())
 
     # compute level sets
     for comp in eachindex(Ψ) fill!(Ψ[comp], 1.0) end
@@ -154,9 +155,11 @@ nonan!(A) = .!isnan.(A) .* A
     @info "computing volume fractions from level sets"
     compute_volume_fractions_from_level_set!(wt.not_air, Ψ.not_air, dx, dy)
     compute_volume_fractions_from_level_set!(wt.not_solid, Ψ.not_solid, dx, dy)
+    TinyKernels.device_synchronize(get_device())
     # for comp in eachindex(wt.not_solid) fill!(wt.not_solid[comp], 1.0) end
 
     update_vis!(Vmag, Ψav, V, Ψ)
+    TinyKernels.device_synchronize(get_device())
     # convergence history
     iter_evo = Float64[]
     errs_evo = ElasticArray{Float64}(undef, length(ϵtol), 0)
@@ -211,7 +214,8 @@ nonan!(A) = .!isnan.(A) .* A
     maskA[maskA.<1.0] .= NaN
     maskS[maskS.<1.0] .= NaN
     mask = maskA .* maskS
-    # error("stop")
+    TinyKernels.device_synchronize(get_device())
+
     @info "running simulation 🚀"
     for it in 1:nt
         dt = dt0

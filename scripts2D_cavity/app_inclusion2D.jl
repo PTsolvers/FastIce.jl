@@ -24,7 +24,7 @@ nonan!(A) = .!isnan.(A) .* A
     ρg0      = 0.0 # m / s ^ 2
     ε̇bg      = 1.0 # shear
     # nondim
-    ξ        = 1 / 6 # eta / G / dt
+    ξ        = 1 / 8 # eta / G / dt
     De       = 1.0   # Deborah num
     npow     = 3.0
     mpow     = -(1 - 1 / npow)
@@ -51,12 +51,12 @@ nonan!(A) = .!isnan.(A) .* A
     σt       = C0 / 1.2
     # ε̇bg      = 1.0e-10 / t_sc # buoyancy
     # numerics
-    nt       = 20
+    nt       = 50
     ny       = ceil(Int, (nx + 1) * ly / lx) - 1
     maxiter  = 500nx
     ncheck   = 20nx
     ϵtol     = (5e-5, 5e-5, 1e-5) .* 2
-    χ        = 0.4       # viscosity relaxation
+    χ        = 0.2       # viscosity relaxation
     ηmax     = 1e1       # viscosity cut-off
     η_reg    = 4e-1      # Plastic regularisation
     dτ_λ     = 5e-3      # λ pseudo-step
