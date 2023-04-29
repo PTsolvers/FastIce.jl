@@ -24,9 +24,9 @@ function update_V!(V, Pr, τ, ηs, wt, nudτ, ρg, dx, dy, dz; bwidth)
     # end
     # wait.(oe)
     TinyKernels.device_synchronize(FastIce.get_device())
-    bc_x_neumann!(0.0,V.y,V.z)
+    bc_x_neumann!(0.0,V.z)
     bc_y_neumann!(0.0,V.x,V.z)
-    bc_z_neumann!(0.0,V.x,V.y)
+    bc_z_neumann!(0.0,V.x)
     # TinyKernels.device_synchronize(FastIce.get_device())
     # @. V.x[end,:  ,:] = V.x[end-1,:,:]*wt.not_solid.x[end-1,:,:]
     # @. V.x[1  ,:  ,:] = V.x[2    ,:,:]*wt.not_solid.x[2    ,:,:]

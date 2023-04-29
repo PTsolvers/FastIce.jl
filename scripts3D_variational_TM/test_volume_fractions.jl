@@ -91,7 +91,7 @@ function make_dem(ox,oy,lx,ly,Δz,rgl,ogx,ogy,ogz,nx,ny)
     bed     = zeros(nx+1,ny+1)
     for iy in axes(bed,2), ix in axes(bed,1)
         ωx = 2π*10*(x[ix] - ox)/lx
-        ωy = 2π*10*(y[iy] - oy)/ly
+        ωy = 2π*10*(y[iy] - oy)/lx
         bed[ix,iy] = 0.025*rgl*sin(ωx)*cos(ωy)
     end
     bed .= bed .- minimum(bed) .+ Δz
@@ -111,7 +111,7 @@ end
     # init logger
     global_logger(FastIce.Logging.MPILogger(0, comm_cart, global_logger()))
 
-    lx,ly,lz = 5.0,5.0,1.0
+    lx,ly,lz = 5.0,2.5,1.0
     ox,oy,oz = -lx/2,-ly/2,0.0
     Δz = 0.1lz
 
@@ -213,7 +213,7 @@ end
     xc_l, yc_l, zc_l = av1.((xv_l, yv_l, zv_l))
 
     # PT params
-    r = 0.6
+    r = 0.9
     lτ_re_mech = 0.25min(lx_g, ly_g, lz_g) / π
     vdτ = min(dx, dy, dz) / sqrt(8.1)
     θ_dτ = lτ_re_mech * (r + 4 / 3) / vdτ
@@ -294,6 +294,8 @@ end
     # convergence tracking
     iter_evo = Float64[]
     errs_evo = ElasticArray{Float64}(undef, length(ϵtol), 0)
+    ts       = Float64[]
+    h5names  = String[]
 
     # save static data
     outdir = joinpath("out_visu","egu2023/greenland")
@@ -340,34 +342,35 @@ end
         tcur += dt
         # save timestep
         if it % nsave == 0
+            @info "saving results on disk"
             update_vis_fields!(Vmag, ε̇II, Ψav, V, ε̇, Ψ)
             jldsave(joinpath(outdir,@sprintf("%04d.jld2",isave));Pr,τ,ε̇,ε̇II,V,T,ω,ηs)
+            # h5
+            dim_g = (nx_g, ny_g, nz_g)
+            update_vis_fields!(Vmag, ε̇II, Ψav, V, ε̇, Ψ)
+            out_h5 = joinpath(outdir,@sprintf("step_%04d.h5",isave))
+            ndrange = CartesianIndices(((coords[1]*nx+1):(coords[1]+1)*nx,
+                                        (coords[2]*ny+1):(coords[2]+1)*ny,
+                                        (coords[3]*nz+1):(coords[3]+1)*nz))
+            fields = Dict("LS_ice" => Ψav.not_air,
+                          "LS_bed" => Ψav.not_solid,
+                          "Vmag" => Vmag,
+                          "EII" => ε̇II,
+                          "Pr" => inn(Pr),
+                          "T" => inn(T),
+                          "omega" => inn(ω),
+                          "etas" => inn(ηs),
+                          "wt_na" => inn(wt.not_air.c),
+                          "wt_ns" => inn(wt.not_solid.c),)
+            @info "saving HDF5 file"
+            write_h5(out_h5, fields, dim_g, ndrange)
+            push!(ts,tcur);push!(h5names,out_h5)
             isave += 1
         end
     end
 
-    @info "saving results on disk"
-    dim_g = (nx_g, ny_g, nz_g)
-    update_vis_fields!(Vmag, ε̇II, Ψav, V, ε̇, Ψ)
-    out_h5 = "results.h5"
-    ndrange = CartesianIndices(((coords[1]*nx+1):(coords[1]+1)*nx,
-                                (coords[2]*ny+1):(coords[2]+1)*ny,
-                                (coords[3]*nz+1):(coords[3]+1)*nz))
-    fields = Dict("LS_ice" => Ψav.not_air,
-                  "LS_bed" => Ψav.not_solid,
-                  "Vmag" => Vmag,
-                  "EII" => ε̇II,
-                  "Pr" => inn(Pr),
-                  "T" => inn(T),
-                  "omega" => inn(ω),
-                  "etas" => inn(ηs),
-                  "wt_na" => inn(wt.not_air.c),
-                  "wt_ns" => inn(wt.not_solid.c),)
-    @info "saving HDF5 file"
-    write_h5(out_h5, fields, dim_g, ndrange)
-
     @info "saving XDMF file..."
-    (me == 0) && write_xdmf("results.xdmf3", out_h5, fields, (xc_l[2], yc_l[2], zc_l[2]), (dx, dy, dz), dim_g)
+    (me == 0) && write_xdmf(joinpath(outdir,"results.xdmf3"), h5names, fields, (xc_l[2], yc_l[2], zc_l[2]), (dx, dy, dz), dim_g, ts)
 
     return
 end
@@ -411,7 +414,7 @@ function update_vis_fields!(Vmag, τII, Ψav, V, τ, Ψ)
     return
 end
 
-grid_dims = (200, 200, 50)
+grid_dims = (200, 100, 50)
 
 # init MPI and IGG
 MPI.Init()
