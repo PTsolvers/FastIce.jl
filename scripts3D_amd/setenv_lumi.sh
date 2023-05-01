@@ -7,6 +7,8 @@ module load rocm
 
 export JULIA_AMDGPU_DISABLE_ARTIFACTS=1
 
+export JULIA_AMDGPU_MAX_SCRATCH=128
+
 # ROCm-aware MPI set to 1, else 0
 export MPICH_GPU_SUPPORT_ENABLED=1
 export IGG_ROCMAWARE_MPI=1
