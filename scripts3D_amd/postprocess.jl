@@ -45,4 +45,4 @@ function visualise(;outdir="out")
     return
 end
 
-visualise(;outdir="out_8mh")
+visualise(;outdir="out_mpi_SHd")
