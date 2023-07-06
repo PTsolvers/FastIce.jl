@@ -35,8 +35,8 @@ end
 
 @inline function triangle_pair(Iv,dem,rc)
     @inline function sample_dem(I)
-        x,y = rc[1][I[1]],rc[2][I[2]]
-        Point3(x,y,dem[I])
+        @inbounds x,y = rc[1][I[1]],rc[2][I[2]]
+        @inbounds Point3(x,y,dem[I])
     end
     T_BL = Triangle(sample_dem(Iv)       ,sample_dem(inc(Iv,1)),sample_dem(inc(Iv,2)))
     T_TR = Triangle(sample_dem(inc(Iv,2)),sample_dem(inc(Iv,1)),sample_dem(inc(Iv)))
@@ -50,8 +50,8 @@ end
 end
 
 function sd_dem(P,cutoff,dem,rc)
-    Pp = clamp.(Point(P[1],P[2]),first.(rc),last.(rc))
-    P  = Point(Pp[1],Pp[2],P[3])
+    @inbounds Pp = clamp.(Point(P[1],P[2]),first.(rc),last.(rc))
+    @inbounds P  = Point(Pp[1],Pp[2],P[3])
     BL = closest_vertex_index(Pp.-cutoff,rc)
     TR = closest_vertex_index(Pp.+cutoff,rc)
     Ic = closest_vertex_index(Pp,rc)
