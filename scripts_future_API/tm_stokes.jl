@@ -19,6 +19,14 @@ grid = CartesianGrid(
     size   = ( 100,  100, 100);
 )
 
+sphere_ice = SDF.Sphere(radius = 1  , origin = (0.0,  0.0 ))
+sphere_bed = SDF.Sphere(radius = 100, origin = (0.0, -90.0))
+
+not_air = !(sphere_bed ∪ sphere_ice)
+not_bed = !(sphere_bed)
+
+immersed_boundary = (;not_air, not_bed)
+
 free_surface_bc = PrescribedTraction(0.0, 0.0, 0.0)
 no_slip_wall_bc = PrescribedVelocity(0.0, 0.0, 0.0)
 
@@ -62,8 +70,9 @@ advection = UpwindAdvection() # variants:
 
 mass_balance = nothing
 
-model = ThermomechanicalStokesModel(
+model = ThermomechanicalStokesModel(;
     grid,
+    immersed_boundary,
     physics,
     advection,
     boundary_conditions,
