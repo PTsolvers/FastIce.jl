@@ -17,7 +17,6 @@ grid = CartesianGrid(
     origin = (-0.5, -0.5, 0.0),
     extent = ( 1.0,  1.0, 1.0),
     size   = ( 100,  100, 100);
-    topology = (Bounded, Bounded, Bounded)
 )
 
 free_surface_bc = PrescribedTraction(0.0, 0.0, 0.0)
