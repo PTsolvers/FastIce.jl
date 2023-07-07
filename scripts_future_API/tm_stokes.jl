@@ -3,6 +3,9 @@
 # 2. How to efficiently parametrise multiphysics
 
 using FastIce
+using FastIce.Geometry.SDF
+using FastIce.Geometry.LevelSet
+using FastIce.Data.DEM
 using FastIce.Thermodynamics.EOS
 # using FastIce.Models.Thermal
 # using FastIce.Models.FullStokes.Isothermal
@@ -20,7 +23,8 @@ grid = CartesianGrid(
 )
 
 sphere_ice = SDF.Sphere(radius = 1  , origin = (0.0,  0.0 ))
-sphere_bed = SDF.Sphere(radius = 100, origin = (0.0, -90.0))
+# sphere_bed = SDF.Sphere(radius = 100, origin = (0.0, -90.0))
+sphere_bed = LevelSet(DEM("data/greenland.h5", "bed"))
 
 not_air = !(sphere_bed ∪ sphere_ice)
 not_bed = !(sphere_bed)
