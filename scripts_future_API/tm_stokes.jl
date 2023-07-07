@@ -61,7 +61,7 @@ rheology = IceRheology(
 physics = (;equation_of_state, rheology)
 
 numerics = (
-    tolerance              = (v = 1e-6, τ = 1e-6, p = 1e-8),
+    tolerance              = (V = 1e-6, τ = 1e-6, Pr = 1e-8),
     check_after_iterations = 100,
     max_iterations         = 20(size(grid),3)
 )
@@ -120,6 +120,30 @@ simulation = Simulation(model; timestepping...)
 # run!(simulation; callbacks)
 run!(simulation)
 
+## Intermediate-level API
+for (it, rep_Δt, current_time) in timesteps(simulation)
+    copy_double_buffers!(model)
+    target_Δt = timestepping.max_Δt
+    if !isnothing(timestepping.cfl)
+        cfl_Δt    = estimate_Δt(model, timestepping.cfl)
+        target_Δt = min(target_Δt, cfl_Δt)
+    end
+    nsub = ceil(Int,rep_Δt/target_Δt)
+    Δt   = rep_Δt/nsub
+    isub = 0; Δt_stack = fill(Δt,nsub)
+    while !isempty(Δt_stack)
+        isub += 1
+        Δt   = pop!(Δt_stack)
+        if !advance_timestep!(model, Δt, current_time)
+            recover!(model)
+            push!(Δt_stack, 0.5Δt, 0.5Δt)
+        else
+            copy_double_buffers!(model)
+            current_time += Δt
+        end
+    end
+end
+
 ## Low-level library-like API
 for (it, rep_Δt, current_time) in timesteps(simulation)
     copy_double_buffers!(model)
@@ -154,30 +178,6 @@ for (it, rep_Δt, current_time) in timesteps(simulation)
             end
         end
         if failed
-            recover!(model)
-            push!(Δt_stack, 0.5Δt, 0.5Δt)
-        else
-            copy_double_buffers!(model)
-            current_time += Δt
-        end
-    end
-end
-
-## Intermediate-level API
-for (it, rep_Δt, current_time) in timesteps(simulation)
-    copy_double_buffers!(model)
-    target_Δt = timestepping.max_Δt
-    if !isnothing(timestepping.cfl)
-        cfl_Δt    = estimate_Δt(model, timestepping.cfl)
-        target_Δt = min(target_Δt, cfl_Δt)
-    end
-    nsub = ceil(Int,rep_Δt/target_Δt)
-    Δt   = rep_Δt/nsub
-    isub = 0; Δt_stack = fill(Δt,nsub)
-    while !isempty(Δt_stack)
-        isub += 1
-        Δt   = pop!(Δt_stack)
-        if !advance_timestep!(model, Δt, current_time)
             recover!(model)
             push!(Δt_stack, 0.5Δt, 0.5Δt)
         else
