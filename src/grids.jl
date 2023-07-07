@@ -88,22 +88,14 @@ end
 @inline function centers(grid::CartesianGrid{N}; halos=nothing) where {N}
     ntuple(Val(N)) do I
         Base.@_inline_meta
-        if isnothing(halos)
-            @inbounds centers(grid, Val(I))
-        else
-            @inbounds centers(grid, Val(I); halo=halos[I])
-        end
+        isnothing(halos) ? centers(grid, Val(I)) : centers(grid, Val(I); halo=halos[I])
     end
 end
 
 @inline function vertices(grid::CartesianGrid{N}; halos=nothing) where {N}
     ntuple(Val(N)) do I
         Base.@_inline_meta
-        if isnothing(halos)
-            @inbounds vertices(grid, Val(I))
-        else
-            @inbounds vertices(grid, Val(I); halo=halos[I])
-        end
+        isnothing(halos) ? vertices(grid, Val(I)) : vertices(grid, Val(I); halo=halos[I])
     end
 end
 
