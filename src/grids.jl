@@ -5,7 +5,7 @@ export CartesianGrid, origin, extent, spacing
 export coord, xcoord, ycoord, zcoord
 export coords, xcoords, ycoords, zcoords
 export centers, xcenters, ycenters, zcenters
-export faces, xfaces, yfaces, zfaces
+export vertices, xvertices, yvertices, zvertices
 
 struct Center end
 struct Vertex end
@@ -68,7 +68,7 @@ end
 @inline zcoords(grid::CartesianGrid, ::Type{L}; kwargs...) where {L} = coords(grid, L, Val(3); kwargs...)
 
 @inline centers(grid::CartesianGrid, dim; kwargs...) = coords(grid, Center, dim; kwargs...)
-@inline faces(grid::CartesianGrid, dim; kwargs...) = coords(grid, Vertex, dim; kwargs...)
+@inline vertices(grid::CartesianGrid, dim; kwargs...) = coords(grid, Vertex, dim; kwargs...)
 
 @inline function centers(grid::CartesianGrid{N}; halos=nothing) where {N}
     ntuple(Val(N)) do I
@@ -81,13 +81,13 @@ end
     end
 end
 
-@inline function faces(grid::CartesianGrid{N}; halos=nothing) where {N}
+@inline function vertices(grid::CartesianGrid{N}; halos=nothing) where {N}
     ntuple(Val(N)) do I
         Base.@_inline_meta
         if isnothing(halos)
-            @inbounds faces(grid, Val(I))
+            @inbounds vertices(grid, Val(I))
         else
-            @inbounds faces(grid, Val(I); halo=halos[I])
+            @inbounds vertices(grid, Val(I); halo=halos[I])
         end
     end
 end
@@ -96,8 +96,8 @@ end
 @inline ycenters(grid::CartesianGrid; kwargs...) = centers(grid, Val(2); kwargs...)
 @inline zcenters(grid::CartesianGrid; kwargs...) = centers(grid, Val(3); kwargs...)
 
-@inline xfaces(grid::CartesianGrid; kwargs...) = faces(grid, Val(1); kwargs...)
-@inline yfaces(grid::CartesianGrid; kwargs...) = faces(grid, Val(2); kwargs...)
-@inline zfaces(grid::CartesianGrid; kwargs...) = faces(grid, Val(3); kwargs...)
+@inline xvertices(grid::CartesianGrid; kwargs...) = vertices(grid, Val(1); kwargs...)
+@inline yvertices(grid::CartesianGrid; kwargs...) = vertices(grid, Val(2); kwargs...)
+@inline zvertices(grid::CartesianGrid; kwargs...) = vertices(grid, Val(3); kwargs...)
 
 end
