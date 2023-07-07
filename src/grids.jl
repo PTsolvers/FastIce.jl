@@ -7,8 +7,10 @@ export coords, xcoords, ycoords, zcoords
 export centers, xcenters, ycenters, zcenters
 export vertices, xvertices, yvertices, zvertices
 
-struct Center end
-struct Vertex end
+abstract type Location end
+
+struct Center <: Location end
+struct Vertex <: Location end
 
 struct CartesianGrid{N,T<:AbstractFloat,I<:Integer}
     origin::NTuple{N,T}
@@ -24,7 +26,18 @@ import Base.@propagate_inbounds
 
 @inline Base.size(grid::CartesianGrid) = grid.size
 
-@propagate_inbounds Base.size(grid::CartesianGrid, dim) = grid.size[dim]
+@propagate_inbounds Base.size(grid::CartesianGrid, dim::Integer) = grid.size[dim]
+
+@propagate_inbounds Base.size(grid::CartesianGrid, ::Center, dim::Integer) = grid.size[dim]
+
+@propagate_inbounds Base.size(grid::CartesianGrid{N,T,I}, ::Vertex, dim::Integer) where {N,T,I} = grid.size[dim] + oneunit(I)
+
+@propagate_inbounds function Base.size(grid::CartesianGrid{N}, locs::NTuple{N,Location}) where N
+    ntuple(Val(N)) do I
+        Base.@_inline_meta
+        size(grid, locs[I], I)
+    end
+end
 
 @inline origin(grid::CartesianGrid) = grid.origin
 @inline extent(grid::CartesianGrid) = grid.extent
@@ -34,16 +47,18 @@ import Base.@propagate_inbounds
 @propagate_inbounds extent(grid::CartesianGrid, dim) = grid.extent[dim]
 @propagate_inbounds spacing(grid::CartesianGrid, dim) = extent(grid, dim) / size(grid, dim)
 
-@propagate_inbounds coord(grid::CartesianGrid, ::Type{Center}, dim::Integer, i) = origin(grid, dim) + (i - eltype(grid)(0.5)) / size(grid, dim)
-@propagate_inbounds coord(grid::CartesianGrid, ::Type{Vertex}, dim::Integer, i) = origin(grid, dim) + (i - eltype(grid)(1)) / size(grid, dim)
+@propagate_inbounds coord(grid::CartesianGrid{N}, ::Center, inds::NTuple{N}) where N = origin(grid) .+ (inds .- eltype(grid)(0.5)) ./ size(grid, dim)
 
-@propagate_inbounds coord(grid::CartesianGrid, ::Type{L}, ::Val{D}, i) where {L,D} = coord(grid, L, D, i)
+@propagate_inbounds coord(grid::CartesianGrid, ::Center, dim::Integer, i) = origin(grid, dim) + (i - eltype(grid)(0.5)) / size(grid, dim)
+@propagate_inbounds coord(grid::CartesianGrid, ::Vertex, dim::Integer, i) = origin(grid, dim) + (i - eltype(grid)(1)) / size(grid, dim)
 
-@inline xcoord(grid::CartesianGrid, ::Type{L}, i) where {L} = coord(grid, L, Val(1), i)
-@inline ycoord(grid::CartesianGrid, ::Type{L}, i) where {L} = coord(grid, L, Val(2), i)
-@inline zcoord(grid::CartesianGrid, ::Type{L}, i) where {L} = coord(grid, L, Val(3), i)
+@propagate_inbounds coord(grid::CartesianGrid, loc::Location, ::Val{D}, i) where {D} = coord(grid, loc, D, i)
 
-function coords(grid::CartesianGrid, ::Type{L}, dim; halo=nothing) where {L}
+@inline xcoord(grid::CartesianGrid, loc::Location, i) = coord(grid, loc, Val(1), i)
+@inline ycoord(grid::CartesianGrid, loc::Location, i) = coord(grid, loc, Val(2), i)
+@inline zcoord(grid::CartesianGrid, loc::Location, i) = coord(grid, loc, Val(3), i)
+
+function coords(grid::CartesianGrid, loc::Location, dim; halo=nothing)
     if isnothing(halo)
         halo = (0, 0)
     end
@@ -52,23 +67,23 @@ function coords(grid::CartesianGrid, ::Type{L}, dim; halo=nothing) where {L}
         halo = (halo, halo)
     end
 
-    _coords(grid, L, dim, halo)
+    _coords(grid, loc, dim, halo)
 end
 
-@inline coords(grid::CartesianGrid, ::Type{L}, ::Val{D}; kwargs...) where {L,D} = coords(grid, L, D; kwargs...)
+@inline coords(grid::CartesianGrid, loc::Location, ::Val{D}; kwargs...) where D = coords(grid, loc, D; kwargs...)
 
-@inline function _coords(grid::CartesianGrid, ::Type{L}, dim, halo::Tuple{Integer,Integer}) where {L}
-    start = coord(grid, L, dim, 1 - halo[1])
-    stop = coord(grid, L, dim, size(grid, dim) + halo[2])
-    LinRange(start, stop, size(grid, dim) + sum(halo))
+@inline function _coords(grid::CartesianGrid, loc::Location, dim, halo::Tuple{Integer,Integer})
+    start = coord(grid, loc, dim, 1 - halo[1])
+    stop = coord(grid, loc, dim, size(grid, loc, dim) + halo[2])
+    LinRange(start, stop, size(grid, loc, dim) + sum(halo))
 end
 
-@inline xcoords(grid::CartesianGrid, ::Type{L}; kwargs...) where {L} = coords(grid, L, Val(1); kwargs...)
-@inline ycoords(grid::CartesianGrid, ::Type{L}; kwargs...) where {L} = coords(grid, L, Val(2); kwargs...)
-@inline zcoords(grid::CartesianGrid, ::Type{L}; kwargs...) where {L} = coords(grid, L, Val(3); kwargs...)
+@inline xcoords(grid::CartesianGrid, loc::Location; kwargs...) = coords(grid, loc, Val(1); kwargs...)
+@inline ycoords(grid::CartesianGrid, loc::Location; kwargs...) = coords(grid, loc, Val(2); kwargs...)
+@inline zcoords(grid::CartesianGrid, loc::Location; kwargs...) = coords(grid, loc, Val(3); kwargs...)
 
-@inline centers(grid::CartesianGrid, dim; kwargs...) = coords(grid, Center, dim; kwargs...)
-@inline vertices(grid::CartesianGrid, dim; kwargs...) = coords(grid, Vertex, dim; kwargs...)
+@inline centers(grid::CartesianGrid, dim; kwargs...) = coords(grid, Center(), dim; kwargs...)
+@inline vertices(grid::CartesianGrid, dim; kwargs...) = coords(grid, Vertex(), dim; kwargs...)
 
 @inline function centers(grid::CartesianGrid{N}; halos=nothing) where {N}
     ntuple(Val(N)) do I
