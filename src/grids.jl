@@ -48,6 +48,7 @@ end
 @propagate_inbounds spacing(grid::CartesianGrid, dim) = extent(grid, dim) / size(grid, dim)
 
 @propagate_inbounds coord(grid::CartesianGrid{N}, ::Center, inds::NTuple{N}) where N = origin(grid) .+ (inds .- eltype(grid)(0.5)) ./ size(grid, dim)
+@propagate_inbounds coord(grid::CartesianGrid{N}, ::Vertex, inds::NTuple{N}) where N = origin(grid) .+ (inds .- eltype(grid)(1)) ./ size(grid, dim)
 
 @propagate_inbounds coord(grid::CartesianGrid, ::Center, dim::Integer, i) = origin(grid, dim) + (i - eltype(grid)(0.5)) / size(grid, dim)
 @propagate_inbounds coord(grid::CartesianGrid, ::Vertex, dim::Integer, i) = origin(grid, dim) + (i - eltype(grid)(1)) / size(grid, dim)
