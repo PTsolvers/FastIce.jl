@@ -101,6 +101,8 @@ spacing(grid::CartesianGrid) = spacing.(grid.axes)
 coord(grid::CartesianGrid{N}, loc::Location, inds::NTuple{N}) where {N} = coord.(grid.axes, Ref(loc), inds)
 coord(grid::CartesianGrid{N}, loc::NTuple{N,Location}, inds::NTuple{N}) where {N} = coord.(grid.axes, loc, inds)
 
+coord(grid::CartesianGrid{N}, loc, I::CartesianIndex{N}) where {N} = coord(grid, loc, Tuple(I))
+
 @propagate_inbounds coord(grid::CartesianGrid, loc::Location, dim::Integer, i::Integer) = coord(grid.axes[dim], loc, i)
 @propagate_inbounds coord(grid::CartesianGrid{N}, loc::Location, dim::Integer, inds::NTuple{N}) where {N} = coord(grid.axes[dim], loc, inds[dim])
 @propagate_inbounds coord(grid::CartesianGrid{N}, locs::NTuple{N,Location}, dim::Integer, inds::NTuple{N}) where {N} = coord(grid.axes[dim], locs[dim], inds[dim])
@@ -110,6 +112,9 @@ coord(grid::CartesianGrid{N}, loc::NTuple{N,Location}, inds::NTuple{N}) where {N
 
 center(grid::CartesianGrid{N}, inds::NTuple{N}) where {N} = center.(grid.axes, inds)
 vertex(grid::CartesianGrid{N}, inds::NTuple{N}) where {N} = vertex.(grid.axes, inds)
+
+center(grid::CartesianGrid{N}, I::CartesianIndex{N}) where {N} = center(grid, Tuple(I))
+vertex(grid::CartesianGrid{N}, I::CartesianIndex{N}) where {N} = vertex(grid, Tuple(I))
 
 @propagate_inbounds center(grid::CartesianGrid, dim::Integer, i) = coord(grid, Center(), dim, i)
 @propagate_inbounds center(grid::CartesianGrid, ::Val{D}, i) where {D} = coord(grid, Center(), D, i)

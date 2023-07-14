@@ -1,11 +1,12 @@
 module Fields
 
 export AbstractField
-export Field
+export Field, interior, interior_indices
 
 abstract type AbstractField{T,N,L} <: AbstractArray{T,N} end
 
 import Base.@pure
+import Base.@propagate_inbounds
 
 @pure location(::AbstractField{T,N,L}) where {T,N,L} = L
 @pure location_instance(::AbstractField{T,N,L}) where {T,N,L} = L.instance
@@ -19,21 +20,41 @@ struct Field{T,N,L,D,H} <: AbstractField{T,N,L}
     halo::H
 end
 
-Field{L}(data::D, halo::H) where {L,D,H} = Field{D, ndims(data), L, D, H}(data, halo)
+Field{L}(data::D, halo::H) where {L,D,H} = Field{eltype(D), ndims(data), L, D, H}(data, halo)
 
-@inline data(f::Field) = f.data
-@inline halo(f::Field) = f.halo
+data(f::Field) = f.data
+halo(f::Field) = f.halo
 
-@inline Base.size(f::Field) = size(data(f))
-@inline Base.parent(f::Field) = data(f)
+Base.size(f::Field) = size(data(f))
+Base.parent(f::Field) = data(f)
 
-Base.@propagate_inbounds Base.getindex(f::Field, inds...) = getindex(data(f), inds...)
+@propagate_inbounds Base.getindex(f::Field, inds...) = getindex(data(f), inds...)
 
-@inline interior_indices(f::Field{T,N,L,D,Nothing}) where {T,N,L,D} = axes(data(f))
-@inline interior_indices(f::Field) = UnitRange.(halo(f).+1,size(f).-halo(f))
+interior_indices(f::Field{T,N,L,D,Nothing}) where {T,N,L,D} = axes(data(f))
+interior_indices(f::Field) = UnitRange.(halo(f).+1,size(f).-halo(f))
 
-@inline interior(f::Field{T,N,L,D,Nothing}) where {T,N,L,D} = data(f)
+interior(f::Field{T,N,L,D,Nothing}) where {T,N,L,D} = data(f)
 
-@inline interior(f::Field) = view(data(f), interior_indices(f)...)
+interior(f::Field) = view(data(f), interior_indices(f)...)
+
+set!(f::Field, other::Field) = (copy!(interior(f), interior(other)); nothing)
+set!(f::Field{T}, val::T) where {T} = (fill!(interior(f), val); nothing)
+set!(f::Field, A::AbstractArray) = (copy!(interior(f), A); nothing)
+
+import FastIce.Grids: CartesianGrid, coord
+
+using KernelAbstractions
+
+@kernel function _set_fun_kernel!(dst,fun,grid,loc)
+    I = @index(Global, Cartesian)
+    dst[I] = fun(coord(grid, loc, I))
+end
+
+function set!(f::Field{T,N}, fun::F, grid::CartesianGrid{N}) where {T,N,F}
+    loc = location_instance(f)
+    dst = interior(f)
+    _set_fun_kernel!(get_backend(dst),256)(dst, fun, grid, loc; ndrange=size(dst))
+    return
+end
 
 end
