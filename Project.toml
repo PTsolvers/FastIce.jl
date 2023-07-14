@@ -1,6 +1,6 @@
+authors = ["Ludovic Raess <ludovic.rass@gmail.com>, Ivan Utkin and contributors"]
 name = "FastIce"
 uuid = "e0de9f13-a007-490e-b696-b07d031015ca"
-authors = ["Ludovic Raess <ludovic.rass@gmail.com>, Ivan Utkin and contributors"]
 version = "0.1.0"
 
 [deps]
@@ -31,3 +31,6 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 TinyKernels = "f7cbc414-f748-44bf-86e6-e44e9a55e39d"
 UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
+
+[extras]
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
