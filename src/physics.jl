@@ -12,12 +12,14 @@ struct IncompressibleIceEOS{T}
     heat_capacity::T
 end
 
-default(::Type{IncompressibleIceEOS{T}}) where T = IncompressibleIceEOS(convert(T, 920), convert(T, 2100))
+default(::Type{IncompressibleIceEOS{T}}) where {T} = IncompressibleIceEOS(convert(T, 920), convert(T, 2100))
 
 struct IceThermalProperties{T}
     thermal_conductivity::T
     melting_temperature::T
 end
+
+default(::Type{IceThermalProperties{T}}) where {T} = IceThermalProperties(convert(T, 1), convert(T, 273.15))
 
 abstract type IceRheology end
 
@@ -25,6 +27,8 @@ struct GlensLawRheology{T,I}
     consistency::T
     exponent::I
 end
+
+default(::Type{GlensLawRheology{T,I}}) where {T,I} = GlensLawRheology(convert(T, 1e-20), convert(T, 1 / 3))
 
 @inline function τ(rh::GlensLawRheology{T}, e::NamedTuple{(:xx, :yy, :xy),NTuple{2,T}}) where {T}
     γ̇ = sqrt(0.5 * (e.xx^2 + e.yy^2) + e.xy^2)
