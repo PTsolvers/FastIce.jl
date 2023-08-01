@@ -1,6 +1,5 @@
 module FastIce
 
-using Preferences
 using KernelAbstractions
 
 include("logging.jl")

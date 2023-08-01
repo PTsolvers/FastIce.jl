@@ -45,7 +45,7 @@ import FastIce.Grids: CartesianGrid, coord
 
 using KernelAbstractions
 
-@kernel function _set_fun_kernel!(dst, fun, grid, loc)
+@kernel function _set!(dst, fun, grid, loc)
     I = @index(Global, Cartesian)
     dst[I] = fun(coord(grid, loc, I))
 end
@@ -53,7 +53,7 @@ end
 function set!(f::Field{T,N}, fun::F, grid::CartesianGrid{N}) where {T,N,F}
     loc = location_instance(f)
     dst = interior(f)
-    _set_fun_kernel!(get_backend(dst), 256)(dst, fun, grid, loc; ndrange=size(dst))
+    _set!(get_backend(dst), 256)(dst, fun, grid, loc; ndrange=size(dst))
     return
 end
 

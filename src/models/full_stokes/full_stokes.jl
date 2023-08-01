@@ -1,5 +1,5 @@
 module FullStokes
 
-include("isothermal.jl")
+include("isothermal/isothermal.jl")
 
 end
