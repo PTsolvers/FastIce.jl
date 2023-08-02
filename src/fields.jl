@@ -3,6 +3,8 @@ module Fields
 export AbstractField
 export Field, interior, interior_indices
 
+using Adapt
+
 abstract type AbstractField{T,N,L} <: AbstractArray{T,N} end
 
 import Base.@pure
@@ -27,6 +29,8 @@ halo(f::Field) = f.halo
 
 Base.size(f::Field) = size(data(f))
 Base.parent(f::Field) = data(f)
+
+Adapt.adapt_structure(to, f::Field) = Adapt.adapt(to, f.data)
 
 @propagate_inbounds Base.getindex(f::Field, inds...) = getindex(data(f), inds...)
 

@@ -97,6 +97,7 @@ spacing(grid::CartesianGrid) = spacing.(grid.axes)
 @propagate_inbounds origin(grid::CartesianGrid, dim::Integer) = origin(grid.axes[dim])
 @propagate_inbounds extent(grid::CartesianGrid, dim::Integer) = extent(grid.axes[dim])
 @propagate_inbounds spacing(grid::CartesianGrid, dim::Integer) = spacing(grid.axes[dim])
+@propagate_inbounds Δ(grid::CartesianGrid, dim::Integer) = spacing(grid.axes[dim])
 
 coord(grid::CartesianGrid{N}, loc::Location, inds::NTuple{N}) where {N} = coord.(grid.axes, Ref(loc), inds)
 coord(grid::CartesianGrid{N}, loc::NTuple{N,Location}, inds::NTuple{N}) where {N} = coord.(grid.axes, loc, inds)
