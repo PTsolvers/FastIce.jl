@@ -89,7 +89,6 @@ end
     return
 end
 
-
 @inline function apply_west_bc!(f, grid, ix, iy, iz, bc::NeumannBC)
     I1, I2 = CartesianIndex(ix, iy, iz), CartesianIndex(ix + 1, iy, iz)
     bc2!(f, I1, I2, -Δ(grid, 1) * bc(grid, iy, iz), 1.0)
