@@ -55,6 +55,9 @@ end
 
 Adapt.adapt_structure(to, f::NeumannBC) = Adapt.adapt(to, f.val)
 
+@inline bc1!(f, I, v) = @inbounds f[I] = v
+@inline bc2!(f, I1, I2, a, b) = @inbounds f[I1] = a + b * f[I2]
+
 @inline apply_west_bc!(f, grid, ix, iy, iz, bc::DirichletBC{T,NoShift}) where {T} = bc1!(f, CartesianIndex(ix, iy, iz), bc(grid, iy, iz))
 @inline apply_east_bc!(f, grid, ix, iy, iz, bc::DirichletBC{T,NoShift}) where {T} = bc1!(f, CartesianIndex(ix, iy, iz), bc(grid, iy, iz))
 
@@ -135,8 +138,5 @@ end
     bc2!(f, I1, I2, Δ(grid, 3) * bc(grid, ix, iy), 1.0)
     return
 end
-
-@inline bc1!(f, I, v) = @inbounds f[I] = v
-@inline bc2!(f, I1, I2, a, b) = @inbounds f[I1] = a + b * f[I2]
 
 end
