@@ -3,22 +3,22 @@ module BoundaryConditions
 using KernelAbstractions
 using Adapt
 
-@kernel function discrete_bcs_x!(f, west_ix, east_ix, west_bc, east_bc, west_args, east_args)
+@kernel function discrete_bcs_x!(f, grid, west_ix, east_ix, west_bc, east_bc)
     iy, iz = @index(Global, NTuple)
-    @inbounds west_bc(f, iy + 1, iz + 1, west_args...)
-    @inbounds east_bc(f, iy + 1, iz + 1, east_args...)
+    apply_west_bc!(f, grid, west_ix, iy + 1, iz + 1, west_bc)
+    apply_east_bc!(f, grid, east_ix, iy + 1, iz + 1, east_bc)
 end
 
-@kernel function discrete_bcs_y!(f, south_iy, north_iy, south_bc, north_bc, south_args, north_args)
+@kernel function discrete_bcs_y!(f, grid, south_iy, north_iy, south_bc, north_bc)
     ix, iz = @index(Global, NTuple)
-    @inbounds f[ix+1, south_iy, iz+1] = south_bc(f, ix + 1, iz + 1, south_args...)
-    @inbounds f[ix+1, north_iy, iz+1] = north_bc(f, ix + 1, iz + 1, north_args...)
+    apply_south_bc!(f, grid, ix + 1, south_iy, iz + 1, south_bc)
+    apply_north_bc!(f, grid, ix + 1, north_iy, iz + 1, north_bc)
 end
 
-@kernel function discrete_bcs_z!(A, bot_iz, top_iz, bot_bc, top_bc, bot_args, top_args)
+@kernel function discrete_bcs_z!(f, bot_iz, top_iz, bot_bc, top_bc)
     ix, iy = @index(Global, NTuple)
-    @inbounds A[ix+1, iy+1, bot_iz] = bot_bc(f, ix + 1, iy + 1, bot_args...)
-    @inbounds A[ix+1, iy+1, top_iz] = top_bc(f, ix + 1, iy + 1, top_args...)
+    apply_bot_bc!(f, grid, ix + 1, iy + 1, bot_iz, bot_bc)
+    apply_top_bc!(f, grid, ix + 1, iy + 1, top_iz, top_bc)
 end
 
 struct Shift end
