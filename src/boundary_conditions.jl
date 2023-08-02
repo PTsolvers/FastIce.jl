@@ -28,7 +28,7 @@ struct DirichletBC{T,HasShift}
     val::T
 end
 
-DirichletBC{HasShift}(val::T) where {T,HasShift} = DirichletBC{T, HasShift}(val)
+DirichletBC{HasShift}(val::T) where {T,HasShift} = DirichletBC{T,HasShift}(val)
 
 (bc::DirichletBC{<:Number})(grid, i, j) = bc.val
 (bc::DirichletBC{<:AbstractArray})(grid, i, j) = @inbounds bc.val[i, j]
