@@ -30,11 +30,14 @@ end
 fields(model::IsothermalFullStokesModel) = model.fields
 grid(model::IsothermalFullStokesModel) = model.grid
 
-function set_stress_bcs!(Pr, τ, V, Δ, bcs)
-    # TODO
+function set_stress_bcs!(bcs, args...)
+    for (side, bc) in bcs
+        set_bc!(Val(side), bc, args...)
+    end
+    return
 end
 
-function set_velocity_bc!(V, Pr, τ, Δ, bcs)
+function set_velocity_bcs!(V, Pr, τ, Δ, bcs)
     # TODO
 end
 
@@ -47,17 +50,21 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async = tr
     backend = model.backend
 
     # stress
-    update_σ!(backend, 256, (nx, ny, nz))(Pr, τ, V, η, Δτ, Δ)
+    update_σ!(backend, 256, (nx + 2, ny + 2, nz + 2))(Pr, τ, V, η, Δτ, Δ)
     set_stress_bcs!(Pr, τ, V, Δ, model.boundary_conditions)
     # velocity
-    update_V!(backend, 256, (nx - 1, ny - 1, nz - 1))(V, Pr, τ, η, Δτ, Δ)
+    update_V!(backend, 256, (nx + 1, ny + 1, nz + 1))(V, Pr, τ, η, Δτ, Δ)
     set_velocity_bcs!(V, Pr, τ, Δ, model.boundary_conditions)
     # rheology
-    update_η!(backend, 256, (nx - 2, ny - 2, nz - 2))(η, τ, η_rh, η_rel)
+    update_η!(backend, 256, (nx, ny, nz))(η, τ, η_rh, η_rel)
     extrapolate!(η)
 
     async || synchronize(backend)
     return
 end
 
+function advance_timestep!(model::IsothermalFullStokesModel, t, Δt)
+    # TODO
+    
+    return
 end
