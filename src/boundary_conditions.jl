@@ -21,6 +21,17 @@ end
     apply_top_bc!(f, grid, ix + 1, iy + 1, top_iz, top_bc)
 end
 
+struct NoBC end
+
+@inline apply_west_bc!(f, grid, ix, iy, iz, ::NoBC) = nothing
+@inline apply_east_bc!(f, grid, ix, iy, iz, ::NoBC) = nothing
+
+@inline apply_south_bc!(f, grid, ix, iy, iz, ::NoBC) = nothing
+@inline apply_north_bc!(f, grid, ix, iy, iz, ::NoBC) = nothing
+
+@inline apply_bot_bc!(f, grid, ix, iy, iz, ::NoBC) = nothing
+@inline apply_top_bc!(f, grid, ix, iy, iz, ::NoBC) = nothing
+
 struct Shift end
 struct NoShift end
 
