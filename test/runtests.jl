@@ -45,15 +45,6 @@ AMDGPU.functional() && push!(backends, ROCBackend())
                 @test all((field[2:end-1, 2:end-1, 1] .+ field[2:end-1, 2:end-1, 2]) ./ 2 .≈ bot_bc.val)
                 @test all(field[2:end-1, 2:end-1, end] .≈ top_bc.val)
             end
-            @testset "no BC" begin
-                field .= 0.0
-                bot_bc = NoBC()
-                top_bc = NoBC()
-                discrete_bcs_z!(backend, 256, size(grid))(grid, (@view(field[2:end-1, 2:end-1, :]), ), (bot_bc, ), (top_bc, ))
-                KernelAbstractions.synchronize(backend)
-                @test all((field[2:end-1, 2:end-1, 1] .+ field[2:end-1, 2:end-1, 2]) ./ 2 .≈ 0.0)
-                @test all(field[2:end-1, 2:end-1, end] .≈ 0.0)
-            end
         end
         @testset "array" begin
             @testset "x-dim" begin
@@ -94,6 +85,35 @@ AMDGPU.functional() && push!(backends, ROCBackend())
                 KernelAbstractions.synchronize(backend)
                 @test all((field[2:end-1, 2:end-1, 1] .+ field[2:end-1, 2:end-1, 2]) ./ 2 .≈ bot_bc.val)
                 @test all(field[2:end-1, 2:end-1, end] .≈ top_bc.val)
+            end
+        end
+        @testset "no BC" begin
+            @testset "x-dim" begin
+                field .= 0.0
+                west_bc = NoBC()
+                east_bc = NoBC()
+                discrete_bcs_x!(backend, 256, size(grid))(grid, (@view(field[:, 2:end-1, 2:end-1]), ), (west_bc, ), (east_bc, ))
+                KernelAbstractions.synchronize(backend)
+                @test all((field[1, 2:end-1, 2:end-1] .+ field[2, 2:end-1, 2:end-1]) ./ 2 .≈ 0.0)
+                @test all(field[end, 2:end-1, 2:end-1] .≈ 0.0)
+            end
+            @testset "y-dim" begin
+                field .= 0.0
+                south_bc = NoBC()
+                north_bc = NoBC()
+                discrete_bcs_y!(backend, 256, size(grid))(grid, (@view(field[2:end-1, :, 2:end-1]), ), (south_bc, ), (north_bc, ))
+                KernelAbstractions.synchronize(backend)
+                @test all((field[2:end-1, 1, 2:end-1] .+ field[2:end-1, 2, 2:end-1]) ./ 2 .≈ 0.0)
+                @test all(field[2:end-1, end, 2:end-1] .≈ 0.0)
+            end
+            @testset "z-dim" begin
+                field .= 0.0
+                bot_bc = NoBC()
+                top_bc = NoBC()
+                discrete_bcs_z!(backend, 256, size(grid))(grid, (@view(field[2:end-1, 2:end-1, :]), ), (bot_bc, ), (top_bc, ))
+                KernelAbstractions.synchronize(backend)
+                @test all((field[2:end-1, 2:end-1, 1] .+ field[2:end-1, 2:end-1, 2]) ./ 2 .≈ 0.0)
+                @test all(field[2:end-1, 2:end-1, end] .≈ 0.0)
             end
         end
     end
