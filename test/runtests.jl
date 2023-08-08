@@ -45,6 +45,15 @@ AMDGPU.functional() && push!(backends, ROCBackend())
                 @test all((field[2:end-1, 2:end-1, 1] .+ field[2:end-1, 2:end-1, 2]) ./ 2 .≈ bot_bc.val)
                 @test all(field[2:end-1, 2:end-1, end] .≈ top_bc.val)
             end
+            @testset "no BC" begin
+                field .= 0.0
+                bot_bc = NoBC()
+                top_bc = NoBC()
+                discrete_bcs_z!(backend, 256, size(grid))(grid, (@view(field[2:end-1, 2:end-1, :]), ), (bot_bc, ), (top_bc, ))
+                KernelAbstractions.synchronize(backend)
+                @test all((field[2:end-1, 2:end-1, 1] .+ field[2:end-1, 2:end-1, 2]) ./ 2 .≈ 0.0)
+                @test all(field[2:end-1, 2:end-1, end] .≈ 0.0)
+            end
         end
         @testset "array" begin
             @testset "x-dim" begin
