@@ -46,34 +46,36 @@ AMDGPU.functional() && push!(backends, ROCBackend())
                 @test all(field[2:end-1, 2:end-1, end] .≈ top_bc.val)
             end
         end
-        # @testset "array" begin
-        #     @testset "x-dim" begin
-        #         field .= 0.0
-        #         west_bc = DirichletBC{HalfCell}(1.0)
-        #         east_bc = DirichletBC{FullCell}(0.5)
-        #         discrete_bcs_x!(backend, 256, size(grid))(grid, (field, ), (west_bc, ), (east_bc, ))
-        #         KernelAbstractions.synchronize(backend)
-        #         @test all((field[1, 2:end-1, 2:end-1] .+ field[2, 2:end-1, 2:end-1]) ./ 2 .≈ west_bc.val)
-        #         @test all(field[end, 2:end-1, 2:end-1] .≈ east_bc.val)
-        #     end
-        #     @testset "y-dim" begin
-        #         field .= 0.0
-        #         south_bc = DirichletBC{HalfCell}(1.0)
-        #         north_bc = DirichletBC{FullCell}(0.5)
-        #         discrete_bcs_y!(backend, 256, size(grid))(grid, (field, ), (south_bc, ), (north_bc, ))
-        #         KernelAbstractions.synchronize(backend)
-        #         @test all((field[2:end-1, 1, 2:end-1] .+ field[2:end-1, 2, 2:end-1]) ./ 2 .≈ south_bc.val)
-        #         @test all(field[2:end-1, end, 2:end-1] .≈ north_bc.val)
-        #     end
-        #     @testset "z-dim" begin
-        #         field .= 0.0
-        #         bot_bc = DirichletBC{HalfCell}(1.0)
-        #         top_bc = DirichletBC{FullCell}(0.5)
-        #         discrete_bcs_z!(backend, 256, size(grid))(grid, (field, ), (bot_bc, ), (top_bc, ))
-        #         KernelAbstractions.synchronize(backend)
-        #         @test all((field[2:end-1, 2:end-1, 1] .+ field[2:end-1, 2:end-1, 2]) ./ 2 .≈ bot_bc.val)
-        #         @test all(field[2:end-1, 2:end-1, end] .≈ top_bc.val)
-        #     end
-        # end
+        @testset "array" begin
+            @testset "x-dim" begin
+                field .= 0.0
+                bc_array = KernelAbstractions.allocate(backend, Float64, (size(grid, 2), size(grid, 3)))
+                bc_array .= 0.5
+                west_bc = DirichletBC{HalfCell}(1.0)
+                east_bc = DirichletBC{FullCell}(0.5)
+                discrete_bcs_x!(backend, 256, size(grid))(grid, (field, ), (west_bc, ), (east_bc, ))
+                KernelAbstractions.synchronize(backend)
+                @test all((field[1, 2:end-1, 2:end-1] .+ field[2, 2:end-1, 2:end-1]) ./ 2 .≈ west_bc.val)
+                @test all(field[end, 2:end-1, 2:end-1] .≈ east_bc.val)
+            end
+            @testset "y-dim" begin
+                field .= 0.0
+                south_bc = DirichletBC{HalfCell}(1.0)
+                north_bc = DirichletBC{FullCell}(0.5)
+                discrete_bcs_y!(backend, 256, size(grid))(grid, (field, ), (south_bc, ), (north_bc, ))
+                KernelAbstractions.synchronize(backend)
+                @test all((field[2:end-1, 1, 2:end-1] .+ field[2:end-1, 2, 2:end-1]) ./ 2 .≈ south_bc.val)
+                @test all(field[2:end-1, end, 2:end-1] .≈ north_bc.val)
+            end
+            @testset "z-dim" begin
+                field .= 0.0
+                bot_bc = DirichletBC{HalfCell}(1.0)
+                top_bc = DirichletBC{FullCell}(0.5)
+                discrete_bcs_z!(backend, 256, size(grid))(grid, (field, ), (bot_bc, ), (top_bc, ))
+                KernelAbstractions.synchronize(backend)
+                @test all((field[2:end-1, 2:end-1, 1] .+ field[2:end-1, 2:end-1, 2]) ./ 2 .≈ bot_bc.val)
+                @test all(field[2:end-1, 2:end-1, end] .≈ top_bc.val)
+            end
+        end
     end
 end
