@@ -1,6 +1,7 @@
 module BoundaryConditions
 
-export discrete_bcs_x!, DirichletBC, HalfCell, FullCell
+export discrete_bcs_x!, discrete_bcs_y!, discrete_bcs_z!
+export DirichletBC, HalfCell, FullCell, NoBC
 
 using FastIce.Grids
 
