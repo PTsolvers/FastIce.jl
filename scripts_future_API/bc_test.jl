@@ -1,9 +1,10 @@
-using FastIce.BoundaryConditions
 using FastIce.Grids
-using AMDGPU
-using KernelAbstractions
+using FastIce.BoundaryConditions
 
-backend = ROCBackend()
+using KernelAbstractions
+using CUDA
+
+backend = CUDABackend()
 grid    = CartesianGrid(origin = (0.0, 0.0, 0.0), extent = (1.0, 1.0, 1.0), size = (2, 2, 2))
 field   = KernelAbstractions.zeros(backend, Float64, size(grid) .+ 2)
 west_bc = DirichletBC{HalfCell}(1.0)

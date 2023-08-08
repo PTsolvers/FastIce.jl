@@ -55,7 +55,7 @@ DirichletBC{FluxReconstruction}(val::T) where {FluxReconstruction, T} = Dirichle
 (bc::DirichletBC{FR, <:Number})(grid, i, j) where FR = bc.val
 Base.@propagate_inbounds (bc::DirichletBC{FR, <:AbstractArray})(grid, i, j) where FR = bc.val[i, j]
 
-Adapt.adapt_structure(to, f::DirichletBC) = Adapt.adapt(to, f.val)
+Adapt.adapt_structure(to, f::DirichletBC{FR, <:AbstractArray}) where FR = DirichletBC{FR}(Adapt.adapt(to, parent(f.val)))
 
 Base.@propagate_inbounds get_flux(Δ, f2, bc::DirichletBC{HalfCell}, grid, i, j) = (bc(grid, i, j) - f2)/(0.5Δ)
 Base.@propagate_inbounds get_flux(Δ, f2, bc::DirichletBC{FullCell}, grid, i, j) = (bc(grid, i, j) - f2)/Δ
