@@ -30,6 +30,14 @@ end
 fields(model::IsothermalFullStokesModel) = model.fields
 grid(model::IsothermalFullStokesModel) = model.grid
 
+
+# struct Traction end
+# struct Velocity end
+# struct  end
+
+# struct BoundaryCondition{}
+# end
+
 # In x direction:
 # Pr[1] = - Pr[2] + 2*px
 # τ.xx[1] = -τ.xx[2]
