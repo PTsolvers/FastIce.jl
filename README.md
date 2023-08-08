@@ -1,5 +1,5 @@
 # FastIce.jl
-[![Unit Tests](https://github.com/PTsolvers/FastIce.jl/actions/workflows/UnitTests.yml/badge.svg)](https://github.com/PTsolvers/FastIce.jl/actions/workflows/UnitTests.yml)
+[![Unit Tests](https://github.com/PTsolvers/FastIce.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/PTsolvers/FastIce.jl/actions/workflows/ci.yml)
 
 Parallel multi-xPU iterative **FastIce** flow solvers
 
