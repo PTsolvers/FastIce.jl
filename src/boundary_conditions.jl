@@ -10,7 +10,8 @@ using Adapt
 
 @kernel function discrete_bcs_x!(grid, fields, west_bcs, east_bcs)
     iy, iz = @index(Global, NTuple)
-    for ifield in eachindex(fields)
+    ntuple(Val(length(fields))) do ifield
+        Base.@_inline_meta
         if iy <= size(fields[ifield], 2) && iz <= size(fields[ifield], 3)
             apply_west_x_bc!(grid, fields[ifield], iy, iz, west_bcs[ifield])
             apply_east_x_bc!(grid, fields[ifield], iy, iz, east_bcs[ifield])
@@ -20,7 +21,8 @@ end
 
 @kernel function discrete_bcs_y!(grid, fields, south_bcs, north_bcs)
     ix, iz = @index(Global, NTuple)
-    for ifield in eachindex(fields)
+    ntuple(Val(length(fields))) do ifield
+        Base.@_inline_meta
         if ix <= size(fields[ifield], 1) && iz <= size(fields[ifield], 3)
             apply_south_y_bc!(grid, fields[ifield], ix, iz, south_bcs[ifield])
             apply_north_y_bc!(grid, fields[ifield], ix, iz, north_bcs[ifield])
@@ -30,7 +32,8 @@ end
 
 @kernel function discrete_bcs_z!(grid, fields, bot_bcs, top_bcs)
     ix, iy = @index(Global, NTuple)
-    for ifield in eachindex(fields)
+    ntuple(Val(length(fields))) do ifield
+        Base.@_inline_meta
         if ix <= size(fields[ifield], 1) && iy <= size(fields[ifield], 2)
             apply_bot_z_bc!(grid, fields[ifield], ix, iy, bot_bcs[ifield])
             apply_top_z_bc!(grid, fields[ifield], ix, iy, top_bcs[ifield])
