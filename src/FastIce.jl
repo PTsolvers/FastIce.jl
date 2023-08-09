@@ -2,6 +2,7 @@ module FastIce
 
 using KernelAbstractions
 
+include("utils.jl")
 include("logging.jl")
 include("grids.jl")
 include("fields.jl")

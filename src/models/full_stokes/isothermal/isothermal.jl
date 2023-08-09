@@ -6,7 +6,7 @@ export IsothermalFullStokesModel, advance_iteration!, advance_timestep!
 using FastIce.Physics
 using FastIce.Grids
 using FastIce.BoundaryConditions
-using FastIce.Models.FullStokes.Utils
+using FastIce.Utils
 
 include("kernels.jl")
 
