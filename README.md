@@ -1,5 +1,6 @@
 # FastIce.jl
-[![Unit Tests](https://github.com/PTsolvers/FastIce.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/PTsolvers/FastIce.jl/actions/workflows/ci.yml)
+[![CPU CI](https://github.com/PTsolvers/FastIce.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/PTsolvers/FastIce.jl/actions/workflows/ci.yml)
+[![GPU CI](https://badge.buildkite.com/fac6909b4e3a4183ea260bb54f735ddf0657825a421cc634c7.svg)](https://buildkite.com/julialang/fastice-dot-jl)
 
 Parallel multi-xPU iterative **FastIce** flow solvers
 
