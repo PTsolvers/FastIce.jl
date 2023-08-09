@@ -28,10 +28,10 @@ struct GlensLawRheology{T,I}
     exponent::I
 end
 
-default(::Type{GlensLawRheology{T,I}}) where {T,I} = GlensLawRheology(convert(T, 1e-20), convert(I, 3))
+default(::Type{GlensLawRheology{T,I}}) where {T,I} = GlensLawRheology(convert(T, 2.4e-24), convert(I, 3))
 
 @inline function (rh::GlensLawRheology{T})(τII::T) where {T}
-    return rh.consistency * τII^(rh.exponent - 1)
+    return 0.5 / (rh.consistency * τII^(rh.exponent - 1))
 end
 
 end
