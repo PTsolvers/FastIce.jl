@@ -1,244 +1,247 @@
 module Isothermal
 
+export BoundaryCondition, Traction, Velocity, Slip
+export IsothermalFullStokesModel, advance_iteration!, advance_timestep!
+
 using FastIce.Physics
+using FastIce.Grids
+using FastIce.BoundaryConditions
+using FastIce.Models.FullStokes.Utils
 
 include("kernels.jl")
 
-const DEFAULT_PHYSICS = (
-    equation_of_state=default(IncompressibleIceEOS),
-    thermal_properties=default(IceThermalProperties),
-    rheology=default(GlensLawRheology)
-)
+function default_physics(::Type{T}) where T
+    return (
+        equation_of_state=default(IncompressibleIceEOS{T}),
+        thermal_properties=default(IceThermalProperties{T}),
+        rheology=default(GlensLawRheology{T, Int64})
+    )
+end
 
-struct IsothermalFullStokesModel{Backend,Grid,BC,Physics,Numerics,Fields} <: AbstractModel
+struct IsothermalFullStokesModel{Backend,Grid,BC,Physics,IterParams,Fields}
     backend::Backend
     grid::Grid
     boundary_conditions::BC
     physics::Physics
-    numerics::Numerics
+    iter_params::IterParams
     fields::Fields
 end
 
-function IsothermalFullStokesModel(; backend, grid, boundary_conditions, phyiscs=DEFAULT_PHYSICS, numerics, fields=nothing)
+function make_fields_mechanics(backend, grid)
+    make_field(sz...) = KernelAbstractions.allocate(backend, eltype(grid), sz...)
+    return (
+        Pr = make_field(size(grid) .+ 2),
+        τ  = (
+            xx = make_field(size(grid) .+ 2),
+            yy = make_field(size(grid) .+ 2),
+            zz = make_field(size(grid) .+ 2),
+            xy = make_field(size(grid, (Vertex(), Vertex(), Center()))),
+            xz = make_field(size(grid, (Vertex(), Center(), Vertex()))),
+            yz = make_field(size(grid, (Center(), Vertex(), Vertex()))),
+        ),
+        V = (
+            x = make_field(size(grid, Vertex(), 1)    , size(grid, Center(), 2) + 2, size(grid, Center(), 3) + 2),
+            y = make_field(size(grid, Center(), 1) + 2, size(grid, Vertex(), 2)    , size(grid, Center(), 3) + 2),
+            z = make_field(size(grid, Center(), 1) + 2, size(grid, Center(), 2) + 2, size(grid, Vertex(), 3)    ),
+        )
+    )
+end
+
+function IsothermalFullStokesModel(; backend, grid, boundary_conditions, physics=nothing, iter_params, fields=nothing)
     if isnothing(fields)
-        fields = make_fields_mechanics(backend, grid, boundary_conditions)
+        mechanic_fields = make_fields_mechanics(backend, grid)
+        rheology_fields = (η = KernelAbstractions.allocate(backend, eltype(grid), size(grid) .+ 2),)
+        fields = merge(mechanic_fields, rheology_fields)
     end
 
-    return IsothermalFullStokesModel(backend, grid, boundary_conditions, phyiscs, numerics, fields)
+    if isnothing(physics)
+        physics = default_physics(eltype(grid))
+    end
+
+    boundary_conditions = create_field_boundary_conditions(boundary_conditions)
+
+    return IsothermalFullStokesModel(backend, grid, boundary_conditions, physics, iter_params, fields)
 end
 
 fields(model::IsothermalFullStokesModel) = model.fields
 grid(model::IsothermalFullStokesModel) = model.grid
 
+struct Traction end
+struct Velocity end
+struct Slip     end
 
-# struct Traction end
-# struct Velocity end
-# struct  end
+struct BoundaryCondition{Kind, Tx, Ty, Tz}
+    x::Tx
+    y::Ty
+    z::Tz
+end
 
-# struct BoundaryCondition{}
-# end
+BoundaryCondition{Kind}(x::Tx, y::Ty, z::Tz) where {Kind, Tx, Ty, Tz} = BoundaryCondition{Kind, Tx, Ty, Tz}(x, y, z)
 
-# In x direction:
-# Pr[1] = - Pr[2] + 2*px
-# τ.xx[1] = -τ.xx[2]
-# τ.yz[1] = py
-# τ.xz[1] = pz
-# struct PrescribedTractionBC{Tx,Ty,Tz}
-#     px::Tx
-#     py::Ty
-#     pz::Tz
-# end
+function extract_x_bcs(bc::BoundaryCondition{Traction})
+    return (Pr  = DirichletBC{HalfCell}(bc.x),
+            τxx = DirichletBC{HalfCell}(convert(eltype(bc.x), 0)),
+            τxy = DirichletBC{FullCell}(bc.y),
+            τxz = DirichletBC{FullCell}(bc.z),),
+            NamedTuple()
+end
 
-# function extract_x_bcs!(bc::PrescribedTractionBC)
-#     (V.x, NoBC())
-#     (V.y, NoBC())
-#     (V.z, NoBC())
+function extract_y_bcs(bc::BoundaryCondition{Traction})
+    return (Pr  = DirichletBC{HalfCell}(bc.y),
+            τyy = DirichletBC{HalfCell}(convert(eltype(bc.y), 0)),
+            τxy = DirichletBC{FullCell}(bc.x),
+            τyz = DirichletBC{FullCell}(bc.z),),
+            NamedTuple()
+end
 
-#     (Pr, DirichletBC{Shift}(bc.px))
+function extract_z_bcs(bc::BoundaryCondition{Traction})
+    return (Pr  = DirichletBC{HalfCell}(bc.z),
+            τyy = DirichletBC{HalfCell}(convert(eltype(bc.z), 0)),
+            τxz = DirichletBC{FullCell}(bc.x),
+            τyz = DirichletBC{FullCell}(bc.y),),
+            NamedTuple()
+end
 
-#     (τ.xx, DirichletBC{NoShift}(0.0))
-#     (τ.yy, NoBC())
-#     (τ.zz, NoBC())
+function extract_x_bcs(bc::BoundaryCondition{Velocity})
+    return NamedTuple(),
+          (Vx = DirichletBC{FullCell}(bc.x),
+           Vy = DirichletBC{HalfCell}(bc.y),
+           Vz = DirichletBC{HalfCell}(bc.z),)
+end
 
-#     (τ.xy, DirichletBC{NoShift}(bc.py))
-#     (τ.xz, DirichletBC{NoShift}(bc.pz))
-#     (τ.yz, NoBC())
-# end
+function extract_y_bcs(bc::BoundaryCondition{Velocity})
+    return NamedTuple(),
+          (Vx = DirichletBC{HalfCell}(bc.x),
+           Vy = DirichletBC{FullCell}(bc.y),
+           Vz = DirichletBC{HalfCell}(bc.z),)
+end
 
-# function extract_y_bcs!(bc::PrescribedTractionBC)
-#     (V.x, NoBC())
-#     (V.y, NoBC())
-#     (V.z, NoBC())
+function extract_z_bcs(bc::BoundaryCondition{Velocity})
+    return NamedTuple(),
+           (Vx = DirichletBC{HalfCell}(bc.x),
+            Vy = DirichletBC{HalfCell}(bc.y),
+            Vz = DirichletBC{FullCell}(bc.z),)
+end
 
-#     (Pr, DirichletBC{Shift}(bc.py))
+function extract_x_bcs(bc::BoundaryCondition{Slip})
+    return (τxy = DirichletBC{FullCell}(bc.y),
+            τxz = DirichletBC{FullCell}(bc.z),),
+           ( Vx = DirichletBC{FullCell}(bc.x),)
+end
 
-#     (τ.xx, NoBC())
-#     (τ.yy, DirichletBC{NoShift}(0.0))
-#     (τ.zz, NoBC())
+function extract_y_bcs(bc::BoundaryCondition{Slip})
+    return (τxy = DirichletBC{FullCell}(bc.x),
+            τyz = DirichletBC{FullCell}(bc.z),),
+           ( Vy = DirichletBC{FullCell}(bc.y),)
+end
 
-#     (τ.xy, DirichletBC{NoShift}(bc.px))
-#     (τ.xz, NoBC())
-#     (τ.yz, DirichletBC{NoShift}(bc.pz))
-# end
+function extract_z_bcs(bc::BoundaryCondition{Slip})
+    return (τxz = DirichletBC{FullCell}(bc.x),
+            τyz = DirichletBC{FullCell}(bc.y),),
+           ( Vz = DirichletBC{FullCell}(bc.z),)
+end
 
-# function extract_z_bcs!(bc::PrescribedTractionBC)
-#     (V.x, NoBC())
-#     (V.y, NoBC())
-#     (V.z, NoBC())
+@inline no_bcs(names) = NamedTuple(f => NoBC() for f in names)
 
-#     (Pr, DirichletBC{Shift}(bc.pz))
+unique_names(a, b) = Tuple(unique(tuple(a..., b...)))
 
-#     (τ.xx, NoBC())
-#     (τ.yy, NoBC())
-#     (τ.zz, DirichletBC{NoShift}(0.0))
+function create_field_boundary_conditions(f, left, right)
+    left_stress , left_velocity  = f(left)
+    right_stress, right_velocity = f(right)
 
-#     (τ.xy, NoBC())
-#     (τ.xz, DirichletBC{NoShift}(bc.px))
-#     (τ.yz, DirichletBC{NoShift}(bc.py))
-# end
+    stress_names   = unique_names(keys(left_stress)  , keys(right_stress))
+    velocity_names = unique_names(keys(left_velocity), keys(right_velocity))
 
-# # In x direction:
-# # V.x[1] = vn
-# # τyz[1] = px
-# # τxz[1] = py
-# struct FreeSlipBC{Tn,Tx,Ty}
-#     vn::Tn
-#     px::Tx
-#     py::Ty
-# end
+    default_stress   = no_bcs(stress_names)
+    default_velocity = no_bcs(velocity_names)
 
-# function extract_x_bcs!(bc::FreeSlipBC)
-#     (V.x, DirichletBC{NoShift}(bc.vn))
-#     (V.y, NoBC())
-#     (V.z, NoBC())
+    left_stress  = merge(default_stress, left_stress)
+    right_stress = merge(default_stress, right_stress)
 
-#     (Pr, NoBC())
+    left_velocity  = merge(default_velocity, left_velocity)
+    right_velocity = merge(default_velocity, right_velocity)
 
-#     (τ.xx, NoBC())
-#     (τ.yy, NoBC())
-#     (τ.zz, NoBC())
+    return stress_names, left_stress, right_stress, velocity_names, left_velocity, right_velocity
+end
 
-#     (τ.xy, DirichletBC{Shift}(bc.px))
-#     (τ.xz, DirichletBC{Shift}(bc.py))
-#     (τ.yz, NoBC)
-# end
+function create_field_boundary_conditions(bcs)
+    stress_names_x, west_stress_bcs , east_stress_bcs , velocity_names_x, west_velocity_bcs , east_velocity_bcs  = create_field_boundary_conditions(extract_x_bcs, bcs.west, bcs.east)
+    stress_names_y, south_stress_bcs, north_stress_bcs, velocity_names_y, south_velocity_bcs, north_velocity_bcs = create_field_boundary_conditions(extract_y_bcs, bcs.south, bcs.north)
+    stress_names_z, bot_stress_bcs  , top_stress_bcs  , velocity_names_z, bot_velocity_bcs  , top_velocity_bcs   = create_field_boundary_conditions(extract_z_bcs, bcs.bot  , bcs.top)
+    return (
+        stress = (
+            x = (
+                names = stress_names_x,
+                left  = west_stress_bcs,
+                right = east_stress_bcs,
+            ),
+            y = (
+                names = stress_names_y,
+                left  = south_stress_bcs,
+                right = north_stress_bcs,
+            ),
+            z = (
+                names = stress_names_z,
+                left  = bot_stress_bcs,
+                right = top_stress_bcs,
+            )
+        ),
+        velocity = (
+            x = (
+                names = velocity_names_x,
+                left  = west_velocity_bcs,
+                right = east_velocity_bcs,
+            ),
+            y = (
+                names = velocity_names_y,
+                left  = south_velocity_bcs,
+                right = north_velocity_bcs,
+            ),
+            z = (
+                names = velocity_names_z,
+                left  = bot_velocity_bcs,
+                right = top_velocity_bcs,
+            )
+        )
+    )
+end
 
-# function extract_y_bcs!(bc::FreeSlipBC)
-#     (V.x, NoBC())
-#     (V.y, DirichletBC{NoShift}(bc.vn))
-#     (V.z, NoBC())
+function apply_bcs!(backend, grid, fields, bcs)
+    field_map = (Pr = fields.Pr,
+            τxx = fields.τ.xx, τyy = fields.τ.yy, τzz = fields.τ.zz,
+            τxy = fields.τ.xy, τxz = fields.τ.xz, τyz = fields.τ.yz,
+             Vx = fields.V.x ,  Vy = fields.V.y ,  Vz = fields.V.z)
 
-#     (Pr, NoBC())
-
-#     (τ.xx, NoBC())
-#     (τ.yy, NoBC())
-#     (τ.zz, NoBC())
-
-#     (τ.xy, DirichletBC{NoShift}(bc.px))
-#     (τ.xz, NoBC())
-#     (τ.yz, DirichletBC{NoShift}(bc.py))
-# end
-
-# function extract_y_bcs!(bc::FreeSlipBC)
-#     (V.x, NoBC())
-#     (V.y, NoBC())
-#     (V.z, DirichletBC{NoShift}(bc.vn))
-
-#     (Pr, NoBC())
-
-#     (τ.xx, NoBC())
-#     (τ.yy, NoBC())
-#     (τ.zz, NoBC())
-
-#     (τ.xy, NoBC())
-#     (τ.xz, DirichletBC{NoShift}(bc.px))
-#     (τ.yz, DirichletBC{NoShift}(bc.py))
-# end
-
-# # In x direction
-# # Vx[1] = vx
-# # Vy[1] = -Vy[2] + 2*vy
-# # Vx[1] = -Vz[2] + 2*vz
-# struct PrescribedVelocityBC{Tx,Ty,Tz}
-#     vx::Tx
-#     vy::Ty
-#     vz::Tz
-# end
-
-# function extract_x_bcs!(bc::PrescribedVelocityBC)
-#     (V.x, DirichletBC{NoShift}(bc.vx))
-#     (V.y, DirichletBC{Shift}(bc.vy))
-#     (V.z, DirichletBC{Shift}(bc.vz))
-
-#     (Pr, NoBC())
-
-#     (τ.xx, NoBC())
-#     (τ.yy, NoBC())
-#     (τ.zz, NoBC())
+    function apply_bcs_dim!(f, dim)
+        fields    = Tuple( field_map[f] for f in dim.names )
+        left_bcs  = values(dim.left)
+        right_bcs = values(dim.right)
+        f(grid, fields, left_bcs, right_bcs)
+    end
     
-#     (τ.xy, NoBC())
-#     (τ.xz, NoBC())
-#     (τ.yz, NoBC())
-# end
+    apply_bcs_dim!(discrete_bcs_x!(backend, 256, (size(grid, 2)+1, size(grid, 3)+1)), bcs.x)
+    apply_bcs_dim!(discrete_bcs_y!(backend, 256, (size(grid, 1)+1, size(grid, 3)+1)), bcs.y)
+    apply_bcs_dim!(discrete_bcs_z!(backend, 256, (size(grid, 1)+1, size(grid, 2)+1)), bcs.z)
 
-# function extract_y_bcs!(bc::PrescribedVelocityBC)
-#     (V.x, DirichletBC{Shift}(bc.vx))
-#     (V.y, DirichletBC{NoShift}(bc.vy))
-#     (V.z, DirichletBC{Shift}(bc.vz))
-
-#     (Pr, NoBC())
-
-#     (τ.xx, NoBC())
-#     (τ.yy, NoBC())
-#     (τ.zz, NoBC())
-    
-#     (τ.xy, NoBC())
-#     (τ.xz, NoBC())
-#     (τ.yz, NoBC())
-# end
-
-# function extract_z_bcs!(bc::PrescribedVelocityBC)
-#     (V.x, DirichletBC{Shift}(bc.vx))
-#     (V.y, DirichletBC{Shift}(bc.vy))
-#     (V.z, DirichletBC{NoShift}(bc.vz))
-
-#     (Pr, NoBC())
-
-#     (τ.xx, NoBC())
-#     (τ.yy, NoBC())
-#     (τ.zz, NoBC())
-    
-#     (τ.xy, NoBC())
-#     (τ.xz, NoBC())
-#     (τ.yz, NoBC())
-# end
-
-# function set_stress_bcs!(model::IsothermalFullStokesModel)
-#     nx, ny, nz = size(model.grid)
-#     discrete_bcs_x!(model.backend, 256, (ny, nz))(f, grid, west_ix, east_ix, west_bc, east_bc)
-#     discrete_bcs_y!(model.backend, 256, (nx, nz))(f, grid, west_ix, east_ix, west_bc, east_bc)
-#     discrete_bcs_z!(model.backend, 256, (nx, ny))(f, grid, west_ix, east_ix, west_bc, east_bc)
-#     return
-# end
-
-# function set_velocity_bcs!(model::IsothermalFullStokesModel)
-#     # TODO
-# end
+    return
+end
 
 function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async = true)
     (; Pr, τ, V, η) = model.fields
-    (; η_rh) = model.physics.rheology
     (; η_rel, Δτ) = model.iter_params
-    Δ = spacing(model.grid)
+    η_rh = model.physics.rheology
+    Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
     nx, ny, nz = size(model.grid)
     backend = model.backend
 
+    set_bcs!(bcs) = apply_bcs!(model.backend, model.grid, model.fields, bcs)
+
     # stress
     update_σ!(backend, 256, (nx + 2, ny + 2, nz + 2))(Pr, τ, V, η, Δτ, Δ)
-    set_stress_bcs!(Pr, τ, V, Δ, model.boundary_conditions)
+    set_bcs!(model.boundary_conditions.stress)
     # velocity
     update_V!(backend, 256, (nx + 1, ny + 1, nz + 1))(V, Pr, τ, η, Δτ, Δ)
-    set_velocity_bcs!(V, Pr, τ, Δ, model.boundary_conditions)
+    set_bcs!(model.boundary_conditions.velocity)
     # rheology
     update_η!(backend, 256, (nx, ny, nz))(η, τ, η_rh, η_rel)
     extrapolate!(η)
@@ -251,4 +254,6 @@ function advance_timestep!(model::IsothermalFullStokesModel, t, Δt)
     # TODO
     
     return
+end
+
 end

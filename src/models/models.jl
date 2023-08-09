@@ -1,6 +1,6 @@
 module Models
 
-abstract type AbstractModel end
+export FullStokes
 
 include("full_stokes/full_stokes.jl")
 

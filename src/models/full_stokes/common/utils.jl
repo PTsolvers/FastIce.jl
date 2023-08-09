@@ -1,3 +1,7 @@
+module Utils
+
+export extrapolate!
+
 using KernelAbstractions
 
 @kernel function kernel_extrapolate_x!(A)
@@ -25,4 +29,6 @@ function extrapolate!(A; async = true)
     kernel_extrapolate_z!(backend, 256, (size(A, 1) - 2, size(A, 2) - 2))(A)
     async || synchronize(backend)
     return
+end
+
 end
