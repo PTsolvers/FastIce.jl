@@ -105,7 +105,7 @@ coord(grid::CartesianGrid{N}, loc::Location, inds::NTuple{N}) where {N} = coord.
 function coord(grid::CartesianGrid{N}, loc::NTuple{N,Location}, inds::NTuple{N}) where {N}
     ntuple(Val(N)) do I
         Base.@_inline_meta
-        coord(grid.axes[I], loc[I], inds{I})
+        coord(grid.axes[I], loc[I], inds[I])
     end
 end
 
