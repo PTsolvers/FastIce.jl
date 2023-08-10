@@ -86,6 +86,7 @@ Base.size(grid::CartesianGrid) = length.(grid.axes)
 @propagate_inbounds Base.size(grid::CartesianGrid, loc::Location, dim::Integer) = length(grid.axes[dim], loc)
 
 Base.size(grid::CartesianGrid{N}, locs::NTuple{N,Location}) where {N} = length.(grid.axes, locs)
+Base.size(grid::CartesianGrid, loc::Location) = ntuple(D -> length(grid.axes[D], loc), Val(ndims(grid)))
 
 axis(grid::CartesianGrid, dim::Integer) = grid.axes[dim]
 
