@@ -11,9 +11,9 @@ end
 @kernel function update_σ!(Pr, τ, V, η, Δτ, Δ)
     ix, iy, iz = @index(Global, NTuple)
     @inbounds if checkbounds(Bool, Pr, ix, iy, iz)
-        ε̇xx = @∂_x(V.x) / Δ.x
-        ε̇yy = @∂_y(V.y) / Δ.y
-        ε̇zz = @∂_z(V.z) / Δ.z
+        ε̇xx = @∂_xi(V.x) / Δ.x
+        ε̇yy = @∂_yi(V.y) / Δ.y
+        ε̇zz = @∂_zi(V.z) / Δ.z
         ∇V = ε̇xx + ε̇yy + ε̇zz
         # hydrostatic
         @all(Pr) -= ∇V * @inn(η) * Δτ.Pr
@@ -23,13 +23,19 @@ end
         @all(τ.zz) -= (@all(τ.zz) - 2.0 * @inn(η) * (ε̇zz - ∇V / 3.0)) * Δτ.τ.zz
     end
     @inbounds if checkbounds(Bool, τ.xy, ix, iy, iz)
-        @all(τ.xy) -= (@all(τ.xy) - @av_xy(η) * (@∂_x(V.y) / Δ.x + @∂_y(V.x) / Δ.y)) * Δτ.τ.xy
+        exy = (V.y[ix+1, iy, iz+1] - V.y[ix, iy, iz+1]) / Δ.x +
+              (V.x[ix, iy+1, iz+1] - V.x[ix, iy, iz+1]) / Δ.y
+        @all(τ.xy) -= (@all(τ.xy) - @av_xyi(η) * exy) * Δτ.τ.xy
     end
     @inbounds if checkbounds(Bool, τ.xz, ix, iy, iz)
-        @all(τ.xz) -= (@all(τ.xz) - @av_xz(η) * (@∂_x(V.z) / Δ.x + @∂_z(V.x) / Δ.z)) * Δτ.τ.xz
+        exz = (V.z[ix+1, iy+1, iz  ] - V.z[ix, iy+1, iz]) / Δ.x +
+              (V.x[ix  , iy+1, iz+1] - V.x[ix, iy+1, iz]) / Δ.z
+        @all(τ.xz) -= (@all(τ.xz) - @av_xzi(η) * exz) * Δτ.τ.xz
     end
     @inbounds if checkbounds(Bool, τ.yz, ix, iy, iz)
-        @all(τ.yz) -= (@all(τ.yz) - @av_yz(η) * (@∂_y(V.z) / Δ.y + @∂_z(V.y) / Δ.z)) * Δτ.τ.yz
+        eyz = (V.z[ix+1, iy+1, iz  ] - V.z[ix+1, iy, iz]) / Δ.y +
+              (V.y[ix+1, iy  , iz+1] - V.y[ix+1, iy, iz]) / Δ.z
+        @all(τ.yz) -= (@all(τ.yz) - @av_yzi(η) * eyz) * Δτ.τ.yz
     end
 end
 

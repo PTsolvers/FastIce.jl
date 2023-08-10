@@ -241,7 +241,7 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async = tr
     set_bcs!(bcs) = apply_bcs!(model.backend, model.grid, model.fields, bcs)
 
     # stress
-    update_σ!(backend, 256, (nx, ny, nz))(interior(Pr), interior(τ), V, η, Δτ, Δ)
+    update_σ!(backend, 256, (nx+1, ny+1, nz+1))(interior(Pr), interior(τ), V, η, Δτ, Δ)
     set_bcs!(model.boundary_conditions.stress)
     # velocity
     update_V!(backend, 256, (nx + 1, ny + 1, nz + 1))(interior(V), Pr, τ, η, Δτ, Δ)
