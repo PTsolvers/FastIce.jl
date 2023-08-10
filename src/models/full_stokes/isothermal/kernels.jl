@@ -1,16 +1,16 @@
 using KernelAbstractions
 
-include("../common/macros.jl")
+using FastIce.Macros
 
-@kernel function update_η!(η, τ, η_rh, χ)
+@kernel function update_η!(η, η_rh, χ, grid, fields, args...)
     ix, iy, iz = @index(Global, NTuple)
-    @inbounds τII = sqrt(0.5 * (@inn(τ.xx)^2 + @inn(τ.yy)^2 + @inn(τ.zz)^2) + @av_xy(τ.xy)^2 + @av_xz(τ.xz)^2 + @av_yz(τ.yz)^2)
-    @inbounds @inn(η) = exp(log(@inn(η)) * (1 - χ) + log(η_rh(τII)) * χ)
+    ηt = η_rh(grid, ix, iy, iz, fields, args...)
+    @inbounds @all(η) = exp(log(@all(η)) * (1 - χ) + log(ηt) * χ)
 end
 
 @kernel function update_σ!(Pr, τ, V, η, Δτ, Δ)
     ix, iy, iz = @index(Global, NTuple)
-    @inbounds if ix <= size(Pr, 1) - 2 && iy <= size(Pr, 2) - 2 && iz <= size(Pr, 3) - 2
+    @inbounds if checkbounds(Bool, Pr, ix, iy, iz)
         ε̇xx = @∂_x(V.x) / Δ.x
         ε̇yy = @∂_y(V.y) / Δ.y
         ε̇zz = @∂_z(V.z) / Δ.z
@@ -35,15 +35,15 @@ end
 
 @kernel function update_V!(V, Pr, τ, η, Δτ, Δ)
     ix, iy, iz = @index(Global, NTuple)
-    @inbounds if ix <= size(V.x, 1) && iy <= size(V.x, 2) - 2 && iz <= size(V.x, 3) - 2
+    @inbounds if checkbounds(Bool, V.x, ix, iy, iz)
         ηx = max(η[ix, iy+1, iz+1], η[ix+1, iy+1, iz+1])
         @all(V.x) += ((-@∂_xi(Pr) + @∂_xi(τ.xx)) / Δ.x + @∂_y(τ.xy) / Δ.y + @∂_z(τ.xz) / Δ.z) / ηx * Δτ.V.x
     end
-    @inbounds if ix <= size(V.y, 1) - 2 && iy <= size(V.y, 2) && iz <= size(V.y, 3) - 2
+    @inbounds if checkbounds(Bool, V.y, ix, iy, iz)
         ηy = max(η[ix+1, iy, iz+1], η[ix+1, iy+1, iz+1])
         @all(V.y) += ((-@∂_yi(Pr) + @∂_yi(τ.yy)) / Δ.y + @∂_x(τ.xy) / Δ.x + @∂_z(τ.yz) / Δ.z) / ηy * Δτ.V.y
     end
-    @inbounds if ix <= size(V.z, 1) - 2 && iy <= size(V.z, 2) - 2 && iz <= size(V.z, 3)
+    @inbounds if checkbounds(Bool, V.z, ix, iy, iz)
         ηz = max(η[ix+1, iy+1, iz], η[ix+1, iy+1, iz+1])
         @all(V.z) += ((-@∂_zi(Pr) + @∂_zi(τ.zz)) / Δ.z + @∂_x(τ.xz) / Δ.x + @∂_y(τ.yz) / Δ.y) / ηz * Δτ.V.z
     end

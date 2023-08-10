@@ -4,6 +4,7 @@ using FastIce.Fields
 using FastIce.Utils
 using FastIce.BoundaryConditions
 using FastIce.Models.FullStokes.Isothermal
+using FastIce.Physics
 
 using KernelAbstractions
 
@@ -40,32 +41,41 @@ iter_params = (
     Δτ = ( Pr = r / θ_dτ, τ = (xx = dτ_r, yy = dτ_r, zz = dτ_r, xy = dτ_r, xz = dτ_r, yz = dτ_r), V = (x = nudτ, y = nudτ, z = nudτ)),
 )
 
-physics = (rheology = GlensLawRheology(1.0, 1))
+backend = CPU()
+
+physics = (rheology = GlensLawRheology(1), )
+other_fields = (
+    A = Field(backend, grid, Center()),
+)
+
+init_incl(x, y, z, x0, y0, z0, r, ηi, ηm) = ifelse((x-x0)^2 + (y-y0)^2 + (z-z0)^2 < r^2, ηi, ηm)
+set!(other_fields.A, grid, init_incl; continuous = true, parameters = (x0 = 0.0, y0 = 0.0, z0 = 0.5, r = 0.2, ηi = 1e-1, ηm = 1.0))
 
 model = IsothermalFullStokesModel(;
-    backend = CPU(),
+    backend,
     grid,
+    physics,
     boundary_conditions,
     iter_params,
+    other_fields
 )
 
 set!(model.fields.Pr, 0.0)
 foreach(x -> set!(x, 0.0), model.fields.τ)
 Isothermal.apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.stress)
 
-foreach(x -> set!(x, 0.0), model.fields.V)
+# foreach(x -> set!(x, 0.0), model.fields.V)
 
-# set!(model.fields.V.x, grid, (x, y, z, ebg) -> -x*ebg; continuous=true, parameters = (ebg, ))
-# set!(model.fields.V.y, grid, (x, y, z, ebg) ->  y*ebg; continuous=true, parameters = (ebg, ))
-# set!(model.fields.V.z, 0.0)
+set!(model.fields.V.x, grid, (x, y, z, ebg) -> -x*ebg; continuous=true, parameters = (ebg, ))
+set!(model.fields.V.y, grid, (x, y, z, ebg) ->  y*ebg; continuous=true, parameters = (ebg, ))
+set!(model.fields.V.z, 0.0)
 Isothermal.apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.velocity)
 
-init_incl(x, y, z, x0, y0, z0, r, ηi, ηm) = ifelse((x-x0)^2 + (y-y0)^2 + (z-z0)^2 < r^2, ηi, ηm)
-set!(model.fields.η, grid, init_incl; continuous = true, parameters = (x0 = 0.0, y0 = 0.0, z0 = 0.5, r = 0.2, ηi = 1e-1, ηm = 1.0))
+set!(model.fields.η, other_fields.A)
 extrapolate!(data(model.fields.η))
 
 
-for it in 1:10
+for it in 1:100
     advance_iteration!(model, 0.0, 1.0; async = false)
 end
 

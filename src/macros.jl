@@ -1,3 +1,9 @@
+module Macros
+
+export @all, @inn, @inn_x, @inn_y, @inn_z, @inn_xy, @inn_xz, @inn_yz
+export @∂_x, @∂_y, @∂_z, @∂_xi, @∂_yi, @∂_zi
+export @av_xy, @av_xz, @av_yz, @av_xyi, @av_xzi, @av_yzi
+
 macro all(A) esc(:($A[ix, iy, iz])) end
 
 macro inn(A)   esc(:($A[ix+1, iy+1, iz+1])) end
@@ -25,3 +31,5 @@ macro av_yzi(A) esc(:(0.25 * ($A[ix+1, iy, iz] + $A[ix+1, iy+1, iz] + $A[ix+1, i
 macro av_xy(A) esc(:(0.25 * ($A[ix, iy, iz] + $A[ix+1, iy, iz] + $A[ix+1, iy+1, iz] + $A[ix, iy+1, iz]))) end
 macro av_xz(A) esc(:(0.25 * ($A[ix, iy, iz] + $A[ix+1, iy, iz] + $A[ix+1, iy, iz+1] + $A[ix, iy, iz+1]))) end
 macro av_yz(A) esc(:(0.25 * ($A[ix, iy, iz] + $A[ix, iy+1, iz] + $A[ix, iy+1, iz+1] + $A[ix, iy, iz+1]))) end
+
+end

@@ -15,7 +15,7 @@ function default_physics(::Type{T}) where T
     return (
         equation_of_state=default(IncompressibleIceEOS{T}),
         thermal_properties=default(IceThermalProperties{T}),
-        rheology=default(GlensLawRheology{T, Int64})
+        rheology=default(GlensLawRheology{Int64})
     )
 end
 
@@ -47,11 +47,15 @@ function make_fields_mechanics(backend, grid)
     )
 end
 
-function IsothermalFullStokesModel(; backend, grid, boundary_conditions, physics=nothing, iter_params, fields=nothing)
+function IsothermalFullStokesModel(; backend, grid, boundary_conditions, physics=nothing, iter_params, fields=nothing, other_fields=nothing)
     if isnothing(fields)
         mechanic_fields = make_fields_mechanics(backend, grid)
         rheology_fields = (η = Field(backend, grid, Center(), (1, 1, 1)),)
         fields = merge(mechanic_fields, rheology_fields)
+    end
+
+    if !isnothing(other_fields)
+        fields = merge(fields, other_fields)
     end
 
     if isnothing(physics)
@@ -237,13 +241,13 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async = tr
     set_bcs!(bcs) = apply_bcs!(model.backend, model.grid, model.fields, bcs)
 
     # stress
-    update_σ!(backend, 256, (nx + 2, ny + 2, nz + 2))(interior(Pr), interior(τ), V, η, Δτ, Δ)
+    update_σ!(backend, 256, (nx, ny, nz))(interior(Pr), interior(τ), V, η, Δτ, Δ)
     set_bcs!(model.boundary_conditions.stress)
     # velocity
     update_V!(backend, 256, (nx + 1, ny + 1, nz + 1))(interior(V), Pr, τ, η, Δτ, Δ)
     set_bcs!(model.boundary_conditions.velocity)
     # rheology
-    update_η!(backend, 256, (nx, ny, nz))(interior(η), τ, η_rh, η_rel)
+    update_η!(backend, 256, (nx, ny, nz))(interior(η), η_rh, η_rel, model.grid, model.fields)
     extrapolate!(data(η))
 
     async || synchronize(backend)
