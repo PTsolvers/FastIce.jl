@@ -1,7 +1,7 @@
 module Fields
 
 export AbstractField
-export Field, interior, interior_indices, halo_region
+export Field, interior, interior_indices, halo_region, interior_and_halo
 export location, location_instance, data, halo, set!
 
 using Adapt
@@ -74,6 +74,8 @@ interior_indices(f::Field) = ntuple(dim -> interior_indices(f, dim), Val(ndims(f
 interior(f::Field{T,N,L,D,Nothing}) where {T,N,L,D} = data(f)
 interior(f::Field) = view(data(f), interior_indices(f)...)
 
+interior(fs::NamedTuple{names}) where {names} = NamedTuple{names}(interior.(Tuple(fs)))
+
 function halo_indices(f::Field, dim, side)
     return if side == 1
         UnitRange(firstindex(f, dim), halo(f, dim, side))
@@ -99,7 +101,7 @@ function interior_and_halo(f::Field, dim)
 end
 
 set!(f::Field, other::Field) = (copy!(interior(f), interior(other)); nothing)
-set!(f::Field{T}, val::T) where {T} = (fill!(interior(f), val); nothing)
+set!(f::Field{T}, val::T) where {T<:Number} = (fill!(interior(f), val); nothing)
 set!(f::Field, A::AbstractArray) = (copy!(interior(f), A); nothing)
 
 @kernel function _set_continuous!(dst, grid, loc, fun, args...)

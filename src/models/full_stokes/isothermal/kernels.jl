@@ -16,11 +16,11 @@ end
         ε̇zz = @∂_z(V.z) / Δ.z
         ∇V = ε̇xx + ε̇yy + ε̇zz
         # hydrostatic
-        @inn(Pr) -= ∇V * @inn(η) * Δτ.Pr
+        @all(Pr) -= ∇V * @inn(η) * Δτ.Pr
         # deviatoric diagonal
-        @inn(τ.xx) -= (@inn(τ.xx) - 2.0 * @inn(η) * (ε̇xx - ∇V / 3.0)) * Δτ.τ.xx
-        @inn(τ.yy) -= (@inn(τ.yy) - 2.0 * @inn(η) * (ε̇yy - ∇V / 3.0)) * Δτ.τ.yy
-        @inn(τ.zz) -= (@inn(τ.zz) - 2.0 * @inn(η) * (ε̇zz - ∇V / 3.0)) * Δτ.τ.zz
+        @all(τ.xx) -= (@all(τ.xx) - 2.0 * @inn(η) * (ε̇xx - ∇V / 3.0)) * Δτ.τ.xx
+        @all(τ.yy) -= (@all(τ.yy) - 2.0 * @inn(η) * (ε̇yy - ∇V / 3.0)) * Δτ.τ.yy
+        @all(τ.zz) -= (@all(τ.zz) - 2.0 * @inn(η) * (ε̇zz - ∇V / 3.0)) * Δτ.τ.zz
     end
     @inbounds if checkbounds(Bool, τ.xy, ix, iy, iz)
         @all(τ.xy) -= (@all(τ.xy) - @av_xy(η) * (@∂_x(V.y) / Δ.x + @∂_y(V.x) / Δ.y)) * Δτ.τ.xy
@@ -37,14 +37,14 @@ end
     ix, iy, iz = @index(Global, NTuple)
     @inbounds if ix <= size(V.x, 1) && iy <= size(V.x, 2) - 2 && iz <= size(V.x, 3) - 2
         ηx = max(η[ix, iy+1, iz+1], η[ix+1, iy+1, iz+1])
-        @inn_yz(V.x) += ((-@∂_xi(Pr) + @∂_xi(τ.xx)) / Δ.x + @∂_y(τ.xy) / Δ.y + @∂_z(τ.xz) / Δ.z) / ηx * Δτ.V.x
+        @all(V.x) += ((-@∂_xi(Pr) + @∂_xi(τ.xx)) / Δ.x + @∂_y(τ.xy) / Δ.y + @∂_z(τ.xz) / Δ.z) / ηx * Δτ.V.x
     end
     @inbounds if ix <= size(V.y, 1) - 2 && iy <= size(V.y, 2) && iz <= size(V.y, 3) - 2
         ηy = max(η[ix+1, iy, iz+1], η[ix+1, iy+1, iz+1])
-        @inn_xz(V.y) += ((-@∂_yi(Pr) + @∂_yi(τ.yy)) / Δ.y + @∂_x(τ.xy) / Δ.x + @∂_z(τ.yz) / Δ.z) / ηy * Δτ.V.y
+        @all(V.y) += ((-@∂_yi(Pr) + @∂_yi(τ.yy)) / Δ.y + @∂_x(τ.xy) / Δ.x + @∂_z(τ.yz) / Δ.z) / ηy * Δτ.V.y
     end
     @inbounds if ix <= size(V.z, 1) - 2 && iy <= size(V.z, 2) - 2 && iz <= size(V.z, 3)
         ηz = max(η[ix+1, iy+1, iz], η[ix+1, iy+1, iz+1])
-        @inn_xy(V.z) += ((-@∂_zi(Pr) + @∂_zi(τ.zz)) / Δ.z + @∂_x(τ.xz) / Δ.x + @∂_y(τ.yz) / Δ.y) / ηz * Δτ.V.z
+        @all(V.z) += ((-@∂_zi(Pr) + @∂_zi(τ.zz)) / Δ.z + @∂_x(τ.xz) / Δ.x + @∂_y(τ.yz) / Δ.y) / ηz * Δτ.V.z
     end
 end

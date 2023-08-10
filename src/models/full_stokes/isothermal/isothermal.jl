@@ -5,6 +5,7 @@ export IsothermalFullStokesModel, advance_iteration!, advance_timestep!
 
 using FastIce.Physics
 using FastIce.Grids
+using FastIce.Fields
 using FastIce.BoundaryConditions
 using FastIce.Utils
 
@@ -28,21 +29,20 @@ struct IsothermalFullStokesModel{Backend,Grid,BC,Physics,IterParams,Fields}
 end
 
 function make_fields_mechanics(backend, grid)
-    make_field(sz...) = KernelAbstractions.allocate(backend, eltype(grid), sz...)
     return (
-        Pr = make_field(size(grid) .+ 2),
+        Pr = Field(backend, grid, Center(), (1, 1, 1)),
         τ  = (
-            xx = make_field(size(grid) .+ 2),
-            yy = make_field(size(grid) .+ 2),
-            zz = make_field(size(grid) .+ 2),
-            xy = make_field(size(grid, (Vertex(), Vertex(), Center()))),
-            xz = make_field(size(grid, (Vertex(), Center(), Vertex()))),
-            yz = make_field(size(grid, (Center(), Vertex(), Vertex()))),
+            xx = Field(backend, grid, Center(), (1, 1, 1)),
+            yy = Field(backend, grid, Center(), (1, 1, 1)),
+            zz = Field(backend, grid, Center(), (1, 1, 1)),
+            xy = Field(backend, grid, Vertex()),
+            xz = Field(backend, grid, Vertex()),
+            yz = Field(backend, grid, Vertex()),
         ),
         V = (
-            x = make_field(size(grid, Vertex(), 1)    , size(grid, Center(), 2) + 2, size(grid, Center(), 3) + 2),
-            y = make_field(size(grid, Center(), 1) + 2, size(grid, Vertex(), 2)    , size(grid, Center(), 3) + 2),
-            z = make_field(size(grid, Center(), 1) + 2, size(grid, Center(), 2) + 2, size(grid, Vertex(), 3)    ),
+            x = Field(backend, grid, (Vertex(), Center(), Center()), (0, 1, 1)),
+            y = Field(backend, grid, (Center(), Vertex(), Center()), (1, 0, 1)),
+            z = Field(backend, grid, (Center(), Center(), Vertex()), (1, 1, 0)),
         )
     )
 end
@@ -50,7 +50,7 @@ end
 function IsothermalFullStokesModel(; backend, grid, boundary_conditions, physics=nothing, iter_params, fields=nothing)
     if isnothing(fields)
         mechanic_fields = make_fields_mechanics(backend, grid)
-        rheology_fields = (η = KernelAbstractions.allocate(backend, eltype(grid), size(grid) .+ 2),)
+        rheology_fields = (η = Field(backend, grid, Center(), (1, 1, 1)),)
         fields = merge(mechanic_fields, rheology_fields)
     end
 
@@ -213,7 +213,7 @@ function apply_bcs!(backend, grid, fields, bcs)
              Vx = fields.V.x ,  Vy = fields.V.y ,  Vz = fields.V.z)
 
     function apply_bcs_dim!(f, dim)
-        fields    = Tuple( field_map[f] for f in dim.names )
+        fields    = Tuple( interior_and_halo(field_map[f], dim) for f in dim.names )
         left_bcs  = values(dim.left)
         right_bcs = values(dim.right)
         f(grid, fields, left_bcs, right_bcs)
@@ -237,14 +237,14 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async = tr
     set_bcs!(bcs) = apply_bcs!(model.backend, model.grid, model.fields, bcs)
 
     # stress
-    update_σ!(backend, 256, (nx + 2, ny + 2, nz + 2))(Pr, τ, V, η, Δτ, Δ)
+    update_σ!(backend, 256, (nx + 2, ny + 2, nz + 2))(interior(Pr), interior(τ), V, η, Δτ, Δ)
     set_bcs!(model.boundary_conditions.stress)
     # velocity
-    update_V!(backend, 256, (nx + 1, ny + 1, nz + 1))(V, Pr, τ, η, Δτ, Δ)
+    update_V!(backend, 256, (nx + 1, ny + 1, nz + 1))(interior(V), Pr, τ, η, Δτ, Δ)
     set_bcs!(model.boundary_conditions.velocity)
     # rheology
-    update_η!(backend, 256, (nx, ny, nz))(η, τ, η_rh, η_rel)
-    extrapolate!(η)
+    update_η!(backend, 256, (nx, ny, nz))(interior(η), τ, η_rh, η_rel)
+    extrapolate!(data(η))
 
     async || synchronize(backend)
     return

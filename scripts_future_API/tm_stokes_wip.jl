@@ -1,6 +1,7 @@
 using FastIce
 using FastIce.Grids
 using FastIce.Fields
+using FastIce.Utils
 using FastIce.BoundaryConditions
 using FastIce.Models.FullStokes.Isothermal
 
@@ -33,9 +34,12 @@ model = IsothermalFullStokesModel(;
     iter_params,
 )
 
-model.fields.Pr .= 0.0
-foreach(x -> fill!(x, 0.0), model.fields.τ)
-foreach(x -> fill!(x, 0.0), model.fields.V)
-model.fields.η .= 1.0
+set!(model.fields.Pr, 0.0)
+foreach(x -> set!(x, 0.0), model.fields.τ)
+foreach(x -> set!(x, 0.0), model.fields.V)
+
+init_incl(x, y, z, x0, y0, z0, r, ηi, ηm) = ifelse((x-x0)^2 + (y-y0)^2 + (z-z0)^2 < r^2, ηi, ηm)
+set!(model.fields.η, grid, init_incl; continuous = true, parameters = (x0 = 0.0, y0 = 0.0, z0 = 0.5, r = 0.2, ηi = 1e-6, ηm = 1.0))
+extrapolate!(data(model.fields.η))
 
 advance_iteration!(model, 0.0, 1.0; async = false)
