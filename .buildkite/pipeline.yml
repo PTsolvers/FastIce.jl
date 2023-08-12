@@ -54,4 +54,4 @@ steps:
       JULIA_NUM_THREADS: 4
 env:
   JULIA_PKG_SERVER: "" # it often struggles with our large artifacts
-  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  CODECOV_TOKEN: "d2b04440-b72d-48e5-9d02-4d2de59cdd1b"
