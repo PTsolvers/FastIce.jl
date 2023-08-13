@@ -17,7 +17,7 @@ steps:
 
       julia -e 'println("+++ :julia: Running tests")
                 using Pkg
-                Pkg.test("FastIce")'
+                Pkg.test("FastIce"; coverage=true)'
     agents:
       queue: "juliagpu"
       cuda: "*"
@@ -43,7 +43,7 @@ steps:
 
       julia -e 'println("+++ :julia: Running tests")
                 using Pkg
-                Pkg.test("FastIce")'
+                Pkg.test("FastIce"; coverage=true)'
     agents:
       queue: "juliagpu"
       rocm: "*"
