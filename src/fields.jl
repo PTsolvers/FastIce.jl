@@ -79,7 +79,7 @@ halo(f::Field) = f.halo
 halo(f::Field, dim) = f.halo[dim]
 halo(f::Field, dim, side) = f.halo[dim][side]
 
-Adapt.adapt_structure(to, f::Field) = Adapt.adapt(to, f.data)
+Adapt.adapt_structure(to, f::Field) = Field(Adapt.adapt(to, f.data), f.halo, f.inidices)
 
 Base.@propagate_inbounds Base.getindex(f::Field, inds...) = getindex(f.data, inds...)
 Base.@propagate_inbounds Base.setindex!(f::Field, val, inds...) = setindex!(f.data, val, inds...)
