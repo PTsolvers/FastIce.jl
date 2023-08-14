@@ -71,6 +71,8 @@ Base.size(f::Field) = length.(f.indices)
 Base.parent(f::Field) = parent(f.data)
 Base.axes(f::Field) = f.indices
 
+Base.view(f::Field, I...) = view(f.data, I...)
+
 data(f::Field) = f.data
 
 halo(f::Field) = f.halo

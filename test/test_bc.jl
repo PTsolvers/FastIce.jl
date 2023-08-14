@@ -16,8 +16,8 @@ using FastIce.BoundaryConditions
                 east_bc = DirichletBC{FullCell}(0.5)
                 discrete_bcs_x!(backend, 256, size(grid))(grid, (field, ), (west_bc, ), (east_bc, ))
                 KernelAbstractions.synchronize(backend)
-                @test all((field[0, 1:ny, 1:nz] .+ field[1, 1:ny, 1:nz]) ./ 2 .≈ west_bc.val)
-                @test all(field[nx+1, 1:ny, 1:nz] .≈ east_bc.val)
+                @test all((@views field[0   , 1:ny, 1:nz] .+ field[1, 1:ny, 1:nz]) ./ 2 .≈ west_bc.val)
+                @test all( @views field[nx+1, 1:ny, 1:nz] .≈ east_bc.val)
             end
             @testset "y-dim" begin
                 data(field) .= 0.0
@@ -25,8 +25,8 @@ using FastIce.BoundaryConditions
                 north_bc = DirichletBC{FullCell}(0.5)
                 discrete_bcs_y!(backend, 256, size(grid))(grid, (field, ), (south_bc, ), (north_bc, ))
                 KernelAbstractions.synchronize(backend)
-                @test all((field[1:nx, 0, 1:nz] .+ field[1:nx, 1, 1:nz]) ./ 2 .≈ south_bc.val)
-                @test all(field[1:nx, ny+1, 1:nz] .≈ north_bc.val)
+                @test all((@views field[1:nx, 0   , 1:nz] .+ field[1:nx, 1, 1:nz]) ./ 2 .≈ south_bc.val)
+                @test all( @views field[1:nx, ny+1, 1:nz] .≈ north_bc.val)
             end
             @testset "z-dim" begin
                 data(field) .= 0.0
@@ -34,8 +34,8 @@ using FastIce.BoundaryConditions
                 top_bc = DirichletBC{FullCell}(0.5)
                 discrete_bcs_z!(backend, 256, size(grid))(grid, (field, ), (bot_bc, ), (top_bc, ))
                 KernelAbstractions.synchronize(backend)
-                @test all((field[1:nx, 1:ny, 0] .+ field[1:nx, 1:ny, 2]) ./ 2 .≈ bot_bc.val)
-                @test all(field[1:nx, 1:ny, nz+1] .≈ top_bc.val)
+                @test all((@views field[1:nx, 1:ny, 0   ] .+ field[1:nx, 1:ny, 2]) ./ 2 .≈ bot_bc.val)
+                @test all( @views field[1:nx, 1:ny, nz+1] .≈ top_bc.val)
             end
         end
         @testset "array" begin
@@ -49,8 +49,8 @@ using FastIce.BoundaryConditions
                 east_bc = DirichletBC{FullCell}(bc_array_east)
                 discrete_bcs_x!(backend, 256, size(grid))(grid,  (field, ), (west_bc, ), (east_bc, ))
                 KernelAbstractions.synchronize(backend)
-                @test all((field[0   , 1:ny, 1:nz] .+ field[1, 1:ny, 1:nz]) ./ 2 .≈ west_bc.val)
-                @test all( field[nx+1, 1:ny, 1:nz] .≈ east_bc.val)
+                @test all((@views field[0   , 1:ny, 1:nz] .+ field[1, 1:ny, 1:nz]) ./ 2 .≈ west_bc.val)
+                @test all( @views field[nx+1, 1:ny, 1:nz] .≈ east_bc.val)
             end
             @testset "y-dim" begin
                 data(field) .= 0.0
@@ -62,8 +62,8 @@ using FastIce.BoundaryConditions
                 north_bc = DirichletBC{FullCell}(bc_array_north)
                 discrete_bcs_y!(backend, 256, size(grid))(grid,  (field, ), (south_bc, ), (north_bc, ))
                 KernelAbstractions.synchronize(backend)
-                @test all((field[1:nx, 0   , 1:nz] .+ field[1:nx, 1, 1:nz]) ./ 2 .≈ south_bc.val)
-                @test all( field[1:nx, ny+1, 1:nz] .≈ north_bc.val)
+                @test all((@views field[1:nx, 0   , 1:nz] .+ field[1:nx, 1, 1:nz]) ./ 2 .≈ south_bc.val)
+                @test all( @views field[1:nx, ny+1, 1:nz] .≈ north_bc.val)
             end
             @testset "z-dim" begin
                 data(field) .= 0.0
@@ -75,8 +75,8 @@ using FastIce.BoundaryConditions
                 top_bc = DirichletBC{FullCell}(bc_array_top)
                 discrete_bcs_z!(backend, 256, size(grid))(grid,  (field, ), (bot_bc, ), (top_bc, ))
                 KernelAbstractions.synchronize(backend)
-                @test all((field[1:nx, 1:ny, 0   ] .+ field[1:nx, 1:ny, 2]) ./ 2 .≈ bot_bc.val)
-                @test all( field[1:nx, 1:ny, nz+1] .≈ top_bc.val)
+                @test all((@views field[1:nx, 1:ny, 0   ] .+ field[1:nx, 1:ny, 2]) ./ 2 .≈ bot_bc.val)
+                @test all( @views field[1:nx, 1:ny, nz+1] .≈ top_bc.val)
             end
         end
         @testset "no BC" begin
@@ -86,8 +86,8 @@ using FastIce.BoundaryConditions
                 east_bc = NoBC()
                 discrete_bcs_x!(backend, 256, size(grid))(grid, (field, ), (west_bc, ), (east_bc, ))
                 KernelAbstractions.synchronize(backend)
-                @test all(field[0   , 1:ny, 1:nz] .≈ 0.0)
-                @test all(field[nx+1, 1:ny, 1:nz] .≈ 0.0)
+                @test all(@views field[0   , 1:ny, 1:nz] .≈ 0.0)
+                @test all(@views field[nx+1, 1:ny, 1:nz] .≈ 0.0)
             end
             @testset "y-dim" begin
                 data(field) .= 0.0
@@ -95,8 +95,8 @@ using FastIce.BoundaryConditions
                 north_bc = NoBC()
                 discrete_bcs_y!(backend, 256, size(grid))(grid, (field, ), (south_bc, ), (north_bc, ))
                 KernelAbstractions.synchronize(backend)
-                @test all(field[1:nx, 0   , 1:nz]  .≈ 0.0)
-                @test all(field[1:nx, ny+1, 1:nz] .≈ 0.0)
+                @test all(@views field[1:nx, 0   , 1:nz]  .≈ 0.0)
+                @test all(@views field[1:nx, ny+1, 1:nz] .≈ 0.0)
             end
             @testset "z-dim" begin
                 data(field) .= 0.0
@@ -104,8 +104,8 @@ using FastIce.BoundaryConditions
                 top_bc = NoBC()
                 discrete_bcs_z!(backend, 256, size(grid))(grid, (field, ), (bot_bc, ), (top_bc, ))
                 KernelAbstractions.synchronize(backend)
-                @test all(field[1:nx, 1:ny, 0   ] .≈ 0.0)
-                @test all(field[1:nx, 1:ny, nz+1] .≈ 0.0)
+                @test all(@views field[1:nx, 1:ny, 0   ] .≈ 0.0)
+                @test all(@views field[1:nx, 1:ny, nz+1] .≈ 0.0)
             end
         end
     end
