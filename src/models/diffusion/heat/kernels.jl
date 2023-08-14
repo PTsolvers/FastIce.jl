@@ -10,6 +10,7 @@ using FastIce.GridOperators
         ∂qz_∂z = ∂ᶜz(q.z, I) / Δ.z
         ∇q = ∂qx_∂x + ∂qy_∂y + ∂qz_∂z
         T[I] -= ∇q * η[I] * Δτ.Pr
+    end
 end
 
 @kernel function update_q!(q, T, τ, η, Δτ, Δ)
