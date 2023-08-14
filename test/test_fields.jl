@@ -15,13 +15,13 @@ const HALO_SIZES = ((2, 2, 4), (0, 0, 0), (2, 0, 2), (0, 0, 0), (0, 1, 3))
             @test location(Field(backend, grid, loc)) == loc
         end
         @testset "halo $hl" for (hl, hs) in zip(HALOS, HALO_SIZES)
-            f = Field(backend, grid, loc, hl)
+            f = Field(backend, grid, loc; halo=hl)
             @test location(f) == (Center(), Vertex(), Center())
-            @test size(f) == size(grid, loc) .+ hs
+            @test size(data(f)) == size(grid, loc) .+ hs
             @test size(interior(f)) == size(grid, loc)
         end
         @testset "set" begin
-            f = Field(backend, grid, (Center(), Vertex(), Center()), (1, 0, 1))
+            f = Field(backend, grid, (Center(), Vertex(), Center()); halo=(1, 0, 1))
             @testset "discrete" begin
                 # no parameters vertex
                 fill!(data(f), NaN)

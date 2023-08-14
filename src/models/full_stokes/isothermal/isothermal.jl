@@ -30,19 +30,19 @@ end
 
 function make_fields_mechanics(backend, grid)
     return (
-        Pr = Field(backend, grid, Center(), (1, 1, 1)),
+        Pr = Field(backend, grid, Center(); halo=1),
         τ  = (
-            xx = Field(backend, grid, Center(), (1, 1, 1)),
-            yy = Field(backend, grid, Center(), (1, 1, 1)),
-            zz = Field(backend, grid, Center(), (1, 1, 1)),
-            xy = Field(backend, grid, Vertex()),
-            xz = Field(backend, grid, Vertex()),
-            yz = Field(backend, grid, Vertex()),
+            xx = Field(backend, grid, Center(); halo=1),
+            yy = Field(backend, grid, Center(); halo=1),
+            zz = Field(backend, grid, Center(); halo=1),
+            xy = Field(backend, grid, (Vertex(), Vertex(), Center()); halo=0),
+            xz = Field(backend, grid, (Vertex(), Center(), Vertex()); halo=0),
+            yz = Field(backend, grid, (Center(), Vertex(), Vertex()); halo=0),
         ),
         V = (
-            x = Field(backend, grid, (Vertex(), Center(), Center()), (0, 1, 1)),
-            y = Field(backend, grid, (Center(), Vertex(), Center()), (1, 0, 1)),
-            z = Field(backend, grid, (Center(), Center(), Vertex()), (1, 1, 0)),
+            x = Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
+            y = Field(backend, grid, (Center(), Vertex(), Center()); halo=1),
+            z = Field(backend, grid, (Center(), Center(), Vertex()); halo=1),
         )
     )
 end
@@ -50,7 +50,7 @@ end
 function IsothermalFullStokesModel(; backend, grid, boundary_conditions, physics=nothing, iter_params, fields=nothing, other_fields=nothing)
     if isnothing(fields)
         mechanic_fields = make_fields_mechanics(backend, grid)
-        rheology_fields = (η = Field(backend, grid, Center(), (1, 1, 1)),)
+        rheology_fields = (η = Field(backend, grid, Center(); halo=1),)
         fields = merge(mechanic_fields, rheology_fields)
     end
 
@@ -217,7 +217,7 @@ function apply_bcs!(backend, grid, fields, bcs)
              Vx = fields.V.x ,  Vy = fields.V.y ,  Vz = fields.V.z)
 
     function apply_bcs_dim!(f, dim)
-        fields    = Tuple( interior_and_halo(field_map[f], dim) for f in dim.names )
+        fields    = Tuple( field_map[f] for f in dim.names )
         left_bcs  = values(dim.left)
         right_bcs = values(dim.right)
         f(grid, fields, left_bcs, right_bcs)
@@ -241,14 +241,14 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async = tr
     set_bcs!(bcs) = apply_bcs!(model.backend, model.grid, model.fields, bcs)
 
     # stress
-    update_σ!(backend, 256, (nx+1, ny+1, nz+1))(interior(Pr), interior(τ), V, η, Δτ, Δ)
+    update_σ!(backend, 256, (nx+1, ny+1, nz+1))(Pr, τ, V, η, Δτ, Δ)
     set_bcs!(model.boundary_conditions.stress)
     # velocity
-    update_V!(backend, 256, (nx + 1, ny + 1, nz + 1))(interior(V), Pr, τ, η, Δτ, Δ)
+    update_V!(backend, 256, (nx+1, ny+1, nz+1))(V, Pr, τ, η, Δτ, Δ)
     set_bcs!(model.boundary_conditions.velocity)
     # rheology
-    update_η!(backend, 256, (nx, ny, nz))(interior(η), η_rh, η_rel, model.grid, model.fields)
-    extrapolate!(data(η))
+    update_η!(backend, 256, (nx, ny, nz))(η, η_rh, η_rel, model.grid, model.fields)
+    extrapolate!(η)
 
     async || synchronize(backend)
     return

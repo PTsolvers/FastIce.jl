@@ -33,7 +33,7 @@ re_mech = 5π
 lτ_re_m = minimum(extent(grid)) / re_mech
 vdτ     = minimum(spacing(grid)) / sqrt(8.1)
 θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
-dτ_r    = 1.0 ./ (θ_dτ .+ 1.0)
+dτ_r    = 1.0 / (θ_dτ + 1.0)
 nudτ    = vdτ * lτ_re_m
 
 iter_params = (
@@ -70,22 +70,21 @@ set!(model.fields.Pr, 0.0)
 foreach(x -> set!(x, 0.0), model.fields.τ)
 Isothermal.apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.stress)
 
-# foreach(x -> set!(x, 0.0), model.fields.V)
-
 set!(model.fields.V.x, grid, (x, y, z, ebg) -> -x*ebg; continuous=true, parameters = (ebg, ))
 set!(model.fields.V.y, grid, (x, y, z, ebg) ->  y*ebg; continuous=true, parameters = (ebg, ))
 set!(model.fields.V.z, 0.0)
 Isothermal.apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.velocity)
 
 set!(model.fields.η, other_fields.A)
-extrapolate!(data(model.fields.η))
+extrapolate!(model.fields.η)
 
-for it in 1:100
+for it in 1:1000
     advance_iteration!(model, 0.0, 1.0; async = false)
     if it % 10 == 0
-        plt[3][] = interior(model.fields.Pr)[:, :, size(grid,3)÷2]
+        plt[3][] = parent(model.fields.V.x)[:, :, size(grid,3)÷2]
         yield()
     end
 end
 
-
+plt[3][] = interior(model.fields.V.x)[:, :, size(grid,3)÷2]
+plt[3][] = parent(model.fields.V.x)[:, :, size(grid,3)÷2]

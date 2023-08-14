@@ -4,6 +4,7 @@ export discrete_bcs_x!, discrete_bcs_y!, discrete_bcs_z!
 export DirichletBC, HalfCell, FullCell, NoBC
 
 using FastIce.Grids
+using FastIce.Fields
 
 using KernelAbstractions
 using Adapt
@@ -55,42 +56,51 @@ apply_top_z_bc!(grid, fields, ix, iy, ::NoBC) = nothing
 struct HalfCell end
 struct FullCell end
 
-struct DirichletBC{FluxReconstruction, T}
+struct DirichletBC{FluxReconstruction,T}
     val::T
 end
 
-DirichletBC{FluxReconstruction}(val::T) where {FluxReconstruction, T} = DirichletBC{FluxReconstruction, T}(val)
+DirichletBC{FluxReconstruction}(val::T) where {FluxReconstruction,T} = DirichletBC{FluxReconstruction,T}(val)
 
-(bc::DirichletBC{FR, <:Number})(grid, i, j) where FR = bc.val
-Base.@propagate_inbounds (bc::DirichletBC{FR, <:AbstractArray})(grid, i, j) where FR = bc.val[i, j]
+(bc::DirichletBC{FR,<:Number})(grid, i, j) where {FR} = bc.val
+Base.@propagate_inbounds (bc::DirichletBC{FR,<:AbstractArray})(grid, i, j) where {FR} = bc.val[i, j]
 
-Adapt.adapt_structure(to, f::DirichletBC{FR, <:AbstractArray}) where FR = DirichletBC{FR}(Adapt.adapt(to, parent(f.val)))
+Adapt.adapt_structure(to, f::DirichletBC{FR,<:AbstractArray}) where {FR} = DirichletBC{FR}(Adapt.adapt(to, parent(f.val)))
 
-Base.@propagate_inbounds get_flux(Δ, f2, bc::DirichletBC{HalfCell}, grid, i, j) = (bc(grid, i, j) - f2)/(0.5Δ)
-Base.@propagate_inbounds get_flux(Δ, f2, bc::DirichletBC{FullCell}, grid, i, j) = (bc(grid, i, j) - f2)/Δ
+Base.@propagate_inbounds get_flux(Δ, f2, bc::DirichletBC{HalfCell}, grid, i, j) = (bc(grid, i, j) - f2) / (0.5Δ)
+Base.@propagate_inbounds get_flux(Δ, f2, bc::DirichletBC{FullCell}, grid, i, j) = (bc(grid, i, j) - f2) / Δ
+
+@inline get_i(::Center) = 0
+@inline get_i(::Vertex) = 1
 
 @inline function apply_west_x_bc!(grid, f, iy, iz, bc::DirichletBC)
-    @inbounds f[1, iy, iz] = f[2, iy, iz] + Δ(grid, 1) * get_flux(Δ(grid, 1), f[2, iy, iz], bc, grid, iy, iz)
+    ix = get_i(location(f, 1))
+    @inbounds f[ix, iy, iz] = f[ix+1, iy, iz] + Δ(grid, 1) * get_flux(Δ(grid, 1), f[ix+1, iy, iz], bc, grid, iy, iz)
 end
 
 @inline function apply_east_x_bc!(grid, f, iy, iz, bc::DirichletBC)
-    @inbounds f[end, iy, iz] = f[end-1, iy, iz] + Δ(grid, 1) * get_flux(Δ(grid, 1), f[end-1, iy, iz], bc, grid, iy, iz)
+    ix = size(f, 1) + 1 - get_i(location(f, 1))
+    @inbounds f[ix, iy, iz] = f[ix-1, iy, iz] + Δ(grid, 1) * get_flux(Δ(grid, 1), f[ix-1, iy, iz], bc, grid, iy, iz)
 end
 
 @inline function apply_south_y_bc!(grid, f, ix, iz, bc::DirichletBC)
-    @inbounds f[ix, 1, iz] = f[ix, 2, iz] + Δ(grid, 2) * get_flux(Δ(grid, 2), f[ix, 2, iz], bc, grid, ix, iz)
+    iy = get_i(location(f, 2))
+    @inbounds f[ix, iy, iz] = f[ix, iy+1, iz] + Δ(grid, 2) * get_flux(Δ(grid, 2), f[ix, iy+1, iz], bc, grid, ix, iz)
 end
 
 @inline function apply_north_y_bc!(grid, f, ix, iz, bc::DirichletBC)
-    @inbounds f[ix, end, iz] = f[ix, end-1, iz] + Δ(grid, 2) * get_flux(Δ(grid, 2), f[ix, end-1, iz], bc, grid, ix, iz)
+    iy = size(f, 2) + 1 - get_i(location(f, 2))
+    @inbounds f[ix, iy, iz] = f[ix, iy-1, iz] + Δ(grid, 2) * get_flux(Δ(grid, 2), f[ix, iy-1, iz], bc, grid, ix, iz)
 end
 
 @inline function apply_bot_z_bc!(grid, f, ix, iy, bc::DirichletBC)
-    @inbounds f[ix, iy, 1] = f[ix, iy, 2] + Δ(grid, 3) * get_flux(Δ(grid, 3), f[ix, iy, 2], bc, grid, ix, iy)
+    iz = get_i(location(f, 3))
+    @inbounds f[ix, iy, iz] = f[ix, iy, iz+1] + Δ(grid, 3) * get_flux(Δ(grid, 3), f[ix, iy, iz+1], bc, grid, ix, iy)
 end
 
 @inline function apply_top_z_bc!(grid, f, ix, iy, bc::DirichletBC)
-    @inbounds f[ix, iy, end] = f[ix, iy, end-1] + Δ(grid, 3) * get_flux(Δ(grid, 3), f[ix, iy, end-1], bc, grid, ix, iy)
+    iz = size(f, 3) + 1 - get_i(location(f, 3))
+    @inbounds f[ix, iy, iz] = f[ix, iy, iz-1] + Δ(grid, 3) * get_flux(Δ(grid, 3), f[ix, iy, iz-1], bc, grid, ix, iy)
 end
 
 end

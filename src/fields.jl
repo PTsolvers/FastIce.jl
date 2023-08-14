@@ -1,103 +1,100 @@
 module Fields
 
 export AbstractField
-export Field, interior, interior_indices, halo_region, interior_and_halo
-export location, location_instance, data, halo, set!
+export Field, interior
+export location, data, halo, set!
 
 using Adapt
+using OffsetArrays
 using KernelAbstractions
 
 import FastIce.Grids: Location, CartesianGrid, coord
 
 abstract type AbstractField{T,N,L} <: AbstractArray{T,N} end
 
-import Base.@pure
-import Base.@propagate_inbounds
-
-@pure location(::AbstractField{T,N,L}) where {T,N,L} = L.instance
-@pure Base.eltype(::AbstractField{T}) where {T} = T
-@pure Base.ndims(::AbstractField{T,N}) where {T,N} = N
+Base.@pure location(::AbstractField{T,N,L}) where {T,N,L} = L.instance
+Base.@pure location(::AbstractField{T,N,L}, i) where {T,N,L} = L.instance[i]
+Base.@pure Base.eltype(::AbstractField{T}) where {T} = T
+Base.@pure Base.ndims(::AbstractField{T,N}) where {T,N} = N
 
 Base.IndexStyle(::AbstractField) = IndexCartesian()
 
-Base.@propagate_inbounds _get_halo_side(h::Union{Number,Nothing}, side) = something(h, 0)
-Base.@propagate_inbounds _get_halo_side(h::Tuple, side) = something(h[side], 0)
-
-struct Field{T,N,L,D,H} <: AbstractField{T,N,L}
+struct Field{T,N,L,D,H,I} <: AbstractField{T,N,L}
     data::D
     halo::H
+    indices::I
+    Field{L}(data::D, halo::H, indices::I) where {L,D,H,I} = new{eltype(data),ndims(data),L,D,H,I}(data, halo, indices)
 end
 
-function Field(data::AbstractArray{T, N}, ::L, halo::H) where {T, N, L<:Location,H}
-    Field{T,N,NTuple{N, L},typeof(data),H}(data, halo)
+data_axis(sz, h) = (1-h[1]):(sz+h[2])
+
+function make_data(backend, T, sz, halo_sz)
+    total_halo_size = map(sum, halo_sz)
+    array = KernelAbstractions.allocate(backend, T, sz .+ total_halo_size)
+    field_axes = ntuple(I -> data_axis(sz[I], halo_sz[I]), Val(length(sz)))
+    return OffsetArray(array, field_axes)
 end
 
-function Field(data::AbstractArray{T, N}, ::L, halo::H) where {T, N, L<:NTuple{N, Location},H}
-    Field{T,N,L,typeof(data),H}(data, halo)
+const HaloSize{N,I<:Integer} = NTuple{N,Tuple{I,I}}
+
+function Field(backend::Backend, grid::CartesianGrid, T::DataType, loc::L, halo::HaloSize) where {L}
+    sz = size(grid, loc)
+    data = make_data(backend, T, sz, halo)
+    indices = Base.OneTo.(sz)
+    return Field{L}(data, halo, indices)
 end
 
-function Field(backend::Backend, ::Type{T}, grid::D, loc::L, halo::H = nothing) where {T,D,L,H}
-    halo_size = ntuple(Val(ndims(grid))) do dim
-        if !isnothing(halo)
-            _get_halo_side(halo[dim], 1) + _get_halo_side(halo[dim], 2)
-        else
-            0
-        end
-    end
-    data = KernelAbstractions.allocate(backend, T, size(grid, loc) .+ halo_size)
-    return Field(data, loc, halo)
+expand_axis_halo(::Nothing) = (0, 0)
+expand_axis_halo(halo::Integer) = (halo, halo)
+expand_axis_halo(halo::Tuple) = (something(halo[1], 0), something(halo[2], 0))
+
+expand_halo(::Val{N}, halo::HaloSize{N}) where {N} = halo
+expand_halo(::Val{N}, halo::Tuple) where {N} = ntuple(I -> expand_axis_halo(halo[I]), Val(length(halo)))
+expand_halo(::Val{N}, halo::Integer) where {N} = ntuple(I -> (halo, halo), Val(N))
+expand_halo(::Val{N}, halo::Nothing) where {N} = ntuple(I -> (0, 0), Val(N))
+
+expand_loc(::Val{N}, loc::NTuple{N, Location}) where N = loc
+expand_loc(::Val{N}, loc::Location) where N = ntuple(_ -> loc, Val(N))
+
+function Field(backend::Backend, grid::CartesianGrid, loc::L, T::DataType=eltype(grid); halo::H=nothing) where {L,H}
+    N = ndims(grid)
+    return Field(backend, grid, T, expand_loc(Val(N), loc), expand_halo(Val(N), halo))
 end
 
-Field(backend::Backend, grid::D, loc::L, halo::H = nothing) where {D,L,H} = Field(backend, eltype(grid), grid, loc, halo)
+Base.checkbounds(f::Field, I...) = checkbounds(f.data, I...)
+Base.checkbounds(f::Field, I::Union{CartesianIndex, AbstractArray{<:CartesianIndex}}) = checkbounds(f.data, I)
+
+Base.checkbounds(::Type{Bool}, f::Field, I...) = checkbounds(Bool, f.data, I...)
+Base.checkbounds(::Type{Bool}, f::Field, I::Union{CartesianIndex, AbstractArray{<:CartesianIndex}}) = checkbounds(Bool, f.data, I)
+
+Base.size(f::Field) = length.(f.indices)
+Base.parent(f::Field) = parent(f.data)
+Base.axes(f::Field) = f.indices
 
 data(f::Field) = f.data
 
 halo(f::Field) = f.halo
 halo(f::Field, dim) = f.halo[dim]
-halo(f::Field, dim, side) = _get_halo_side(f.halo[dim], side)
-
-Base.size(f::Field) = size(data(f))
-Base.parent(f::Field) = data(f)
+halo(f::Field, dim, side) = f.halo[dim][side]
 
 Adapt.adapt_structure(to, f::Field) = Adapt.adapt(to, f.data)
 
-@propagate_inbounds Base.getindex(f::Field, inds...) = getindex(data(f), inds...)
+Base.@propagate_inbounds Base.getindex(f::Field, inds...) = getindex(f.data, inds...)
+Base.@propagate_inbounds Base.setindex!(f::Field, val, inds...) = setindex!(f.data, val, inds...)
 
-interior_indices(f::Field{T,N,L,D,Nothing}, dim) where {T,N,L,D} = axes(data(f), dim)
+Base.@propagate_inbounds Base.firstindex(f::Field) = firstindex(f.data)
+Base.@propagate_inbounds Base.firstindex(f::Field, dim) = firstindex(f.data, dim)
+Base.@propagate_inbounds Base.lastindex(f::Field) = lastindex(f.data)
+Base.@propagate_inbounds Base.lastindex(f::Field, dim) = lastindex(f.data, dim)
 
-function interior_indices(f::Field, dim)
-    return UnitRange(firstindex(f, dim) + halo(f, dim, 1), lastindex(f, dim) - halo(f, dim, 2))
-end
-
-interior_indices(f::Field) = ntuple(dim -> interior_indices(f, dim), Val(ndims(f)))
-
-interior(f::Field{T,N,L,D,Nothing}) where {T,N,L,D} = data(f)
-interior(f::Field) = view(data(f), interior_indices(f)...)
-
-interior(fs::NamedTuple{names}) where {names} = NamedTuple{names}(interior.(Tuple(fs)))
-
-function halo_indices(f::Field, dim, side)
-    return if side == 1
-        UnitRange(firstindex(f, dim), halo(f, dim, side))
-    else
-        UnitRange(lastindex(f, dim) - halo(f, dim, side), lastindex(f, dim))
+function interior_indices(f::Field)
+    return ntuple(ndims(f)) do I
+        (firstindex(parent(f), I) + f.halo[I][1]):(lastindex(parent(f), I) - f.halo[I][2])
     end
 end
 
-function halo_region(f::Field, dim, side)
-    indices = ntuple(Val(ndims(f))) do I
-        Base.@_inline_meta
-        I == dim ? (:) : halo_indices(f, I, side)
-    end
-    return view(data(f), indices...)
-end
-
-function interior_and_halo(f::Field, dim)
-    indices = ntuple(Val(ndims(f))) do I
-        Base.@_inline_meta
-        I == dim ? (:) : interior_indices(f, I)
-    end
-    return view(data(f), indices...)
+function interior(f::Field)
+    return view(parent(f), interior_indices(f)...)
 end
 
 set!(f::Field, other::Field) = (copy!(interior(f), interior(other)); nothing)

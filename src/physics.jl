@@ -5,7 +5,7 @@ export IncompressibleIceEOS, IceThermalProperties
 export IceRheology, GlensLawRheology, τ
 export default
 
-using FastIce.Macros
+using FastIce.GridOperators
 
 abstract type AbstractPhysics end
 
@@ -31,10 +31,10 @@ end
 
 default(::Type{GlensLawRheology{I}}) where {I} = GlensLawRheology(convert(I, 3))
 
-@inline function (rh::GlensLawRheology{T})(grid, ix, iy, iz, fields) where {T}
+@inline function (rh::GlensLawRheology{T})(grid, I, fields) where {T}
     (; τ, A) = fields
-    @inbounds τII = sqrt(0.5 * (@inn(τ.xx)^2 + @inn(τ.yy)^2 + @inn(τ.zz)^2) + @av_xy(τ.xy)^2 + @av_xz(τ.xz)^2 + @av_yz(τ.yz)^2)
-    return 0.5 / (A[ix, iy, iz] * τII^(rh.exponent - 1))
+    @inbounds τII = sqrt(0.5 * (τ.xx[I]^2 + τ.yy[I]^2 + τ.zz[I]^2) + aᶜxy(τ.xy, I)^2 + aᶜxz(τ.xz, I)^2 + aᶜyz(τ.yz, I)^2)
+    return 0.5 / (A[I] * τII^(rh.exponent - 1))
 end
 
 end
