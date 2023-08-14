@@ -13,7 +13,7 @@ import FastIce.Grids: Location, CartesianGrid, coord
 abstract type AbstractField{T,N,L} <: AbstractArray{T,N} end
 
 Base.@pure location(::AbstractField{T,N,L}) where {T,N,L} = L.instance
-Base.@pure location(::AbstractField{T,N,L}, i) where {T,N,L} = L.instance[i]
+Base.@pure location(::AbstractField{T,N,L}, ::Val{I}) where {T,N,L,I} = L.instance[I]
 Base.@pure Base.eltype(::AbstractField{T}) where {T} = T
 Base.@pure Base.ndims(::AbstractField{T,N}) where {T,N} = N
 
