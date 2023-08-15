@@ -1,5 +1,6 @@
 using KernelAbstractions
 using MPI
+using CUDA
 
 include("mpi_utils.jl")
 
@@ -74,7 +75,7 @@ end
     end
 end
 
-backend = CPU()
+backend = CUDABackend()
 T::DataType = Int
 dims = (0, 0, 0)
 
@@ -95,8 +96,7 @@ coords = Tuple(MPI.Cart_coords(comm))
 # create communicator for the node and select device
 comm_node = MPI.Comm_split_type(comm, MPI.COMM_TYPE_SHARED, me)
 pid       = MPI.Comm_rank(comm_node)
-## TODO: set device with pid
-# CUDA.device!(pid)
+CUDA.device!(pid)
 
 nx, ny, nz = 6, 6, 6
 bx, by, bz = 2, 2, 2
