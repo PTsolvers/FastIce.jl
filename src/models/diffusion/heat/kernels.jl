@@ -26,6 +26,6 @@ end
         ∂qz_∂z = ∂ᶜz(q.z, I) / Δ.z
         ∇q     = ∂qx_∂x + ∂qy_∂y + ∂qz_∂z
         ΔTΔt   = (T[I] - T_o[I]) / Δt
-        T[I] -= (ΔTΔt + ∇q) * Δτ.T
+        T[I]  -= (ΔTΔt + ∇q) * Δτ.T
     end
 end

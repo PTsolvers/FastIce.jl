@@ -78,8 +78,9 @@ display(fig)
 for it in 1:2000
     advance_iteration!(model, 0.0, Δt; async = false)
     if it % 100 == 0
-        # plt[3][] = parent(model.fields.T)[2:end-1, 2:end-1, size(grid,3)÷2]
         plt[3][] = interior(model.fields.T)[:, :, size(grid,3)÷2]
         display(fig)
     end
 end
+
+# plt[3][] = parent(model.fields.T)[2:end-1, 2:end-1, size(grid,3)÷2]
