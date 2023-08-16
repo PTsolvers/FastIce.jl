@@ -67,7 +67,7 @@ Base.@propagate_inbounds (bc::DirichletBC{FR,<:AbstractArray})(grid, i, j) where
 
 Adapt.adapt_structure(to, f::DirichletBC{FR,<:AbstractArray}) where {FR} = DirichletBC{FR}(Adapt.adapt(to, parent(f.val)))
 
-Base.@propagate_inbounds get_flux(Δ, f2, bc::DirichletBC{HalfCell}, grid, i, j) = (bc(grid, i, j) - f2) / (0.5Δ)
+Base.@propagate_inbounds get_flux(Δ, f2, bc::DirichletBC{HalfCell}, grid, i, j) = (bc(grid, i, j) - f2) / Δ
 Base.@propagate_inbounds get_flux(Δ, f2, bc::DirichletBC{FullCell}, grid, i, j) = (bc(grid, i, j) - f2) / Δ
 
 @inline get_i(::Center) = 0
