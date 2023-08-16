@@ -31,7 +31,7 @@ boundary_conditions = (
     top   = BoundaryCondition{Flux}(0.0),
 )
 
-cfl  = 0.8 / sqrt(2.1)
+cfl  = 1.0 / sqrt(3.1)
 re   = π + sqrt(π^2 + maximum(extent(grid))^2 / λ_ρCp / Δt)
 θ_dτ = maximum(extent(grid)) / re / cfl / minimum(spacing(grid))
 β_dτ = (re * λ_ρCp) / (cfl * minimum(spacing(grid)) * maximum(extent(grid)))
