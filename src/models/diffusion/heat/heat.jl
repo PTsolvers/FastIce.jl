@@ -1,22 +1,14 @@
 module Heat
 
-export BoundaryCondition, Flux
+export BoundaryCondition, Flux, Value
 export HeatDiffusionModel, advance_iteration!, advance_timestep!
 
-using FastIce.Physics
 using FastIce.Grids
 using FastIce.Fields
 using FastIce.BoundaryConditions
 using FastIce.Utils
 
 include("kernels.jl")
-
-function default_physics(::Type{T}) where T
-    return (
-        equation_of_state=default(IncompressibleIceEOS{T}),
-        thermal_properties=default(IceThermalProperties{T}),
-    )
-end
 
 struct HeatDiffusionModel{Backend,Grid,BC,Physics,IterParams,Fields}
     backend::Backend
@@ -29,32 +21,22 @@ end
 
 function make_fields_diffusion(backend, grid)
     return (
-        T = Field(backend, grid, Center(); halo=1),
         q = (
             x = Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
             y = Field(backend, grid, (Center(), Vertex(), Center()); halo=1),
             z = Field(backend, grid, (Center(), Center(), Vertex()); halo=1),
-        )
+        ),
     )
 end
 
-function make_fields_params(backend, grid)
-    return (λ = Field(backend, grid, Center(); halo=1),)
-end
-
-function HeatDiffusionModel(; backend, grid, boundary_conditions, physics=nothing, iter_params, fields=nothing, other_fields=nothing)
+function HeatDiffusionModel(; backend, grid, boundary_conditions, physics=nothing, iter_params, fields=nothing, init_fields=nothing)
     if isnothing(fields)
         diffusion_fields = make_fields_diffusion(backend, grid)
-        params_fields = make_fields_params(backend, grid)
-        fields = merge(diffusion_fields, params_fields)
+        fields = diffusion_fields
     end
 
-    if !isnothing(other_fields)
-        fields = merge(fields, other_fields)
-    end
-
-    if isnothing(physics)
-        physics = default_physics(eltype(grid))
+    if !isnothing(init_fields)
+        fields = merge(fields, init_fields)
     end
 
     boundary_conditions = create_field_boundary_conditions(boundary_conditions)
@@ -66,34 +48,36 @@ fields(model::HeatDiffusionModel) = model.fields
 grid(model::HeatDiffusionModel) = model.grid
 
 struct Flux end
+struct Value end
 
-struct BoundaryCondition{Kind, Fx, Fy, Fz}
-    x::Fx
-    y::Fy
-    z::Fz
+struct BoundaryCondition{Kind, Val}
+    val::Val
 end
 
-BoundaryCondition{Kind}(x::Fx, y::Fy, z::Fz) where {Kind, Fx, Fy, Fz} = BoundaryCondition{Kind, Fx, Fy, Fz}(x, y, z)
+BoundaryCondition{Kind}(val::Val) where {Kind, Val} = BoundaryCondition{Kind, Val}(val)
 
 function extract_x_bcs(bc::BoundaryCondition{Flux})
-    return NamedTuple(),
-          (qx = DirichletBC{FullCell}(bc.x),
-           qy = DirichletBC{HalfCell}(bc.y),
-           qz = DirichletBC{HalfCell}(bc.z),)
+    return NamedTuple(), (qx = DirichletBC{FullCell}(bc.val),)
 end
 
 function extract_y_bcs(bc::BoundaryCondition{Flux})
-    return NamedTuple(),
-          (qx = DirichletBC{HalfCell}(bc.x),
-           qy = DirichletBC{FullCell}(bc.y),
-           qz = DirichletBC{HalfCell}(bc.z),)
+    return NamedTuple(), (qy = DirichletBC{FullCell}(bc.val),)
 end
 
 function extract_z_bcs(bc::BoundaryCondition{Flux})
-    return NamedTuple(),
-           (qx = DirichletBC{HalfCell}(bc.x),
-            qy = DirichletBC{HalfCell}(bc.y),
-            qz = DirichletBC{FullCell}(bc.z),)
+    return NamedTuple(), (qz = DirichletBC{FullCell}(bc.val),)
+end
+
+function extract_x_bcs(bc::BoundaryCondition{Value})
+    return (T = DirichletBC{HalfCell}(bc.val),), NamedTuple()
+end
+
+function extract_y_bcs(bc::BoundaryCondition{Value})
+    return (T = DirichletBC{HalfCell}(bc.val),), NamedTuple()
+end
+
+function extract_z_bcs(bc::BoundaryCondition{Value})
+    return (T = DirichletBC{HalfCell}(bc.val),), NamedTuple()
 end
 
 @inline no_bcs(names) = NamedTuple(f => NoBC() for f in names)
@@ -101,24 +85,46 @@ end
 unique_names(a, b) = Tuple(unique(tuple(a..., b...)))
 
 function create_field_boundary_conditions(f, left, right)
-    left_flux  = f(left)
-    right_flux = f(right)
+    left_value, left_flux  = f(left)
+    right_value, right_flux = f(right)
 
+    value_names = unique_names(keys(left_value), keys(right_value))
     flux_names = unique_names(keys(left_flux), keys(right_flux))
 
+    default_value = no_bcs(value_names)
     default_flux = no_bcs(flux_names)
+
+    left_value  = merge(default_value, left_value)
+    right_value = merge(default_value, right_value)
 
     left_flux  = merge(default_flux, left_flux)
     right_flux = merge(default_flux, right_flux)
 
-    return flux_names, left_flux, right_flux
+    return value_names, left_value, right_value, flux_names, left_flux, right_flux
 end
 
 function create_field_boundary_conditions(bcs)
-    flux_names_x, west_flux_bcs , east_flux_bcs  = create_field_boundary_conditions(extract_x_bcs, bcs.west, bcs.east)
-    flux_names_y, south_flux_bcs, north_flux_bcs = create_field_boundary_conditions(extract_y_bcs, bcs.south, bcs.north)
-    flux_names_z, bot_flux_bcs  , top_flux_bcs   = create_field_boundary_conditions(extract_z_bcs, bcs.bot  , bcs.top)
+    value_names_x, west_value_bcs , east_value_bcs , flux_names_x, west_flux_bcs , east_flux_bcs  = create_field_boundary_conditions(extract_x_bcs, bcs.west , bcs.east)
+    value_names_y, south_value_bcs, north_value_bcs, flux_names_y, south_flux_bcs, north_flux_bcs = create_field_boundary_conditions(extract_y_bcs, bcs.south, bcs.north)
+    value_names_z, bot_value_bcs  , top_value_bcs  , flux_names_z, bot_flux_bcs  , top_flux_bcs   = create_field_boundary_conditions(extract_z_bcs, bcs.bot  , bcs.top)
     return (
+        value = (
+            x = (
+                names = value_names_x,
+                left  = west_value_bcs,
+                right = east_value_bcs,
+            ),
+            y = (
+                names = value_names_y,
+                left  = south_value_bcs,
+                right = north_value_bcs,
+            ),
+            z = (
+                names = value_names_z,
+                left  = bot_value_bcs,
+                right = top_value_bcs,
+            )
+        ),
         flux = (
             x = (
                 names = flux_names_x,
@@ -140,7 +146,8 @@ function create_field_boundary_conditions(bcs)
 end
 
 function apply_bcs!(backend, grid, fields, bcs)
-    field_map = (qx = fields.q.x ,  qy = fields.q.y ,  qz = fields.q.z)
+    field_map = (T = fields.T,
+        qx = fields.q.x ,  qy = fields.q.y ,  qz = fields.q.z)
 
     function apply_bcs_dim!(f, dim)
         fields    = Tuple( field_map[f] for f in dim.names )
@@ -157,21 +164,21 @@ function apply_bcs!(backend, grid, fields, bcs)
 end
 
 function advance_iteration!(model::HeatDiffusionModel, t, Δt; async = true)
-    (; T, q, λ) = model.fields
-    (; η_rel, Δτ) = model.iter_params
-    λ_tp = model.physics.thermal_properties # DEBUG
-    ρ_eos, λ_eos = model.physics.equation_of_state # DEBUG
+    (; T, T_o, q) = model.fields
+    (; Δτ) = model.iter_params
+    λ_ρCp = model.physics.properties
     Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
     nx, ny, nz = size(model.grid)
     backend = model.backend
 
-    # set_bcs!(bcs) = apply_bcs!(model.backend, model.grid, model.fields, bcs)
+    set_bcs!(bcs) = apply_bcs!(model.backend, model.grid, model.fields, bcs)
 
     # flux
-    # update_q!(backend, 256, (nx+1, ny+1, nz+1))(q, T, λ, Δτ, Δ)
-    # set_bcs!(model.boundary_conditions.flux)
+    update_q!(backend, 256, (nx+1, ny+1, nz+1))(q, T, λ_ρCp, Δτ, Δ)
+    set_bcs!(model.boundary_conditions.flux)
     # mass balance
-    # update_T!(backend, 256, (nx, ny, nz))(T, q, ρcp, Δτ, Δ)
+    update_T!(backend, 256, (nx, ny, nz))(T, T_o, q, Δt, Δτ, Δ)
+    # set_bcs!(model.boundary_conditions.value)
 
     async || synchronize(backend)
     return
