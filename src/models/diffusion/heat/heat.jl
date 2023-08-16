@@ -47,26 +47,14 @@ end
 fields(model::HeatDiffusionModel) = model.fields
 grid(model::HeatDiffusionModel) = model.grid
 
-struct Flux end
 struct Value end
+struct Flux end
 
 struct BoundaryCondition{Kind, Val}
     val::Val
 end
 
 BoundaryCondition{Kind}(val::Val) where {Kind, Val} = BoundaryCondition{Kind, Val}(val)
-
-function extract_x_bcs(bc::BoundaryCondition{Flux})
-    return NamedTuple(), (qx = DirichletBC{FullCell}(bc.val),)
-end
-
-function extract_y_bcs(bc::BoundaryCondition{Flux})
-    return NamedTuple(), (qy = DirichletBC{FullCell}(bc.val),)
-end
-
-function extract_z_bcs(bc::BoundaryCondition{Flux})
-    return NamedTuple(), (qz = DirichletBC{FullCell}(bc.val),)
-end
 
 function extract_x_bcs(bc::BoundaryCondition{Value})
     return (T = DirichletBC{HalfCell}(bc.val),), NamedTuple()
@@ -80,19 +68,31 @@ function extract_z_bcs(bc::BoundaryCondition{Value})
     return (T = DirichletBC{HalfCell}(bc.val),), NamedTuple()
 end
 
+function extract_x_bcs(bc::BoundaryCondition{Flux})
+    return NamedTuple(), (qx = DirichletBC{FullCell}(bc.val),)
+end
+
+function extract_y_bcs(bc::BoundaryCondition{Flux})
+    return NamedTuple(), (qy = DirichletBC{FullCell}(bc.val),)
+end
+
+function extract_z_bcs(bc::BoundaryCondition{Flux})
+    return NamedTuple(), (qz = DirichletBC{FullCell}(bc.val),)
+end
+
 @inline no_bcs(names) = NamedTuple(f => NoBC() for f in names)
 
 unique_names(a, b) = Tuple(unique(tuple(a..., b...)))
 
 function create_field_boundary_conditions(f, left, right)
-    left_value, left_flux  = f(left)
+    left_value , left_flux  = f(left)
     right_value, right_flux = f(right)
 
     value_names = unique_names(keys(left_value), keys(right_value))
-    flux_names = unique_names(keys(left_flux), keys(right_flux))
+    flux_names  = unique_names(keys(left_flux) , keys(right_flux))
 
     default_value = no_bcs(value_names)
-    default_flux = no_bcs(flux_names)
+    default_flux  = no_bcs(flux_names)
 
     left_value  = merge(default_value, left_value)
     right_value = merge(default_value, right_value)
@@ -178,7 +178,7 @@ function advance_iteration!(model::HeatDiffusionModel, t, Δt; async = true)
     set_bcs!(model.boundary_conditions.flux)
     # mass balance
     update_T!(backend, 256, (nx, ny, nz))(T, T_o, q, Δt, Δτ, Δ)
-    # set_bcs!(model.boundary_conditions.value)
+    set_bcs!(model.boundary_conditions.value)
 
     async || synchronize(backend)
     return

@@ -10,6 +10,8 @@ using KernelAbstractions
 using GLMakie
 Makie.inline!(true)
 
+backend = CPU()
+
 # physics
 λ_ρCp = 1.0
 Δt    = 1.0
@@ -17,32 +19,30 @@ Makie.inline!(true)
 grid = CartesianGrid(
     origin = (-0.5, -0.5, 0.0),
     extent = ( 1.0,  1.0, 1.0),
-    size   = (  64,   64, 64 );
+    size   = (  32,   32,  32);
 )
 
 boundary_conditions = (
     west  = BoundaryCondition{Flux}(0.0),
     east  = BoundaryCondition{Flux}(0.0),
-    south = BoundaryCondition{Flux}(0.0),
-    north = BoundaryCondition{Flux}(0.0),
+    south = BoundaryCondition{Value}(-0.1),
+    north = BoundaryCondition{Value}(0.3),
     bot   = BoundaryCondition{Flux}(0.0),
     top   = BoundaryCondition{Flux}(0.0),
 )
 
-cfl  = 1.0 / sqrt(2.1)
+cfl  = 0.8 / sqrt(2.1)
 re   = π + sqrt(π^2 + maximum(extent(grid))^2 / λ_ρCp / Δt)
 θ_dτ = maximum(extent(grid)) / re / cfl / minimum(spacing(grid))
 β_dτ = (re * λ_ρCp) / (cfl * minimum(spacing(grid)) * maximum(extent(grid)))
 
+physics = (properties = λ_ρCp,)
+
 iter_params = (
     Δτ = ( T = 1.0 / (Δt + β_dτ),
-           q = (x = 1.0 / (1.0 + θ_dτ), y = 1.0 / (1.0 + θ_dτ), z = 1.0 / (1.0 + θ_dτ))
+           q = 1.0 / (1.0 + θ_dτ)
     ),
 )
-
-backend = CPU()
-
-physics = (properties = λ_ρCp,)
 
 init_fields = (
     T   = Field(backend, grid, Center(); halo=1),
@@ -61,13 +61,6 @@ model = HeatDiffusionModel(;
     init_fields
 )
 
-fig = Figure(resolution=(1000,1000), fontsize=32)
-ax  = Axis(fig[1,1][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y")
-
-plt = heatmap!(ax, xcenters(grid), ycenters(grid), interior(model.fields.T)[:, :, size(grid,3)÷2]; colormap=:turbo)
-Colorbar(fig[1,1][1,2], plt)
-display(fig)
-
 set!(model.fields.q.x, 0.0)
 set!(model.fields.q.y, 0.0)
 set!(model.fields.q.z, 0.0)
@@ -76,12 +69,18 @@ Heat.apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditio
 
 set!(model.fields.T_o, model.fields.T)
 
-for it in 1:100
+fig = Figure(resolution=(1000,1000), fontsize=32)
+ax  = Axis(fig[1,1][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y")
+plt = heatmap!(ax, xcenters(grid), ycenters(grid), interior(model.fields.T)[:, :, size(grid,3)÷2]; colormap=:turbo)
+Colorbar(fig[1,1][1,2], plt)
+display(fig)
+
+for it in 1:2000
     advance_iteration!(model, 0.0, Δt; async = false)
-    # if it % 10 == 0
-        plt[3][] = parent(model.fields.T)[:, :, size(grid,3)÷2]
+    if it % 100 == 0
+        plt[3][] = parent(model.fields.T)[2:end-1, 2:end-1, size(grid,3)÷2]
         display(fig)
-    # end
+    end
 end
 
 # plt[3][] = interior(model.fields.V.x)[:, :, size(grid,3)÷2]
