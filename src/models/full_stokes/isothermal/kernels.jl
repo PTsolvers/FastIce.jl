@@ -24,15 +24,15 @@ end
     end
     @inbounds if checkbounds(Bool, τ.xy, I)
         ε̇xy = 0.5 * (∂ᵛx(V.y, I) / Δ.x + ∂ᵛy(V.x, I) / Δ.y)
-        τ.xy[I] -= (τ.xy[I] - 2.0 * aᵛxy(η, I) * ε̇xy) * Δτ.τ.xy
+        τ.xy[I] -= (τ.xy[I] - 2.0 * avᵛxy(η, I) * ε̇xy) * Δτ.τ.xy
     end
     @inbounds if checkbounds(Bool, τ.xz, I)
         ε̇xz = 0.5 * (∂ᵛx(V.z, I) / Δ.x + ∂ᵛz(V.x, I) / Δ.z)
-        τ.xz[I] -= (τ.xz[I] - 2.0 * aᵛxz(η, I) * ε̇xz) * Δτ.τ.xz
+        τ.xz[I] -= (τ.xz[I] - 2.0 * avᵛxz(η, I) * ε̇xz) * Δτ.τ.xz
     end
     @inbounds if checkbounds(Bool, τ.yz, I)
         ε̇yz = 0.5 * (∂ᵛy(V.z, I) / Δ.y + ∂ᵛz(V.y, I) / Δ.z)
-        τ.yz[I] -= (τ.yz[I] - 2.0 * aᵛyz(η, I) * ε̇yz) * Δτ.τ.yz
+        τ.yz[I] -= (τ.yz[I] - 2.0 * avᵛyz(η, I) * ε̇yz) * Δτ.τ.yz
     end
 end
 
@@ -42,18 +42,18 @@ end
         ∂σxx_∂x = (-∂ᵛx(Pr, I) + ∂ᵛx(τ.xx, I)) / Δ.x
         ∂τxy_∂y = ∂ᶜy(τ.xy, I) / Δ.y
         ∂τxz_∂z = ∂ᶜz(τ.xz, I) / Δ.z
-        V.x[I] += (∂σxx_∂x + ∂τxy_∂y + ∂τxz_∂z) / mlᵛx(η, I) * Δτ.V.x
+        V.x[I] += (∂σxx_∂x + ∂τxy_∂y + ∂τxz_∂z) / maxlᵛx(η, I) * Δτ.V.x
     end
     @inbounds if checkbounds(Bool, V.y, I)
         ∂σyy_∂y = (-∂ᵛy(Pr, I) + ∂ᵛy(τ.yy, I)) / Δ.y
         ∂τxy_∂x = ∂ᶜx(τ.xy, I) / Δ.x
         ∂τyz_∂z = ∂ᶜz(τ.yz, I) / Δ.z
-        V.y[I] += (∂σyy_∂y + ∂τxy_∂x + ∂τyz_∂z) / mlᵛy(η, I) * Δτ.V.y
+        V.y[I] += (∂σyy_∂y + ∂τxy_∂x + ∂τyz_∂z) / maxlᵛy(η, I) * Δτ.V.y
     end
     @inbounds if checkbounds(Bool, V.z, I)
         ∂σzz_∂z = (-∂ᵛz(Pr, I) + ∂ᵛz(τ.zz, I)) / Δ.z
         ∂τxz_∂x = ∂ᶜx(τ.xz, I) / Δ.x
         ∂τyz_∂y = ∂ᶜy(τ.yz, I) / Δ.y
-        V.z[I] += (∂σzz_∂z + ∂τxz_∂x + ∂τyz_∂y) / mlᵛz(η, I) * Δτ.V.z
+        V.z[I] += (∂σzz_∂z + ∂τxz_∂x + ∂τyz_∂y) / maxlᵛz(η, I) * Δτ.V.z
     end
 end
