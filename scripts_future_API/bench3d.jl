@@ -54,8 +54,11 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
 
     A     = KernelAbstractions.allocate(backend, T, nx, ny, nz)
     A_new = KernelAbstractions.allocate(backend, T, nx, ny, nz)
-    copyto!(A, A_ini)
+    KernelAbstractions.copyto!(backend, A, A_ini)
+    KernelAbstractions.synchronize(backend)
     A_new = copy(A)
+
+    @show typeof(A) typeof(A_new)
 
     ### to be hidden later
     ranges = split_ndrange(A, b_width)
@@ -85,10 +88,12 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
     # end
     ### to be hidden later
 
+    @show ranges[end]
+
     # actions
     for it = 1:nt
-       diffusion_kernel!(backend, 256)(A_new, A, h, dx, dy, dz, first(ranges[end]); ndrange=size(A))
-    #    diffusion_kernel!(backend, 256)(A_new, A, h, dx, dy, dz, first(ranges[end]); ndrange=size(ranges[end]))
+    #    diffusion_kernel!(backend, 256)(A_new, A, h, dx, dy, dz, first(ranges[end]); ndrange=size(A))
+       diffusion_kernel!(backend, 256)(A_new, A, h, dx, dy, dz, first(ranges[end]); ndrange=size(ranges[end]))
     #     for dim in reverse(eachindex(neighbors))
     #         notify.(exchangers[dim])
     #         wait.(exchangers[dim])
@@ -106,7 +111,7 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
 end
 
 backend = CUDABackend()
-T::DataType = Int
+T::DataType = Float64
 dims = (0, 0, 1)
 
 main(backend, T, dims)
