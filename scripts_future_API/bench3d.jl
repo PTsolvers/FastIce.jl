@@ -102,7 +102,6 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
         A, A_new = A_new, A
     end
 
-
     # for dim in eachindex(neighbors)
     #     setdone!.(exchangers[dim])
     # end
