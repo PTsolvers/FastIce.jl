@@ -19,7 +19,7 @@ include("mpi_utils2.jl")
 #     end
 # end
 
-@kernel function diffusion_kernel!(A_new, A, h, dx, dy, dz, offset)
+@kernel function diffusion_kernel!(A_new, A, h, _dx, _dy, _dz, offset)
     ix, iy, iz = @index(Global, NTuple)
     # ix += offset[1] - 1
     # iy += offset[2] - 1
@@ -27,9 +27,9 @@ include("mpi_utils2.jl")
     # if ix ∈ axes(A_new, 1)[2:end-1] && iy ∈ axes(A_new, 2)[2:end-1] && iz ∈ axes(A_new, 3)[2:end-1]
     if (1 < ix < size(A_new, 1)) && (1 < iy < size(A_new, 2)) && (1 < iz < size(A_new, 3))
         #= @inbounds =# 
-        A_new[ix, iy, iz] = A[ix, iy, iz] + h * ((A[ix-1, iy  , iz  ] + A[ix+1, iy  , iz  ] - 2.0 * A[ix, iy, iz]) * dx * dx +
-                                                 (A[ix  , iy-1, iz  ] + A[ix  , iy+1, iz  ] - 2.0 * A[ix, iy, iz]) * dy * dy +
-                                                 (A[ix  , iy  , iz-1] + A[ix  , iy  , iz+1] - 2.0 * A[ix, iy, iz]) * dz * dz  )
+        A_new[ix, iy, iz] = A[ix, iy, iz] + h * ((A[ix-1, iy  , iz  ] + A[ix+1, iy  , iz  ] - 2.0 * A[ix, iy, iz]) * _dx * _dx +
+                                                 (A[ix  , iy-1, iz  ] + A[ix  , iy+1, iz  ] - 2.0 * A[ix, iy, iz]) * _dy * _dy +
+                                                 (A[ix  , iy  , iz-1] + A[ix  , iy  , iz+1] - 2.0 * A[ix, iy, iz]) * _dz * _dz  )
     end
 end
 
@@ -42,6 +42,7 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
     b_width = (2, 2, 2)
     # dims, comm, me, neighbors, coords = init_distributed(dims; init_MPI=true)
     dx, dy, dz = l ./ (nx, ny, nz)
+    _dx, _dy, _dz = 1.0 ./ (dx, dy, dz)
     h = min(dx, dy ,dz)^2 / 6.1
     # init arrays
     x_g = (ix, dx) -> (coords[1] * (nx - 2) + (ix-1)) * dx + dx/2
@@ -93,7 +94,7 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
     # actions
     for it = 1:nt
     #    diffusion_kernel!(backend, 256)(A_new, A, h, dx, dy, dz, first(ranges[end]); ndrange=size(A))
-       diffusion_kernel!(backend, 256)(A_new, A, h, dx, dy, dz, first(ranges[end]); ndrange=size(ranges[end]))
+       diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, first(ranges[end]); ndrange=size(ranges[end]))
     #     for dim in reverse(eachindex(neighbors))
     #         notify.(exchangers[dim])
     #         wait.(exchangers[dim])
