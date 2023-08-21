@@ -76,7 +76,7 @@ Colorbar(fig[1,1][1,2], plt)
 display(fig)
 
 for it in 1:2000
-    advance_iteration!(model, 0.0, Δt; async = false)
+    advance_iteration!(model, 0.0, Δt; async=false)
     if it % 100 == 0
         plt[3][] = interior(model.fields.T)[:, :, size(grid,3)÷2]
         display(fig)
