@@ -38,9 +38,10 @@ steps:
     command: |
       julia -e 'println("--- :julia: Instantiating project")
                 using Pkg
+                Pkg.rm("CUDA")
                 Pkg.develop(; path=pwd())
                 Pkg.develop(; name="AMDGPU")' || exit 3
-
+     # HOTFIX: Pkg.rm("CUDA")
       julia -e 'println("+++ :julia: Running tests")
                 using Pkg
                 Pkg.test("FastIce"; coverage=true)'
