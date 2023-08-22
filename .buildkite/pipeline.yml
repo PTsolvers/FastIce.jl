@@ -39,7 +39,6 @@ steps:
       julia -e 'println("--- :julia: Instantiating project")
                 using Pkg
                 Pkg.develop(; path=pwd())
-                Pkg.rm("CUDA")
                 Pkg.develop(; name="AMDGPU")' || exit 3
 
       julia -e 'println("+++ :julia: Running tests")
