@@ -83,4 +83,4 @@ for it in 1:2000
     end
 end
 
-# plt[3][] = parent(model.fields.T)[2:end-1, 2:end-1, size(grid,3)÷2]
+# plt[3][] = parent(model.fields.T)[2:end-1, 2:end-1, size(grid,3)÷2] 
