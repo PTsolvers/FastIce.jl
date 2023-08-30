@@ -1,7 +1,29 @@
 using Test
 using FastIce
 
+using Pkg
+
 excludedfiles = [ "test_excluded.jl"];
+
+function parse_flags!(args, flag; default=nothing, typ=typeof(default))
+    for f in args
+        startswith(f, flag) || continue
+
+        if f != flag
+            val = split(f, '=')[2]
+            # if !(typ ≡ nothing && typ <: AbstractString)
+            #     @show typ val
+            #     val = parse(typ, val)
+            # end
+        else
+            val = default
+        end
+
+        filter!(x -> x != f, args)
+        return true, val
+    end
+    return false, default
+end
 
 function runtests()
     exename   = joinpath(Sys.BINDIR, Base.julia_exename())
@@ -26,6 +48,16 @@ function runtests()
         end
     end
     return nfail
+end
+
+_, backend_name = parse_flags!(ARGS, "--backend"; default="CPU", typ=String)
+
+@static if backend_name == "AMDGPU"
+    Pkg.add("AMDGPU")
+    ENV["JULIA_FASTICE_BACKEND"] = "AMDGPU"
+elseif backend_name == "CUDA"
+    Pkg.add("CUDA")
+    ENV["JULIA_FASTICE_BACKEND"] = "CUDA"
 end
 
 exit(runtests())
