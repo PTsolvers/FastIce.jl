@@ -11,10 +11,10 @@ function parse_flags!(args, flag; default=nothing, typ=typeof(default))
 
         if f != flag
             val = split(f, '=')[2]
-            # if !(typ ≡ nothing && typ <: AbstractString)
-            #     @show typ val
-            #     val = parse(typ, val)
-            # end
+            if !(typ ≡ nothing || typ <: AbstractString)
+                @show typ val
+                val = parse(typ, val)
+            end
         else
             val = default
         end
