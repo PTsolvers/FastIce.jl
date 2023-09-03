@@ -1,4 +1,3 @@
-
 struct Traction end
 struct Velocity end
 struct Slip     end
