@@ -25,34 +25,34 @@ const HALO_SIZES = ((2, 2, 4), (0, 0, 0), (2, 0, 2), (0, 0, 0), (0, 1, 3))
             @testset "discrete" begin
                 # no parameters vertex
                 fill!(data(f), NaN)
-                set!(f, grid, (grid, loc, ix, iy, iz) -> ycoord(grid, loc, iy))
+                set!(f, grid, (grid, loc, ix, iy, iz) -> ycoord(grid, loc, iy); discrete=true)
                 @test Array(interior(f)) == [0.0; 0.0;; 0.5; 0.5;; 1.0; 1.0;;;
                                              0.0; 0.0;; 0.5; 0.5;; 1.0; 1.0]
                 # no parameters center
                 fill!(data(f), NaN)
-                set!(f, grid, (grid, loc, ix, iy, iz) -> xcoord(grid, loc, ix))
+                set!(f, grid, (grid, loc, ix, iy, iz) -> xcoord(grid, loc, ix); discrete=true)
                 @test Array(interior(f)) == [0.25; 0.75;; 0.25; 0.75;; 0.25; 0.75;;;
                                              0.25; 0.75;; 0.25; 0.75;; 0.25; 0.75]
                 # with parameters
                 fill!(data(f), NaN)
-                set!(f, grid, (grid, loc, ix, iy, iz, sc) -> ycoord(grid, loc, iy) * sc; parameters=(2.0, ))
+                set!(f, grid, (grid, loc, ix, iy, iz, sc) -> ycoord(grid, loc, iy) * sc; discrete=true, parameters=(2.0, ))
                 @test Array(interior(f)) == [0.0; 0.0;; 1.0; 1.0;; 2.0; 2.0;;;
                                              0.0; 0.0;; 1.0; 1.0;; 2.0; 2.0]
             end
             @testset "continuous" begin
                 # no parameters vertex
                 fill!(data(f), NaN)
-                set!(f, grid, (x, y, z) -> y; continuous=true)
+                set!(f, grid, (x, y, z) -> y)
                 @test Array(interior(f)) == [0.0; 0.0;; 0.5; 0.5;; 1.0; 1.0;;;
                                              0.0; 0.0;; 0.5; 0.5;; 1.0; 1.0]
                 # no parameters center
                 fill!(data(f), NaN)
-                set!(f, grid, (x, y, z) -> x; continuous=true)
+                set!(f, grid, (x, y, z) -> x)
                 @test Array(interior(f)) == [0.25; 0.75;; 0.25; 0.75;; 0.25; 0.75;;;
                                              0.25; 0.75;; 0.25; 0.75;; 0.25; 0.75]
                 # with parameters
                 fill!(data(f), NaN)
-                set!(f, grid, (x, y, z, sc) -> y * sc; continuous=true, parameters=(2.0, ))
+                set!(f, grid, (x, y, z, sc) -> y * sc, parameters=(2.0, ))
                 @test Array(interior(f)) == [0.0; 0.0;; 1.0; 1.0;; 2.0; 2.0;;;
                                              0.0; 0.0;; 1.0; 1.0;; 2.0; 2.0]
             end

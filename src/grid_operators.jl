@@ -1,45 +1,60 @@
 module GridOperators
 
-export IDX, IDY, IDZ
+export ∂ᶜ, ∂ᵛ
+
 export ∂ᵛx, ∂ᵛy, ∂ᵛz, avᵛx, avᵛy, avᵛz, avᵛxy, avᵛxz, avᵛyz, maxlᵛx, maxlᵛy, maxlᵛz
 export ∂ᶜx, ∂ᶜy, ∂ᶜz, avᶜx, avᶜy, avᶜz, avᶜxy, avᶜxz, avᶜyz, maxlᶜx, maxlᶜy, maxlᶜz
 
 import Base.@propagate_inbounds
 
-const IDX = CartesianIndex(1, 0, 0)
-const IDY = CartesianIndex(0, 1, 0)
-const IDZ = CartesianIndex(0, 0, 1)
+Base.@assume_effects :foldable δ(op, I::CartesianIndex{N}, ::Val{D}) where {N,D} = ntuple(i -> i == D ? op(I[i], 1) : I[i], Val(N)) |> CartesianIndex
 
-@propagate_inbounds ∂ᶜx(fv, I) = fv[I + IDX] - fv[I]
-@propagate_inbounds ∂ᶜy(fv, I) = fv[I + IDY] - fv[I]
-@propagate_inbounds ∂ᶜz(fv, I) = fv[I + IDZ] - fv[I]
+Base.@assume_effects :foldable function δ(op, I::CartesianIndex{N}, ::Val{D1}, ::Val{D2}) where {N,D1,D2}
+    δI = ntuple(Val(N)) do i
+        (i == D1 || i == D2) ? op(I[i], 1) : I[i]
+    end
+    return CartesianIndex(δI)
+end
 
-@propagate_inbounds ∂ᵛx(fc, I) = fc[I] - fc[I - IDX]
-@propagate_inbounds ∂ᵛy(fc, I) = fc[I] - fc[I - IDY]
-@propagate_inbounds ∂ᵛz(fc, I) = fc[I] - fc[I - IDZ]
+@propagate_inbounds ∂ᶜ(fv, I, D) = fv[δ(+, I, D)] - fv[I]
+@propagate_inbounds ∂ᵛ(fc, I, D) = fc[I] - fc[δ(-, I, D)]
 
-@propagate_inbounds avᶜx(fv, I) = 0.5 * (fv[I] + fv[I + IDX])
-@propagate_inbounds avᶜy(fv, I) = 0.5 * (fv[I] + fv[I + IDY])
-@propagate_inbounds avᶜz(fv, I) = 0.5 * (fv[I] + fv[I + IDZ])
+@propagate_inbounds avᶜ(fv, I, D) = 0.5 * (fv[δ(+, I, D)] + fv[I])
+@propagate_inbounds avᵛ(fc, I, D) = 0.5 * (fc[I] + fc[δ(-, I, D)])
 
-@propagate_inbounds avᵛx(fc, I) = 0.5 * (fc[I] + fc[I - IDX])
-@propagate_inbounds avᵛy(fc, I) = 0.5 * (fc[I] + fc[I - IDY])
-@propagate_inbounds avᵛz(fc, I) = 0.5 * (fc[I] + fc[I - IDZ])
+@propagate_inbounds avᶜ(fv, I, D1, D2) = 0.25 * (fv[I] + fv[δ(+, I, D1)] + fv[δ(+, I, D2)] + fv[δ(+, I, D1, D2)])
+@propagate_inbounds avᵛ(fc, I, D1, D2) = 0.25 * (fc[I] + fc[δ(-, I, D1)] + fc[δ(-, I, D2)] + fc[δ(-, I, D1, D2)])
 
-@propagate_inbounds avᶜxy(fv, I) = 0.25 * (fv[I] + fv[I + IDX] + fv[I + IDY] + fv[I + IDX + IDY])
-@propagate_inbounds avᶜxz(fv, I) = 0.25 * (fv[I] + fv[I + IDX] + fv[I + IDZ] + fv[I + IDX + IDZ])
-@propagate_inbounds avᶜyz(fv, I) = 0.25 * (fv[I] + fv[I + IDY] + fv[I + IDZ] + fv[I + IDY + IDZ])
+@propagate_inbounds maxlᶜ(fv, I, D) = max(fv[δ(+, I, D)], fv[I])
+@propagate_inbounds maxlᵛ(fc, I, D) = max(fc[I], fc[δ(-, I, D)])
 
-@propagate_inbounds avᵛxy(fc, I) = 0.25 * (fc[I] + fc[I - IDX] + fc[I - IDY] + fc[I - IDX - IDY])
-@propagate_inbounds avᵛxz(fc, I) = 0.25 * (fc[I] + fc[I - IDX] + fc[I - IDZ] + fc[I - IDX - IDZ])
-@propagate_inbounds avᵛyz(fc, I) = 0.25 * (fc[I] + fc[I - IDY] + fc[I - IDZ] + fc[I - IDY - IDZ])
+for (dim, val) in ((:x, 1), (:y, 2), (:z, 3))
+    for loc in (:ᶜ, :ᵛ)
+        ∂l    = Symbol(:∂, loc)
+        avl   = Symbol(:av, loc)
+        maxll = Symbol(:maxl, loc)
 
-@propagate_inbounds maxlᶜx(fv, I) = max(fv[I], fv[I + IDX])
-@propagate_inbounds maxlᶜy(fv, I) = max(fv[I], fv[I + IDY])
-@propagate_inbounds maxlᶜz(fv, I) = max(fv[I], fv[I + IDZ])
+        ∂    = Symbol(∂l, dim)
+        av   = Symbol(avl, dim)
+        maxl = Symbol(maxll, dim)
 
-@propagate_inbounds maxlᵛx(fc, I) = max(fc[I], fc[I - IDX])
-@propagate_inbounds maxlᵛy(fc, I) = max(fc[I], fc[I - IDY])
-@propagate_inbounds maxlᵛz(fc, I) = max(fc[I], fc[I - IDZ])
+        @eval begin
+            @propagate_inbounds $∂(f, I)    = $∂l(f, I, Val($val))
+            @propagate_inbounds $av(f, I)   = $avl(f, I, Val($val))
+            @propagate_inbounds $maxl(f, I) = $maxll(f, I, Val($val))
+        end
+    end
+end
+
+for (dim, val1, val2) in ((:xy, 1, 2), (:xz, 1, 3), (:yz, 2, 3))
+    for loc in (:ᶜ, :ᵛ)
+        avl = Symbol(:av, loc)
+        av  = Symbol(avl, dim)
+
+        @eval begin
+            @propagate_inbounds $av(f, I) = $avl(f, I, Val($val1), Val($val2))
+        end
+    end 
+end
 
 end

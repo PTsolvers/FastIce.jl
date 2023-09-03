@@ -113,7 +113,7 @@ end
     dst[I] = fun(grid, loc, Tuple(I)..., args...)
 end
 
-function set!(f::Field{T,N}, grid::CartesianGrid{N}, fun::F; continuous=false, parameters=()) where {T,F,N}
+function set!(f::Field{T,N}, grid::CartesianGrid{N}, fun::F; continuous=true, parameters=()) where {T,F,N}
     loc = location(f)
     dst = interior(f)
     if continuous

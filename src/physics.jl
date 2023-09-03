@@ -33,7 +33,7 @@ default(::Type{GlensLawRheology{I}}) where {I} = GlensLawRheology(convert(I, 3))
 
 @inline function (rh::GlensLawRheology{T})(grid, I, fields) where {T}
     (; τ, A) = fields
-    @inbounds τII = sqrt(0.5 * (τ.xx[I]^2 + τ.yy[I]^2 + τ.zz[I]^2) + aᶜxy(τ.xy, I)^2 + aᶜxz(τ.xz, I)^2 + aᶜyz(τ.yz, I)^2)
+    @inbounds τII = sqrt(0.5 * (τ.xx[I]^2 + τ.yy[I]^2 + τ.zz[I]^2) + avᶜxy(τ.xy, I)^2 + avᶜxz(τ.xz, I)^2 + avᶜyz(τ.yz, I)^2)
     return 0.5 / (A[I] * τII^(rh.exponent - 1))
 end
 
