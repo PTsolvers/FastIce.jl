@@ -9,7 +9,8 @@ include("fields.jl")
 include("utils.jl")
 
 include("physics.jl")
-include("boundary_conditions.jl")
-include("models/models.jl")
+
+include("BoundaryConditions/boundary_conditions.jl")
+include("Models/models.jl")
 
 end # module
