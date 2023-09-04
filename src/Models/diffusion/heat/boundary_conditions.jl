@@ -2,30 +2,18 @@ struct Value end
 struct Flux end
 
 struct BoundaryCondition{Kind, V}
-    values::V
-    BoundaryCondition{Kind}(values::Tuple) where {Kind} = new{Kind, length(values), typeof(values)}(values)
+    condition::V
+    BoundaryCondition{Kind}(condition::V) where {Kind,V} = new{Kind,V}(condition)
 end
-
-BoundaryCondition{Kind}(values...) where {Kind} = BoundaryCondition{Kind}(values)
 
 const _COORDINATES  = ((:x, 1), (:y, 2), (:z, 3))
 
 for (dim, val) in _COORDINATES
-    qd = remove_dim(Val(val), _COORDINATES)
+    ex_val = Expr(:(=), :T, :(DirichletBC{HalfCell}(bc.condition)))
+    ex_val = Expr(:tuple, ex_val)
 
-    # ex1 = Expr(:(=), :T, :(DirichletBC{HalfCell}(bc.components[$val])))
-    # ex2 = ntuple(Val(length(TN))) do I
-    #     Expr(:(=), TN[I], :(DirichletBC{FullCell}(bc.components[$(qd[I][2])])))
-    # end
-
-    # ex_val = Expr(:tuple, ex1, ex2...)
-
-    # ex_flux = ntuple(length(_COORDINATES)) do I
-    #     kind = I == val ? :(FullCell) : :(HalfCell)
-    #     Expr(:(=), Symbol(:V, _COORDINATES[I][1]), :(DirichletBC{$kind}(bc.components[$I])))
-    # end
-
-    # ex_flux = Expr(:tuple, ex_flux...)
+    ex_flux = Expr(:(=), Symbol(:q, dim), :(DirichletBC{FullCell}(bc.condition)))
+    ex_flux = Expr(:tuple, ex_flux)
 
     @eval begin
         function extract_boundary_conditions(::Val{$val}, bc::BoundaryCondition{Value})
