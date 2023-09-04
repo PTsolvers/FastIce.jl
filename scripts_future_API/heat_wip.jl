@@ -23,12 +23,12 @@ grid = CartesianGrid(
 )
 
 boundary_conditions = (
-    west  = BoundaryCondition{Flux}(0.0),
-    east  = BoundaryCondition{Flux}(0.0),
-    south = BoundaryCondition{Value}(-0.1),
-    north = BoundaryCondition{Value}(0.3),
-    bot   = BoundaryCondition{Flux}(0.0),
-    top   = BoundaryCondition{Flux}(0.0),
+    west   = BoundaryCondition{Flux}(0.0),
+    east   = BoundaryCondition{Flux}(0.0),
+    south  = BoundaryCondition{Value}(-0.1),
+    north  = BoundaryCondition{Value}(0.3),
+    bottom = BoundaryCondition{Flux}(0.0),
+    top    = BoundaryCondition{Flux}(0.0),
 )
 
 cfl  = 0.99/sqrt(ndims(grid))
@@ -50,7 +50,7 @@ init_fields = (
 )
 
 init_gauss(x, y, z, x0, y0, z0, A, σ) = A * exp(-((x-x0)/σ)^2 - ((y-y0)/σ)^2 - ((z-z0)/σ)^2)
-set!(init_fields.T, grid, init_gauss; continuous = true, parameters = (x0 = 0.0, y0 = 0.0, z0 = 0.5, A = 1.0, σ = 0.1))
+set!(init_fields.T, grid, init_gauss; parameters = (x0 = 0.0, y0 = 0.0, z0 = 0.5, A = 1.0, σ = 0.1))
 
 model = HeatDiffusionModel(;
     backend,
@@ -64,8 +64,8 @@ model = HeatDiffusionModel(;
 set!(model.fields.q.x, 0.0)
 set!(model.fields.q.y, 0.0)
 set!(model.fields.q.z, 0.0)
-Heat.apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.flux)
-Heat.apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.value)
+Heat._apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.flux)
+Heat._apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.value)
 
 set!(model.fields.T_o, model.fields.T)
 
@@ -83,4 +83,4 @@ for it in 1:2000
     end
 end
 
-# plt[3][] = parent(model.fields.T)[2:end-1, 2:end-1, size(grid,3)÷2] 
+# plt[3][] = parent(model.fields.T)[2:end-1, 2:end-1, size(grid,3)÷2]
