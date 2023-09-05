@@ -1,6 +1,5 @@
 [deps]
+AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
 FastIce = "e0de9f13-a007-490e-b696-b07d031015ca"
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
-ImplicitGlobalGrid = "4d7a3746-15be-11ea-1130-334b0c4f5fa0"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
