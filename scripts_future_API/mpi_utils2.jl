@@ -12,8 +12,10 @@ function init_distributed(dims::Tuple=(0, 0, 0); init_MPI=true)
     coords = Tuple(MPI.Cart_coords(comm))
     # create communicator for the node and select device
     comm_node = MPI.Comm_split_type(comm, MPI.COMM_TYPE_SHARED, me)
-    device_id = MPI.Comm_rank(comm_node)
-    CUDA.device!(device_id)
+    dev_id = MPI.Comm_rank(comm_node)
+    # CUDA.device!(dev_id)
+    @show AMDGPU.default_device_id!(dev_id + 1) # DEBUG: why default ???
+    # @show AMDGPU.device_id!(dev_id + 1)
     return (dims, comm, me, neighbors, coords)
 end
 
