@@ -11,22 +11,22 @@ using MPI
 
 using KernelAbstractions
 
-using GLMakie
+using Printf
 
 MPI.Init()
 
-dims = (1, 1, 1)
+dims = (0, 0, 0)
 
 topology = CartesianTopology(dims)
 
 me        = global_rank(topology)
 device_id = shared_rank(topology)
 comm      = cartesian_communicator(topology)
-dims      = size(topology)
+dims      = dimensions(topology)
 
 size_l = (64, 64, 64)
 
-size_g = global_size(topology, local_size)
+size_g = global_grid_size(topology, size_l)
 
 # physics
 ebg = 1.0
@@ -39,89 +39,91 @@ global_grid = CartesianGrid(
 
 grid = local_grid(global_grid, topology)
 
-psh_x(x, _, _) = -x*ebg
-psh_y(_, y, _) =  y*ebg
+@printf("process %d/%d on node %s, global rank %02d\n", device_id + 1, node_size(topology), node_name(topology), me + 1)
 
-x_bc = BoundaryFunction(psh_x; reduce_dims=false)
-y_bc = BoundaryFunction(psh_y; reduce_dims=false)
+# psh_x(x, _, _) = -x*ebg
+# psh_y(_, y, _) =  y*ebg
 
-boundary_conditions = (
-    west   = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
-    east   = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
-    south  = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
-    north  = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
-    bottom = BoundaryCondition{Velocity}(0.0 , 0.0 , 0.0),
-    top    = BoundaryCondition{Velocity}(0.0 , 0.0 , 0.0),
-)
+# x_bc = BoundaryFunction(psh_x; reduce_dims=false)
+# y_bc = BoundaryFunction(psh_y; reduce_dims=false)
 
-r       = 0.7
-re_mech = 10π
-lτ_re_m = minimum(extent(grid)) / re_mech
-vdτ     = minimum(spacing(grid)) / sqrt(10.1)
-θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
-dτ_r    = 1.0 / (θ_dτ + 1.0)
-nudτ    = vdτ * lτ_re_m
+# boundary_conditions = (
+#     west   = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
+#     east   = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
+#     south  = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
+#     north  = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
+#     bottom = BoundaryCondition{Velocity}(0.0 , 0.0 , 0.0),
+#     top    = BoundaryCondition{Velocity}(0.0 , 0.0 , 0.0),
+# )
 
-iter_params = (
-    η_rel = 1e-1,
-    Δτ = ( Pr = r / θ_dτ, τ = (xx = dτ_r, yy = dτ_r, zz = dτ_r, xy = dτ_r, xz = dτ_r, yz = dτ_r), V = (x = nudτ, y = nudτ, z = nudτ)),
-)
+# r       = 0.7
+# re_mech = 10π
+# lτ_re_m = minimum(extent(grid)) / re_mech
+# vdτ     = minimum(spacing(grid)) / sqrt(10.1)
+# θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
+# dτ_r    = 1.0 / (θ_dτ + 1.0)
+# nudτ    = vdτ * lτ_re_m
 
-backend = CPU()
+# iter_params = (
+#     η_rel = 1e-1,
+#     Δτ = ( Pr = r / θ_dτ, τ = (xx = dτ_r, yy = dτ_r, zz = dτ_r, xy = dτ_r, xz = dτ_r, yz = dτ_r), V = (x = nudτ, y = nudτ, z = nudτ)),
+# )
 
-physics = (rheology = GlensLawRheology(1), )
-other_fields = (
-    A = Field(backend, grid, Center()),
-)
+# backend = CPU()
 
-init_incl(x, y, z, x0, y0, z0, r, Ai, Am) = ifelse((x-x0)^2 + (y-y0)^2 + (z-z0)^2 < r^2, Ai, Am)
-set!(other_fields.A, grid, init_incl; parameters = (x0 = 0.0, y0 = 0.0, z0 = 0.5, r = 0.2, Ai = 1e1, Am = 1.0))
+# physics = (rheology = GlensLawRheology(1), )
+# other_fields = (
+#     A = Field(backend, grid, Center()),
+# )
 
-model = IsothermalFullStokesModel(;
-    backend,
-    grid,
-    physics,
-    boundary_conditions,
-    iter_params,
-    other_fields
-)
+# init_incl(x, y, z, x0, y0, z0, r, Ai, Am) = ifelse((x-x0)^2 + (y-y0)^2 + (z-z0)^2 < r^2, Ai, Am)
+# set!(other_fields.A, grid, init_incl; parameters = (x0 = 0.0, y0 = 0.0, z0 = 0.5, r = 0.2, Ai = 1e1, Am = 1.0))
 
-fig = Figure(resolution=(1000,1000), fontsize=32)
-axs = (
-    Pr = Axis(fig[1,1][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y", title="Pr"),
-    Vx = Axis(fig[2,1][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y", title="Vx"),
-    Vy = Axis(fig[2,2][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y", title="Vy"),
-)
+# model = IsothermalFullStokesModel(;
+#     backend,
+#     grid,
+#     physics,
+#     boundary_conditions,
+#     iter_params,
+#     other_fields
+# )
 
-plt = (
-    Pr = heatmap!(axs.Pr, xcenters(grid), ycenters(grid), interior(model.fields.Pr)[:, :, size(grid,3)÷2]; colormap=:turbo),
-    Vx = heatmap!(axs.Vx, xvertices(grid), ycenters(grid), interior(model.fields.V.x)[:, :, size(grid,3)÷2]; colormap=:turbo),
-    Vy = heatmap!(axs.Vy, xcenters(grid), yvertices(grid), interior(model.fields.V.y)[:, :, size(grid,3)÷2]; colormap=:turbo),
-)
-Colorbar(fig[1,1][1,2], plt.Pr)
-Colorbar(fig[2,1][1,2], plt.Vx)
-Colorbar(fig[2,2][1,2], plt.Vy)
+# fig = Figure(resolution=(1000,1000), fontsize=32)
+# axs = (
+#     Pr = Axis(fig[1,1][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y", title="Pr"),
+#     Vx = Axis(fig[2,1][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y", title="Vx"),
+#     Vy = Axis(fig[2,2][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y", title="Vy"),
+# )
 
-set!(model.fields.Pr, 0.0)
-foreach(x -> set!(x, 0.0), model.fields.τ)
-Isothermal._apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.stress)
+# plt = (
+#     Pr = heatmap!(axs.Pr, xcenters(grid), ycenters(grid), interior(model.fields.Pr)[:, :, size(grid,3)÷2]; colormap=:turbo),
+#     Vx = heatmap!(axs.Vx, xvertices(grid), ycenters(grid), interior(model.fields.V.x)[:, :, size(grid,3)÷2]; colormap=:turbo),
+#     Vy = heatmap!(axs.Vy, xcenters(grid), yvertices(grid), interior(model.fields.V.y)[:, :, size(grid,3)÷2]; colormap=:turbo),
+# )
+# Colorbar(fig[1,1][1,2], plt.Pr)
+# Colorbar(fig[2,1][1,2], plt.Vx)
+# Colorbar(fig[2,2][1,2], plt.Vy)
 
-set!(model.fields.V.x, grid, psh_x)
-set!(model.fields.V.y, grid, psh_y)
-set!(model.fields.V.z, 0.0)
-Isothermal._apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.velocity)
+# set!(model.fields.Pr, 0.0)
+# foreach(x -> set!(x, 0.0), model.fields.τ)
+# Isothermal._apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.stress)
 
-set!(model.fields.η, other_fields.A)
-extrapolate!(model.fields.η)
+# set!(model.fields.V.x, grid, psh_x)
+# set!(model.fields.V.y, grid, psh_y)
+# set!(model.fields.V.z, 0.0)
+# Isothermal._apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.velocity)
 
-for it in 1:10
-    advance_iteration!(model, 0.0, 1.0; async = false)
-    if it % 10 == 0
-        plt.Pr[3][] = interior(model.fields.Pr)[:, :, size(grid,3)÷2]
-        plt.Vx[3][] = interior(model.fields.V.x)[:, :, size(grid,3)÷2]
-        plt.Vy[3][] = interior(model.fields.V.y)[:, :, size(grid,3)÷2]
-        yield()
-    end
-end
+# set!(model.fields.η, other_fields.A)
+# extrapolate!(model.fields.η)
+
+# for it in 1:10
+#     advance_iteration!(model, 0.0, 1.0; async = false)
+#     if it % 10 == 0
+#         plt.Pr[3][] = interior(model.fields.Pr)[:, :, size(grid,3)÷2]
+#         plt.Vx[3][] = interior(model.fields.V.x)[:, :, size(grid,3)÷2]
+#         plt.Vy[3][] = interior(model.fields.V.y)[:, :, size(grid,3)÷2]
+#         yield()
+#     end
+# end
 
 MPI.Finalize()
