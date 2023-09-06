@@ -41,9 +41,12 @@ mutable struct Exchanger
     @atomic err
     task::Task
 
-    function Exchanger(f::F, backend::Backend) where F
-        top = Base.Event(#=autoreset=# true)
+    function Exchanger(f::F, backend::Backend, rank, halo, border) where F
+        top    = Base.Event(#=autoreset=# true)
         bottom = Base.Event(#=autoreset=# true)
+
+        send_buf = similar(border)
+        recv_buf = similar(halo)
         this = new(false, top, bottom, nothing)
 
         this.task = Threads.@spawn begin
@@ -52,7 +55,17 @@ mutable struct Exchanger
                 while !(@atomic this.done)
                     wait(top)
                     NVTX.@mark "after wait(top)"
-                    f()
+                    if rank != -1
+                        recv = MPI.Irecv!(recv_buf, comm; source=rank)
+                    end
+                    f(rank == -1)
+                    if rank != -1
+                        copyto!(send_buf, border)
+                        send = MPI.Isend(send_buf, comm; dest=rank)
+                        cooperative_test!(recv)
+                        copyto!(halo, recv_buf)
+                        cooperative_test!(send)
+                    end
                     notify(bottom)
                     NVTX.@mark "after notify(bottom)"
                 end
@@ -89,15 +102,3 @@ get_recv_view(::Val{2}, ::Val{D}, A) where D = view(A, ntuple(I -> I == D ? size
 
 get_send_view(::Val{1}, ::Val{D}, A) where D = view(A, ntuple(I -> I == D ? 2              : Colon(), Val(ndims(A)))...)
 get_send_view(::Val{2}, ::Val{D}, A) where D = view(A, ntuple(I -> I == D ? size(A, D) - 1 : Colon(), Val(ndims(A)))...)
-
-const RECV_BUFFERS = Dict{Tuple{UInt64,Int,Int},AbstractArray}()
-const SEND_BUFFERS = Dict{Tuple{UInt64,Int,Int},AbstractArray}()
-
-function get_buffer(buffers, slice, dim, side)
-    A = parent(slice)
-    backend = get_backend(A)
-    T = eltype(A)
-    oid = objectid(A)
-    len = length(slice)
-    return get!(() -> (allocate(backend, T, len)), buffers, (oid, dim, side))
-end
