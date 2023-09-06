@@ -53,9 +53,10 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
             rank   = neighbors[dim][side]
             halo   = get_recv_view(Val(side), Val(dim), A_new)
             border = get_send_view(Val(side), Val(dim), A_new)
-            Exchanger(backend, rank, halo, border) do compute_bc
-                ndrange = ranges[2*(dim-1) + side]
-                NVTX.@range "borders" diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, first(ndrange); ndrange)
+            range  = ranges[2*(dim-1) + side]
+            offset, ndrange = first(range), size(range)
+            Exchanger(backend, comm, rank, halo, border) do compute_bc
+                NVTX.@range "borders" diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, offset; ndrange)
                 if compute_bc
                     # apply_bcs!(Val(dim), fields, bcs.velocity)
                 end
@@ -66,7 +67,7 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     ### to be hidden later
 
     # actions
-    CUDA.Profile.start()
+    # CUDA.Profile.start()
     for it = 1:nt
         copyto!(A, A_new)
         NVTX.@range "step $it" begin
@@ -78,7 +79,7 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
             KernelAbstractions.synchronize(backend)
         end
     end
-    CUDA.Profile.stop()
+    # CUDA.Profile.stop()
 
     # for dim in eachindex(neighbors)
     #     setdone!.(exchangers[dim])

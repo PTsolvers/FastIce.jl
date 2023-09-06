@@ -41,7 +41,7 @@ mutable struct Exchanger
     @atomic err
     task::Task
 
-    function Exchanger(f::F, backend::Backend, rank, halo, border) where F
+    function Exchanger(f::F, backend::Backend, comm, rank, halo, border) where F
         top    = Base.Event(#=autoreset=# true)
         bottom = Base.Event(#=autoreset=# true)
 
@@ -49,17 +49,20 @@ mutable struct Exchanger
         recv_buf = similar(halo)
         this = new(false, top, bottom, nothing)
 
+        has_neighbor = rank != MPI.PROC_NULL
+        compute_bc   = !has_neighbor
+
         this.task = Threads.@spawn begin
             KernelAbstractions.priority!(backend, :high)
             try
                 while !(@atomic this.done)
                     wait(top)
                     NVTX.@mark "after wait(top)"
-                    if rank != -1
+                    if has_neighbor
                         recv = MPI.Irecv!(recv_buf, comm; source=rank)
                     end
-                    f(rank == -1)
-                    if rank != -1
+                    f(compute_bc)
+                    if has_neighbor
                         copyto!(send_buf, border)
                         send = MPI.Isend(send_buf, comm; dest=rank)
                         cooperative_test!(recv)
@@ -70,6 +73,7 @@ mutable struct Exchanger
                     NVTX.@mark "after notify(bottom)"
                 end
             catch err
+                @show err
                 @atomic this.done = true
                 @atomic this.err = err
             end

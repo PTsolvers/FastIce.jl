@@ -1,6 +1,7 @@
 using KernelAbstractions
 using MPI
 using CUDA
+using NVTX
 
 include("mpi_utils.jl")
 include("mpi_utils2.jl")
@@ -33,26 +34,21 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
 
     ranges = split_ndrange(A, b_width)
 
+    @show neighbors
+
     exchangers = ntuple(Val(length(neighbors))) do dim
         ntuple(2) do side
-            Exchanger(backend) do
-                rank = neighbors[dim][side]
-                if rank != -1
-                    recv_buf = get_recv_view(Val(side), Val(dim), A)
-                    recv = MPI.Irecv!(recv_buf,comm;source=rank)
+            rank   = neighbors[dim][side]
+            halo   = get_recv_view(Val(side), Val(dim), A)
+            border = get_send_view(Val(side), Val(dim), A)
+            range  = ranges[2*(dim-1) + side]
+            offset, ndrange = first(range), size(range)
+            Exchanger(backend, comm, rank, halo, border) do compute_bc
+                do_work!(backend, 256)(A, me, offset; ndrange)
+                if compute_bc
+                    # apply_bcs!(Val(dim), fields, bcs.velocity)
                 end
-
-                I = 2*(dim-1) + side
-
-                do_work!(backend, 256)(A, me, first(ranges[I]); ndrange=size(ranges[I]))
                 KernelAbstractions.synchronize(backend)
-
-                if rank != -1
-                    send_buf = get_send_view(Val(side), Val(dim), A)
-                    send = MPI.Isend(send_buf,comm;dest=rank)
-                    cooperative_test!(recv)
-                    cooperative_test!(send)
-                end
             end
         end
     end
@@ -70,7 +66,7 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
     #     setdone!.(exchangers[dim])
     # end
 
-    sleep(me)
+    sleep(2me)
     @info "me == $me"
     display(A)
 
