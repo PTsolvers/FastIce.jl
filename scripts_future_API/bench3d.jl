@@ -1,7 +1,8 @@
 using KernelAbstractions
 using MPI
 using CUDA
-using CairoMakie
+using NVTX
+# using CairoMakie
 
 include("mpi_utils.jl")
 include("mpi_utils2.jl")
@@ -23,8 +24,8 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     l = 10.0
     # numerics
     nt = 10
-    nx, ny, nz = 8, 8, 8
-    b_width = (2, 2, 2)
+    nx, ny, nz = 512, 512, 512
+    b_width = (16, 8, 4)
     dims, comm, me, neighbors, coords = init_distributed(dims; init_MPI=true)
     dx, dy, dz = l ./ (nx, ny, nz)
     _dx, _dy, _dz = 1.0 ./ (dx, dy, dz)
@@ -52,19 +53,23 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
             Exchanger(backend) do
                 rank = neighbors[dim][side]
                 if rank != -1
-                    recv_buf = get_recv_view(Val(side), Val(dim), A)
-                    recv = MPI.Irecv!(recv_buf,comm;source=rank)
+                    halo = get_recv_view(Val(side), Val(dim), A)
+                    recv_buf = get_buffer(RECV_BUFFERS, halo, dim, side)
+                    recv = MPI.Irecv!(recv_buf, comm; source=rank)
                 end
 
                 I = 2*(dim-1) + side
 
-                diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, first(ranges[I]); ndrange=size(ranges[I]))
+                NVTX.@range "borders" diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, first(ranges[I]); ndrange=size(ranges[I]))
                 KernelAbstractions.synchronize(backend)
 
                 if rank != -1
-                    send_buf = get_send_view(Val(side), Val(dim), A)
-                    send = MPI.Isend(send_buf,comm;dest=rank)
+                    border = get_send_view(Val(side), Val(dim), A)
+                    send_buf = get_buffer(SEND_BUFFERS, border, dim, side)
+                    copyto!(send_buf, border)
+                    send = MPI.Isend(send_buf, comm; dest=rank)
                     cooperative_test!(recv)
+                    copyto!(halo, recv_buf)
                     cooperative_test!(send)
                 end
             end
@@ -73,16 +78,19 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     ### to be hidden later
 
     # actions
+    CUDA.Profile.start()
     for it = 1:nt
-       diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, first(ranges[end]); ndrange=size(ranges[end]))
-    #    diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, #= first(ranges[end]) =#; ndrange=size(A))
+        NVTX.@range "step $it" begin
+        NVTX.@range "inner" diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, first(ranges[end]); ndrange=size(ranges[end]))
         for dim in reverse(eachindex(neighbors))
             notify.(exchangers[dim])
             wait.(exchangers[dim])
         end
         KernelAbstractions.synchronize(backend)
         A, A_new = A_new, A
+        end
     end
+    CUDA.Profile.stop()
 
     # for dim in eachindex(neighbors)
     #     setdone!.(exchangers[dim])

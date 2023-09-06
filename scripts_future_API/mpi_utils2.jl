@@ -13,8 +13,8 @@ function init_distributed(dims::Tuple=(0, 0, 0); init_MPI=true)
     # create communicator for the node and select device
     comm_node = MPI.Comm_split_type(comm, MPI.COMM_TYPE_SHARED, me)
     dev_id = MPI.Comm_rank(comm_node)
-    # CUDA.device!(dev_id)
-    @show AMDGPU.default_device_id!(dev_id + 1) # DEBUG: why default ???
+    @show CUDA.device!(dev_id)
+    # @show AMDGPU.default_device_id!(dev_id + 1) # DEBUG: why default ???
     # @show AMDGPU.device_id!(dev_id + 1)
     return (dims, comm, me, neighbors, coords)
 end
@@ -51,8 +51,10 @@ mutable struct Exchanger
             try
                 while !(@atomic this.done)
                     wait(top)
+                    NVTX.@mark "after wait(top)"
                     f()
                     notify(bottom)
+                    NVTX.@mark "after notify(bottom)"
                 end
             catch err
                 @atomic this.done = true
@@ -87,3 +89,15 @@ get_recv_view(::Val{2}, ::Val{D}, A) where D = view(A, ntuple(I -> I == D ? size
 
 get_send_view(::Val{1}, ::Val{D}, A) where D = view(A, ntuple(I -> I == D ? 2              : Colon(), Val(ndims(A)))...)
 get_send_view(::Val{2}, ::Val{D}, A) where D = view(A, ntuple(I -> I == D ? size(A, D) - 1 : Colon(), Val(ndims(A)))...)
+
+const RECV_BUFFERS = Dict{Tuple{UInt64,Int,Int},AbstractArray}()
+const SEND_BUFFERS = Dict{Tuple{UInt64,Int,Int},AbstractArray}()
+
+function get_buffer(buffers, slice, dim, side)
+    A = parent(slice)
+    backend = get_backend(A)
+    T = eltype(A)
+    oid = objectid(A)
+    len = length(slice)
+    return get!(() -> (allocate(backend, T, len)), buffers, (oid, dim, side))
+end
