@@ -67,9 +67,9 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     ### to be hidden later
 
     # actions
-    # CUDA.Profile.start()
+    CUDA.Profile.start()
     for it = 1:nt
-        copyto!(A, A_new)
+        # copyto!(A, A_new)
         NVTX.@range "step $it" begin
             NVTX.@range "inner" diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, first(ranges[end]); ndrange=size(ranges[end]))
             for dim in reverse(eachindex(neighbors))
@@ -79,7 +79,7 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
             KernelAbstractions.synchronize(backend)
         end
     end
-    # CUDA.Profile.stop()
+    CUDA.Profile.stop()
 
     # for dim in eachindex(neighbors)
     #     setdone!.(exchangers[dim])

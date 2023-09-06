@@ -34,8 +34,6 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
 
     ranges = split_ndrange(A, b_width)
 
-    @show neighbors
-
     exchangers = ntuple(Val(length(neighbors))) do dim
         ntuple(2) do side
             rank   = neighbors[dim][side]
