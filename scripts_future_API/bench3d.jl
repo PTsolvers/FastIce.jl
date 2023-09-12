@@ -48,21 +48,8 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     ### to be hidden later
     ranges = split_ndrange(A, b_width)
 
-    exchangers = ntuple(Val(length(neighbors))) do dim
-        ntuple(2) do side
-            rank   = neighbors[dim][side]
-            halo   = get_recv_view(Val(side), Val(dim), A_new)
-            border = get_send_view(Val(side), Val(dim), A_new)
-            range  = ranges[2*(dim-1) + side]
-            offset, ndrange = first(range), size(range)
-            Exchanger(backend, comm, rank, halo, border) do compute_bc
-                NVTX.@range "borders" diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, offset; ndrange)
-                if compute_bc
-                    # apply_bcs!(Val(dim), fields, bcs.velocity)
-                end
-                KernelAbstractions.synchronize(backend)
-            end
-        end
+    exchangers = ntuple(Val(length(neighbors))) do _
+        ntuple(_ -> Exchanger(backend), Val(2))
     end
     ### to be hidden later
 
@@ -73,7 +60,20 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
         NVTX.@range "step $it" begin
             NVTX.@range "inner" diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, first(ranges[end]); ndrange=size(ranges[end]))
             for dim in reverse(eachindex(neighbors))
-                notify.(exchangers[dim])
+                ntuple(Val(2)) do side
+                    rank   = neighbors[dim][side]
+                    halo   = get_recv_view(Val(side), Val(dim), A_new)
+                    border = get_send_view(Val(side), Val(dim), A_new)
+                    range  = ranges[2*(dim-1) + side]
+                    offset, ndrange = first(range), size(range)
+                    start_exchange(exchangers[dim], comm, rank, halo, border) do compute_bc
+                        NVTX.@range "borders" diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, offset; ndrange)
+                        if compute_bc
+                            # apply_bcs!(Val(dim), fields, bcs.velocity)
+                        end
+                        KernelAbstractions.synchronize(backend)
+                    end
+                end
                 wait.(exchangers[dim])
             end
             KernelAbstractions.synchronize(backend)

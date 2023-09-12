@@ -34,27 +34,27 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
 
     ranges = split_ndrange(A, b_width)
 
-    exchangers = ntuple(Val(length(neighbors))) do dim
-        ntuple(2) do side
+    exchangers = ntuple(Val(length(neighbors))) do _
+        ntuple(_ -> Exchanger(backend), Val(2))
+    end
+
+    do_work!(backend, 256)(A, me, first(ranges[end]); ndrange=size(ranges[end]))
+
+    for dim in reverse(eachindex(neighbors))
+        ntuple(Val(2)) do side
             rank   = neighbors[dim][side]
-            halo   = get_recv_view(Val(side), Val(dim), A)
-            border = get_send_view(Val(side), Val(dim), A)
+            halo   = get_recv_view(Val(side), Val(dim), A_new)
+            border = get_send_view(Val(side), Val(dim), A_new)
             range  = ranges[2*(dim-1) + side]
             offset, ndrange = first(range), size(range)
-            Exchanger(backend, comm, rank, halo, border) do compute_bc
-                do_work!(backend, 256)(A, me, offset; ndrange)
+            start_exchange(exchangers[dim], comm, rank, halo, border) do compute_bc
+                NVTX.@range "borders" do_work!(backend, 256)(A, me, offset; ndrange)
                 if compute_bc
                     # apply_bcs!(Val(dim), fields, bcs.velocity)
                 end
                 KernelAbstractions.synchronize(backend)
             end
         end
-    end
-
-    do_work!(backend, 256)(A, me, first(ranges[end]); ndrange=size(ranges[end]))
-
-    for dim in reverse(eachindex(neighbors))
-        notify.(exchangers[dim])
         wait.(exchangers[dim])
     end
 

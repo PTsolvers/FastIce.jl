@@ -36,14 +36,14 @@ end
 # exchanger
 mutable struct Exchanger
     @atomic done::Bool
-    top::Base.Event
+    channel::Channel
     bottom::Base.Event
     @atomic err
     task::Task
 
-    function Exchanger(f::F, backend::Backend, comm, rank, halo, border) where F
-        top    = Base.Event(#=autoreset=# true)
-        bottom = Base.Event(#=autoreset=# true)
+    function Exchanger(backend::Backend)
+        channel = Channel()
+        bottom  = Base.Event(true)
 
         send_buf = similar(border)
         recv_buf = similar(halo)
@@ -56,7 +56,7 @@ mutable struct Exchanger
             KernelAbstractions.priority!(backend, :high)
             try
                 while !(@atomic this.done)
-                    wait(top)
+                    f, comm, rank, halo, border = take!(channel)
                     NVTX.@mark "after wait(top)"
                     if has_neighbor
                         recv = MPI.Irecv!(recv_buf, comm; source=rank)
@@ -86,9 +86,10 @@ end
 setdone!(exc::Exchanger) = @atomic exc.done = true
 
 Base.isdone(exc::Exchanger) = @atomic exc.done
-function Base.notify(exc::Exchanger)
+
+function start_exchange(f, exc::Exchanger, comm, rank, halo, border)
     if !(@atomic exc.done)
-        notify(exc.top)
+        put!(exc.channel, (f, comm, rank, halo, border))
     else
         error("notify: Exchanger is not running")
     end
