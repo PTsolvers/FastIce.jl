@@ -45,18 +45,24 @@ mutable struct Exchanger
         channel = Channel()
         bottom  = Base.Event(true)
 
-        send_buf = similar(border)
-        recv_buf = similar(halo)
-        this = new(false, top, bottom, nothing)
+        this = new(false, channel, bottom, nothing)
 
-        has_neighbor = rank != MPI.PROC_NULL
-        compute_bc   = !has_neighbor
+        recv_buf = nothing
+        send_buf = nothing
 
         this.task = Threads.@spawn begin
             KernelAbstractions.priority!(backend, :high)
             try
                 while !(@atomic this.done)
                     f, comm, rank, halo, border = take!(channel)
+
+                    has_neighbor = rank != MPI.PROC_NULL
+                    compute_bc   = !has_neighbor
+
+                    if isnothing(recv_buf)
+                        recv_buf = similar(halo)
+                        send_buf = similar(border)
+                    end
                     NVTX.@mark "after wait(top)"
                     if has_neighbor
                         recv = MPI.Irecv!(recv_buf, comm; source=rank)
@@ -94,6 +100,7 @@ function start_exchange(f, exc::Exchanger, comm, rank, halo, border)
         error("notify: Exchanger is not running")
     end
 end
+
 function Base.wait(exc::Exchanger)
     if !(@atomic exc.done)
         wait(exc.bottom)

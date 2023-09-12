@@ -43,11 +43,11 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
     for dim in reverse(eachindex(neighbors))
         ntuple(Val(2)) do side
             rank   = neighbors[dim][side]
-            halo   = get_recv_view(Val(side), Val(dim), A_new)
-            border = get_send_view(Val(side), Val(dim), A_new)
+            halo   = get_recv_view(Val(side), Val(dim), A)
+            border = get_send_view(Val(side), Val(dim), A)
             range  = ranges[2*(dim-1) + side]
             offset, ndrange = first(range), size(range)
-            start_exchange(exchangers[dim], comm, rank, halo, border) do compute_bc
+            start_exchange(exchangers[dim][side], comm, rank, halo, border) do compute_bc
                 NVTX.@range "borders" do_work!(backend, 256)(A, me, offset; ndrange)
                 if compute_bc
                     # apply_bcs!(Val(dim), fields, bcs.velocity)
