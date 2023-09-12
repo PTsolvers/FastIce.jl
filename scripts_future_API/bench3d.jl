@@ -66,7 +66,7 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
                     border = get_send_view(Val(side), Val(dim), A_new)
                     range  = ranges[2*(dim-1) + side]
                     offset, ndrange = first(range), size(range)
-                    start_exchange(exchangers[dim], comm, rank, halo, border) do compute_bc
+                    start_exchange(exchangers[dim][side], comm, rank, halo, border) do compute_bc
                         NVTX.@range "borders" diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, offset; ndrange)
                         if compute_bc
                             # apply_bcs!(Val(dim), fields, bcs.velocity)
