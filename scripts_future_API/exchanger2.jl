@@ -1,5 +1,8 @@
 using KernelAbstractions
 using MPI
+
+# using AMDGPU
+
 using CUDA
 using NVTX
 

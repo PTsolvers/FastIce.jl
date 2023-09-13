@@ -13,9 +13,8 @@ function init_distributed(dims::Tuple=(0, 0, 0); init_MPI=true)
     # create communicator for the node and select device
     comm_node = MPI.Comm_split_type(comm, MPI.COMM_TYPE_SHARED, me)
     dev_id = MPI.Comm_rank(comm_node)
-    @show device = CUDA.device!(dev_id)
-    # @show AMDGPU.default_device_id!(dev_id + 1) # DEBUG: why default ???
-    # @show AMDGPU.device_id!(dev_id + 1)
+    # @show device = CUDA.device!(dev_id)
+    @show device = AMDGPU.device_id!(dev_id + 1)
     return (dims, comm, me, neighbors, coords, device)
 end
 
@@ -23,15 +22,6 @@ function finalize_distributed(; finalize_MPI=true)
     finalize_MPI && MPI.Finalize()
     return
 end
-
-# TODO: Implement in MPI.jl
-# function cooperative_test!(req)
-#     done = false
-#     while !done
-#         done, _ = MPI.Test(req, MPI.Status)
-#         yield()
-#     end
-# end
 
 # exchanger
 mutable struct Exchanger
@@ -51,7 +41,8 @@ mutable struct Exchanger
         send_buf = nothing
 
         this.task = Threads.@spawn begin
-            CUDA.device!(device)
+            # CUDA.device!(device)
+            AMDGPU.device!(device)
             KernelAbstractions.priority!(backend, :high)
             try
                 while !(@atomic this.done)
@@ -64,7 +55,6 @@ mutable struct Exchanger
                         recv_buf = similar(halo)
                         send_buf = similar(border)
                     end
-                    NVTX.@mark "after wait(top)"
                     if has_neighbor
                         recv = MPI.Irecv!(recv_buf, comm; source=rank)
                     end
@@ -79,7 +69,6 @@ mutable struct Exchanger
                         wait(send)
                     end
                     notify(bottom)
-                    NVTX.@mark "after notify(bottom)"
                 end
             catch err
                 @show err

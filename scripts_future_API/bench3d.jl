@@ -1,7 +1,11 @@
 using KernelAbstractions
 using MPI
-using CUDA
-using NVTX
+
+using AMDGPU
+
+# using CUDA
+# using NVTX
+
 # using CairoMakie
 
 include("mpi_utils.jl")
@@ -25,7 +29,8 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     # numerics
     nt = 10
     nx, ny, nz = 1024, 1024, 1024
-    b_width = (16, 8, 4)
+    # b_width = (16, 8, 4)
+    b_width = (128, 32, 4)
     dims, comm, me, neighbors, coords, device = init_distributed(dims; init_MPI=true)
     dx, dy, dz = l ./ (nx, ny, nz)
     _dx, _dy, _dz = 1.0 ./ (dx, dy, dz)
@@ -54,32 +59,28 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     ### to be hidden later
 
     # actions
-    CUDA.Profile.start()
     for it = 1:nt
         # copyto!(A, A_new)
-        NVTX.@range "step $it" begin
-            NVTX.@range "inner" diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, first(ranges[end]); ndrange=size(ranges[end]))
-            for dim in reverse(eachindex(neighbors))
-                ntuple(Val(2)) do side
-                    rank   = neighbors[dim][side]
-                    halo   = get_recv_view(Val(side), Val(dim), A_new)
-                    border = get_send_view(Val(side), Val(dim), A_new)
-                    range  = ranges[2*(dim-1) + side]
-                    offset, ndrange = first(range), size(range)
-                    start_exchange(exchangers[dim][side], comm, rank, halo, border) do compute_bc
-                        NVTX.@range "borders" diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, offset; ndrange)
-                        if compute_bc
-                            # apply_bcs!(Val(dim), fields, bcs.velocity)
-                        end
-                        KernelAbstractions.synchronize(backend)
+        diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, first(ranges[end]); ndrange=size(ranges[end]))
+        for dim in reverse(eachindex(neighbors))
+            ntuple(Val(2)) do side
+                rank   = neighbors[dim][side]
+                halo   = get_recv_view(Val(side), Val(dim), A_new)
+                border = get_send_view(Val(side), Val(dim), A_new)
+                range  = ranges[2*(dim-1) + side]
+                offset, ndrange = first(range), size(range)
+                start_exchange(exchangers[dim][side], comm, rank, halo, border) do compute_bc
+                    diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, offset; ndrange)
+                    if compute_bc
+                        # apply_bcs!(Val(dim), fields, bcs.velocity)
                     end
+                    KernelAbstractions.synchronize(backend)
                 end
-                wait.(exchangers[dim])
             end
-            KernelAbstractions.synchronize(backend)
+            wait.(exchangers[dim])
         end
+        KernelAbstractions.synchronize(backend)
     end
-    CUDA.Profile.stop()
 
     # for dim in eachindex(neighbors)
     #     setdone!.(exchangers[dim])
@@ -97,7 +98,7 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     return
 end
 
-backend = CUDABackend()
+backend = ROCBackend()
 T::DataType = Float64
 dims = (0, 0, 1)
 
