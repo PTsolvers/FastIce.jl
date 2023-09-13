@@ -6,8 +6,6 @@ using AMDGPU
 # using CUDA
 # using NVTX
 
-# using CairoMakie
-
 include("mpi_utils.jl")
 include("mpi_utils2.jl")
 
@@ -56,12 +54,9 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     exchangers = ntuple(Val(length(neighbors))) do _
         ntuple(_ -> Exchanger(backend, device), Val(2))
     end
-    ### to be hidden later
 
-    # actions
-    for it = 1:nt
-        # copyto!(A, A_new)
-        diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, first(ranges[end]); ndrange=size(ranges[end]))
+    function hide_comm(f, neighbors, ranges, args...)
+        f(args..., first(ranges[end]); ndrange=size(ranges[end]))
         for dim in reverse(eachindex(neighbors))
             ntuple(Val(2)) do side
                 rank   = neighbors[dim][side]
@@ -70,7 +65,7 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
                 range  = ranges[2*(dim-1) + side]
                 offset, ndrange = first(range), size(range)
                 start_exchange(exchangers[dim][side], comm, rank, halo, border) do compute_bc
-                    diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, offset; ndrange)
+                    f(args..., offset; ndrange)
                     if compute_bc
                         # apply_bcs!(Val(dim), fields, bcs.velocity)
                     end
@@ -81,18 +76,15 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
         end
         KernelAbstractions.synchronize(backend)
     end
+    ### to be hidden later
 
-    # for dim in eachindex(neighbors)
-    #     setdone!.(exchangers[dim])
-    # end
+    # actions
+    for it = 1:nt
+        copyto!(A, A_new)
+        hide_comm( diffusion_kernel!(backend, 256), neighbors, ranges, A_new, A, h, _dx, _dy, _dz )
+    end
 
-    # @info "visu"
-    # fig = Figure(resolution=(1000,1000), fontsize=32)
-    # ax  = Axis(fig[1,1][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y")
-    # plt = heatmap!(ax, 1:nx, 1:ny, Array(A)[:, :, Int(ceil(nz/2))]; colormap=:turbo)
-    # Colorbar(fig[1,1][1,2], plt)
-    # # display(fig)
-    # save("out3.png", fig)
+    # save
 
     finalize_distributed(; finalize_MPI=true)
     return
