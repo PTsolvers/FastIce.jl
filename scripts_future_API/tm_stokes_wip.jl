@@ -94,7 +94,7 @@ Isothermal._apply_bcs!(model.backend, model.grid, model.fields, model.boundary_c
 set!(model.fields.η, other_fields.A)
 extrapolate!(model.fields.η)
 
-for it in 1:10
+for it in 1:100
     advance_iteration!(model, 0.0, 1.0; async = false)
     if it % 10 == 0
         plt.Pr[3][] = interior(model.fields.Pr)[:, :, size(grid,3)÷2]

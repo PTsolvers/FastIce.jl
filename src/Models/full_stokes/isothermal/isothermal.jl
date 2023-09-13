@@ -85,9 +85,14 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async = tr
     set_bcs!(bcs) = _apply_bcs!(model.backend, model.grid, model.fields, bcs)
 
     # stress
+
+    # launch!(arch, grid, update_σ!, Pr, τ, V, η, Δτ, Δ)
+
     update_σ!(backend, 256, (nx+1, ny+1, nz+1))(Pr, τ, V, η, Δτ, Δ)
     set_bcs!(model.boundary_conditions.stress)
     # velocity
+
+    # launch!(arch, grid, (update_res_V! => (rV, V, Pr, τ, η, Δτ, Δ), update_V! => (V, rV, dt)); exchangers = exchangers.velocity, boundary_conditions = boundary_conditions.velocity)
     update_V!(backend, 256, (nx+1, ny+1, nz+1))(V, Pr, τ, η, Δτ, Δ)
     set_bcs!(model.boundary_conditions.velocity)
     # rheology
