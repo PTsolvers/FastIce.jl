@@ -24,9 +24,9 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     l = 10.0
     # numerics
     nt = 10
-    nx, ny, nz = 512, 512, 512
+    nx, ny, nz = 1024, 1024, 1024
     b_width = (16, 8, 4)
-    dims, comm, me, neighbors, coords = init_distributed(dims; init_MPI=true)
+    dims, comm, me, neighbors, coords, device = init_distributed(dims; init_MPI=true)
     dx, dy, dz = l ./ (nx, ny, nz)
     _dx, _dy, _dz = 1.0 ./ (dx, dy, dz)
     h = min(dx, dy ,dz)^2 / 6.1
@@ -49,7 +49,7 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     ranges = split_ndrange(A, b_width)
 
     exchangers = ntuple(Val(length(neighbors))) do _
-        ntuple(_ -> Exchanger(backend), Val(2))
+        ntuple(_ -> Exchanger(backend, device), Val(2))
     end
     ### to be hidden later
 

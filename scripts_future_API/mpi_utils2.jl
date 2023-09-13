@@ -13,10 +13,10 @@ function init_distributed(dims::Tuple=(0, 0, 0); init_MPI=true)
     # create communicator for the node and select device
     comm_node = MPI.Comm_split_type(comm, MPI.COMM_TYPE_SHARED, me)
     dev_id = MPI.Comm_rank(comm_node)
-    @show CUDA.device!(dev_id)
+    @show device = CUDA.device!(dev_id)
     # @show AMDGPU.default_device_id!(dev_id + 1) # DEBUG: why default ???
     # @show AMDGPU.device_id!(dev_id + 1)
-    return (dims, comm, me, neighbors, coords)
+    return (dims, comm, me, neighbors, coords, device)
 end
 
 function finalize_distributed(; finalize_MPI=true)
@@ -25,13 +25,13 @@ function finalize_distributed(; finalize_MPI=true)
 end
 
 # TODO: Implement in MPI.jl
-function cooperative_test!(req)
-    done = false
-    while !done
-        done, _ = MPI.Test(req, MPI.Status)
-        yield()
-    end
-end
+# function cooperative_test!(req)
+#     done = false
+#     while !done
+#         done, _ = MPI.Test(req, MPI.Status)
+#         yield()
+#     end
+# end
 
 # exchanger
 mutable struct Exchanger
@@ -41,7 +41,7 @@ mutable struct Exchanger
     @atomic err
     task::Task
 
-    function Exchanger(backend::Backend)
+    function Exchanger(backend::Backend, device)
         channel = Channel()
         bottom  = Base.Event(true)
 
@@ -51,6 +51,7 @@ mutable struct Exchanger
         send_buf = nothing
 
         this.task = Threads.@spawn begin
+            CUDA.device!(device)
             KernelAbstractions.priority!(backend, :high)
             try
                 while !(@atomic this.done)
@@ -70,10 +71,12 @@ mutable struct Exchanger
                     f(compute_bc)
                     if has_neighbor
                         copyto!(send_buf, border)
+                        KernelAbstractions.synchronize(backend)
                         send = MPI.Isend(send_buf, comm; dest=rank)
-                        cooperative_test!(recv)
+                        wait(recv)
                         copyto!(halo, recv_buf)
-                        cooperative_test!(send)
+                        KernelAbstractions.synchronize(backend)
+                        wait(send)
                     end
                     notify(bottom)
                     NVTX.@mark "after notify(bottom)"

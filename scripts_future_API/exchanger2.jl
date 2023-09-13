@@ -23,7 +23,7 @@ end
 function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
 
     # numerics
-    dims, comm, me, neighbors, coords = init_distributed(dims; init_MPI=true)
+    dims, comm, me, neighbors, coords, device = init_distributed(dims; init_MPI=true)
 
     nx, ny, nz = 6, 6, 6
     b_width = (2, 2, 2)
@@ -35,7 +35,7 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
     ranges = split_ndrange(A, b_width)
 
     exchangers = ntuple(Val(length(neighbors))) do _
-        ntuple(_ -> Exchanger(backend), Val(2))
+        ntuple(_ -> Exchanger(backend, device), Val(2))
     end
 
     do_work!(backend, 256)(A, me, first(ranges[end]); ndrange=size(ranges[end]))
