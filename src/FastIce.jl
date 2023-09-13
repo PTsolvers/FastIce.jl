@@ -14,6 +14,6 @@ include("physics.jl")
 include("BoundaryConditions/boundary_conditions.jl")
 include("Models/models.jl")
 
-include("distributed.jl")
+# include("Distributed/distributed.jl")
 
 end # module
