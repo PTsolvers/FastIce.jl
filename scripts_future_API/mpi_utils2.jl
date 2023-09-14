@@ -1,6 +1,6 @@
 # MPI
 function init_distributed(dims::Tuple=(0, 0, 0); init_MPI=true)
-    init_MPI && (Threads.nthreads() > 1 ? MPI.Init(threadlevel=:multiple) : MPI.Init())
+    init_MPI && MPI.Init()
     nprocs = MPI.Comm_size(MPI.COMM_WORLD)
     dims = Tuple(MPI.Dims_create(nprocs, dims))
     # create MPI communicator
