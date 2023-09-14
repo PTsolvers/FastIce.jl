@@ -63,10 +63,14 @@ mutable struct Exchanger
                         copyto!(send_buf, border)
                         KernelAbstractions.synchronize(backend)
                         send = MPI.Isend(send_buf, comm; dest=rank)
-                        wait(recv)
-                        copyto!(halo, recv_buf)
+                        while true
+                            test_recv = MPI.Test(recv)
+                            test_send = MPI.Test(send)
+                            if test_recv copyto!(halo, recv_buf) end
+                            if test_recv && test_send break end
+                            yield()
+                        end
                         KernelAbstractions.synchronize(backend)
-                        wait(send)
                     end
                     notify(bottom)
                 end
