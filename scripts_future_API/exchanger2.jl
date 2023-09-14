@@ -1,10 +1,10 @@
 using KernelAbstractions
 using MPI
 
-# using AMDGPU
+using AMDGPU
 
-using CUDA
-using NVTX
+# using CUDA
+# using NVTX
 
 include("mpi_utils.jl")
 include("mpi_utils2.jl")
@@ -51,7 +51,7 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
             range  = ranges[2*(dim-1) + side]
             offset, ndrange = first(range), size(range)
             start_exchange(exchangers[dim][side], comm, rank, halo, border) do compute_bc
-                NVTX.@range "borders" do_work!(backend, 256)(A, me, offset; ndrange)
+                do_work!(backend, 256)(A, me, offset; ndrange)
                 if compute_bc
                     # apply_bcs!(Val(dim), fields, bcs.velocity)
                 end
@@ -60,7 +60,6 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
         end
         wait.(exchangers[dim])
     end
-
     KernelAbstractions.synchronize(backend)
 
     # for dim in eachindex(neighbors)
@@ -75,7 +74,7 @@ function main(backend = CPU(), T::DataType = Float64, dims = (0, 0, 0))
     return
 end
 
-backend = CUDABackend()
+backend = ROCBackend()
 T::DataType = Int
 dims = (0, 0, 1)
 

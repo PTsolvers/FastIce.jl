@@ -80,7 +80,9 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
 
     # actions
     for it = 1:nt
-        copyto!(A, A_new)
+        # copyto!(A, A_new)
+        # KernelAbstractions.synchronize(backend)
+
         hide_comm( diffusion_kernel!(backend, 256), neighbors, ranges, A_new, A, h, _dx, _dy, _dz )
     end
 
