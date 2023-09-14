@@ -70,8 +70,8 @@ mutable struct Exchanger
                             if test_recv && test_send break end
                             yield()
                         end
-                        KernelAbstractions.synchronize(backend)
                     end
+                    KernelAbstractions.synchronize(backend)
                     notify(bottom)
                 end
             catch err
