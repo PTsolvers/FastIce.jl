@@ -15,5 +15,5 @@ makedocs(
 
 deploydocs(
     repo = "github.com/PTsolvers/FastIce.jl.git",
-    devbranch = "iu/api" #"main"
+    devbranch = "main"
 )
