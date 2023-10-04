@@ -14,13 +14,19 @@ function init_distributed(dims::Tuple=(0, 0, 0); init_MPI=true)
     comm_node = MPI.Comm_split_type(comm, MPI.COMM_TYPE_SHARED, me)
     dev_id = MPI.Comm_rank(comm_node)
     # @show device = CUDA.device!(dev_id)
-    @show device = AMDGPU.device_id!(dev_id + 1)
+    # @show device = AMDGPU.device_id!(dev_id + 1)
+    @show device = AMDGPU.device_id!(dev_id*2 + 1)
     return (dims, comm, me, neighbors, coords, device)
 end
 
 function finalize_distributed(; finalize_MPI=true)
     finalize_MPI && MPI.Finalize()
     return
+end
+
+@kernel function my_copy!(halo, recv_buf)
+    ix, iy = @index(Global, NTuple)
+    halo[ix, iy] = recv_buf[ix, iy]
 end
 
 # exchanger
@@ -61,17 +67,22 @@ mutable struct Exchanger
                     f(compute_bc)
                     if has_neighbor
                         copyto!(send_buf, border)
-                        KernelAbstractions.synchronize(backend)
+                        AMDGPU.synchronize(blocking=false) #KernelAbstractions.synchronize(backend)
                         send = MPI.Isend(send_buf, comm; dest=rank)
+                        flag = false
                         while true
                             test_recv = MPI.Test(recv)
                             test_send = MPI.Test(send)
-                            if test_recv copyto!(halo, recv_buf) end
+                            if test_recv && !flag
+                                copyto!(halo, recv_buf)
+                                # my_copy!(backend, 256, size(recv_buf))(halo, recv_buf)
+                                flag = true
+                            end
                             if test_recv && test_send break end
                             yield()
                         end
                     end
-                    KernelAbstractions.synchronize(backend)
+                    AMDGPU.synchronize(blocking=false) #KernelAbstractions.synchronize(backend)
                     notify(bottom)
                 end
             catch err
