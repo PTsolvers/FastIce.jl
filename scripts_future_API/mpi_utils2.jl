@@ -24,11 +24,6 @@ function finalize_distributed(; finalize_MPI=true)
     return
 end
 
-@kernel function my_copy!(halo, recv_buf)
-    ix, iy = @index(Global, NTuple)
-    halo[ix, iy] = recv_buf[ix, iy]
-end
-
 # exchanger
 mutable struct Exchanger
     @atomic done::Bool
@@ -75,7 +70,6 @@ mutable struct Exchanger
                             test_send = MPI.Test(send)
                             if test_recv && !flag
                                 copyto!(halo, recv_buf)
-                                # my_copy!(backend, 256, size(recv_buf))(halo, recv_buf)
                                 flag = true
                             end
                             if test_recv && test_send break end

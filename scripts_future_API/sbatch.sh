@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=scaling_16
+#SBATCH --job-name=scaling_2048
 #SBATCH --account=project_465000557
-#SBATCH --time=00:02:00
-#SBATCH --nodes=4
-#SBATCH --ntasks=16
+#SBATCH --time=00:05:00
+#SBATCH --nodes=512
+#SBATCH --ntasks=2048
 #SBATCH --gpus-per-node=8
 #SBATCH --partition=standard-g
 
