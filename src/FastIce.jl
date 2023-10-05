@@ -7,7 +7,8 @@ include("Grids/Grids.jl")
 include("grid_operators.jl")
 include("logging.jl")
 include("fields.jl")
-include("utils.jl")
+
+include("Utils/Utils.jl")
 
 include("physics.jl")
 
