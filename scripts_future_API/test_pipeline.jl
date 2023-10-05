@@ -1,5 +1,4 @@
 using FastIce.Utils
-using Profile
 
 function main()
     pipes = [Pipeline() for _ in 1:6]
@@ -7,15 +6,15 @@ function main()
         for ip in eachindex(pipes)
             put!(pipes[ip]) do
                 sleep(1/60)
-                # println("  inside pipeline #$(ip)!")
+                println("  inside pipeline #$(ip)!")
             end
         end
         sleep(1/10)
-        # println("outside, iter #$(iter)!")
+        println("outside, iter #$(iter)!")
         take!.(pipes)
-        # println()
+        println()
     end
-    setdone!(pipe)
+    setdone!.(pipes)
     return
 end
 
