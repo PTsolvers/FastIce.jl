@@ -1,21 +1,23 @@
 using FastIce.Utils
+using Profile
+
+function dowork(pipes)
+    for _ in 1:100
+        for pipe in pipes
+            put!(()->sleep(0.01), pipe)
+        end
+        wait.(pipes)
+    end
+    return
+end
 
 function main()
-    pipes = [Pipeline() for _ in 1:6]
-    for iter in 1:10
-        for ip in eachindex(pipes)
-            put!(pipes[ip]) do
-                sleep(0.001)
-                println("  inside pipeline #$(ip)!")
-            end
-        end
-        sleep(0.01)
-        println("outside, iter #$(iter)!")
-        take!.(pipes)
-        println()
-    end
-    setdone!.(pipes)
+    pipes = Tuple(Pipeline() for _ in 1:4)
+    dowork(pipes)
+    dowork(pipes)
+    close.(pipes)
     return
 end
 
 main()
+
