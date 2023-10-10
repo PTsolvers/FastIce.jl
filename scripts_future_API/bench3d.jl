@@ -37,12 +37,12 @@ function compute_ka(hide_comm, comm, backend, neighbors, ranges, A_new, A, h, _d
     tic = time_ns()
     for _ = 1:iters
         # copyto!(A, A_new)
-        # AMDGPU.synchronize(blocking=false) #KernelAbstractions.synchronize(backend)
+        # KernelAbstractions.synchronize(backend)
         hide_comm(diffusion_kernel!(backend, 256), neighbors, ranges, A_new, A, h, _dx, _dy, _dz)
         A, A_new = A_new, A
 
         # diffusion_kernel!(backend, 256)(A_new, A, h, _dx, _dy, _dz, (1, 1, 1); ndrange=size(A))
-        # AMDGPU.synchronize(blocking=false) #KernelAbstractions.synchronize(backend)
+        # KernelAbstractions.synchronize(backend)
         # A, A_new = A_new, A
     end
     wtime = (time_ns() - tic) * 1e-9
@@ -73,7 +73,7 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
     A     = KernelAbstractions.allocate(backend, T, nx, ny, nz)
     A_new = KernelAbstractions.allocate(backend, T, nx, ny, nz)
     KernelAbstractions.copyto!(backend, A, A_ini)
-    AMDGPU.synchronize(blocking=false) #KernelAbstractions.synchronize(backend)
+    KernelAbstractions.synchronize(backend)
     A_new = copy(A)
 
     ### to be hidden later
@@ -97,12 +97,12 @@ function main(backend=CPU(), T::DataType=Float64, dims=(0, 0, 0))
                     if compute_bc
                         # apply_bcs!(Val(dim), fields, bcs.velocity)
                     end
-                    AMDGPU.synchronize(blocking=false) #KernelAbstractions.synchronize(backend)
+                    KernelAbstractions.synchronize(backend)
                 end
             end
             wait.(exchangers[dim])
         end
-        AMDGPU.synchronize(blocking=false) #KernelAbstractions.synchronize(backend)
+        KernelAbstractions.synchronize(backend)
     end
     ### to be hidden later
 

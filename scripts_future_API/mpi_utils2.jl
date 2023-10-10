@@ -62,7 +62,7 @@ mutable struct Exchanger
                     f(compute_bc)
                     if has_neighbor
                         copyto!(send_buf, border)
-                        AMDGPU.synchronize(blocking=false) #KernelAbstractions.synchronize(backend)
+                        KernelAbstractions.synchronize(backend)
                         send = MPI.Isend(send_buf, comm; dest=rank)
                         flag = false
                         while true
@@ -76,7 +76,7 @@ mutable struct Exchanger
                             yield()
                         end
                     end
-                    AMDGPU.synchronize(blocking=false) #KernelAbstractions.synchronize(backend)
+                    KernelAbstractions.synchronize(backend)
                     notify(bottom)
                 end
             catch err
