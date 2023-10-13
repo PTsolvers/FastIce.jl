@@ -7,7 +7,9 @@ export ∂ᶜx, ∂ᶜy, ∂ᶜz, avᶜx, avᶜy, avᶜz, avᶜxy, avᶜxz, av�
 
 import Base.@propagate_inbounds
 
-Base.@assume_effects :foldable δ(op, I::CartesianIndex{N}, ::Val{D}) where {N,D} = ntuple(i -> i == D ? op(I[i], 1) : I[i], Val(N)) |> CartesianIndex
+Base.@assume_effects :foldable function δ(op, I::CartesianIndex{N}, ::Val{D}) where {N,D}
+    ntuple(i -> i == D ? op(I[i], 1) : I[i], Val(N)) |> CartesianIndex
+end
 
 Base.@assume_effects :foldable function δ(op, I::CartesianIndex{N}, ::Val{D1}, ::Val{D2}) where {N,D1,D2}
     δI = ntuple(Val(N)) do i
@@ -54,7 +56,7 @@ for (dim, val1, val2) in ((:xy, 1, 2), (:xz, 1, 3), (:yz, 2, 3))
         @eval begin
             @propagate_inbounds $av(f, I) = $avl(f, I, Val($val1), Val($val2))
         end
-    end 
+    end
 end
 
 end
