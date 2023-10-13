@@ -6,7 +6,7 @@ using FastIce.Utils
     @testset "pre" begin
         a = 0
         pipe = Pipeline(; pre=() -> a += 1)
-        put!(()->nothing, pipe)
+        put!(() -> nothing, pipe)
         wait(pipe)
         @test a == 1
         close(pipe)
