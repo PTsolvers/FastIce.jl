@@ -2,7 +2,9 @@ struct CartesianGrid{N,T<:AbstractFloat,I<:Integer}
     axes::NTuple{N,DiscreteAxis{T,I}}
 end
 
-CartesianGrid(origin::NTuple{N,T}, extent::NTuple{N,T}, size::NTuple{N,I}) where {N,T,I} = CartesianGrid(DiscreteAxis.(origin, extent, size))
+function CartesianGrid(origin::NTuple{N,T}, extent::NTuple{N,T}, size::NTuple{N,I}) where {N,T,I}
+    CartesianGrid(DiscreteAxis.(origin, extent, size))
+end
 
 CartesianGrid(; origin::NTuple{N,T}, extent::NTuple{N,T}, size::NTuple{N,I}) where {N,T,I} = CartesianGrid(origin, extent, size)
 
@@ -41,9 +43,15 @@ end
 coord(grid::CartesianGrid{N}, loc, I::CartesianIndex{N}) where {N} = coord(grid, loc, Tuple(I))
 
 @propagate_inbounds coord(grid::CartesianGrid, loc::Location, dim::Integer, i::Integer) = coord(grid.axes[dim], loc, i)
-@propagate_inbounds coord(grid::CartesianGrid{N}, loc::Location, dim::Integer, inds::NTuple{N}) where {N} = coord(grid.axes[dim], loc, inds[dim])
-@propagate_inbounds coord(grid::CartesianGrid{N}, locs::NTuple{N,Location}, dim::Integer, inds::NTuple{N}) where {N} = coord(grid.axes[dim], locs[dim], inds[dim])
-@propagate_inbounds coord(grid::CartesianGrid{N}, locs::NTuple{N,Location}, dim::Integer, i::Integer) where {N} = coord(grid.axes[dim], locs[dim], i)
+@propagate_inbounds function coord(grid::CartesianGrid{N}, loc::Location, dim::Integer, inds::NTuple{N}) where {N}
+    coord(grid.axes[dim], loc, inds[dim])
+end
+@propagate_inbounds function coord(grid::CartesianGrid{N}, locs::NTuple{N,Location}, dim::Integer, inds::NTuple{N}) where {N}
+    coord(grid.axes[dim], locs[dim], inds[dim])
+end
+@propagate_inbounds function coord(grid::CartesianGrid{N}, locs::NTuple{N,Location}, dim::Integer, i::Integer) where {N}
+    coord(grid.axes[dim], locs[dim], i)
+end
 
 @propagate_inbounds coord(grid::CartesianGrid, loc, ::Val{D}, i) where {D} = coord(grid, loc, D, i)
 

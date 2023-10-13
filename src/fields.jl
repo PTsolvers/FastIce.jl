@@ -53,8 +53,8 @@ expand_halo(::Val{N}, halo::Tuple) where {N} = ntuple(I -> expand_axis_halo(halo
 expand_halo(::Val{N}, halo::Integer) where {N} = ntuple(I -> (halo, halo), Val(N))
 expand_halo(::Val{N}, halo::Nothing) where {N} = ntuple(I -> (0, 0), Val(N))
 
-expand_loc(::Val{N}, loc::NTuple{N, Location}) where N = loc
-expand_loc(::Val{N}, loc::Location) where N = ntuple(_ -> loc, Val(N))
+expand_loc(::Val{N}, loc::NTuple{N,Location}) where {N} = loc
+expand_loc(::Val{N}, loc::Location) where {N} = ntuple(_ -> loc, Val(N))
 
 function Field(backend::Backend, grid::CartesianGrid, loc::L, T::DataType=eltype(grid); halo::H=nothing) where {L,H}
     N = ndims(grid)
@@ -62,10 +62,10 @@ function Field(backend::Backend, grid::CartesianGrid, loc::L, T::DataType=eltype
 end
 
 Base.checkbounds(f::Field, I...) = checkbounds(f.data, I...)
-Base.checkbounds(f::Field, I::Union{CartesianIndex, AbstractArray{<:CartesianIndex}}) = checkbounds(f.data, I)
+Base.checkbounds(f::Field, I::Union{CartesianIndex,AbstractArray{<:CartesianIndex}}) = checkbounds(f.data, I)
 
 Base.checkbounds(::Type{Bool}, f::Field, I...) = checkbounds(Bool, f.data, I...)
-Base.checkbounds(::Type{Bool}, f::Field, I::Union{CartesianIndex, AbstractArray{<:CartesianIndex}}) = checkbounds(Bool, f.data, I)
+Base.checkbounds(::Type{Bool}, f::Field, I::Union{CartesianIndex,AbstractArray{<:CartesianIndex}}) = checkbounds(Bool, f.data, I)
 
 Base.size(f::Field) = length.(f.indices)
 Base.parent(f::Field) = parent(f.data)
@@ -91,7 +91,7 @@ Base.@propagate_inbounds Base.lastindex(f::Field, dim) = lastindex(f.data, dim)
 
 function interior_indices(f::Field)
     return ntuple(ndims(f)) do I
-        (firstindex(parent(f), I) + f.halo[I][1]):(lastindex(parent(f), I) - f.halo[I][2])
+        (firstindex(parent(f), I)+f.halo[I][1]):(lastindex(parent(f), I)-f.halo[I][2])
     end
 end
 
@@ -103,12 +103,12 @@ set!(f::Field, other::Field) = (copy!(interior(f), interior(other)); nothing)
 set!(f::Field{T}, val::T) where {T<:Number} = (fill!(interior(f), val); nothing)
 set!(f::Field, A::AbstractArray) = (copy!(interior(f), A); nothing)
 
-@kernel function _set_continuous!(dst, grid, loc, fun, args...)
+@kernel function _set_continuous!(dst, grid, loc, fun::F, args...) where {F}
     I = @index(Global, Cartesian)
     dst[I] = fun(coord(grid, loc, I)..., args...)
 end
 
-@kernel function _set_discrete!(dst, grid, loc, fun, args...)
+@kernel function _set_discrete!(dst, grid, loc, fun::F, args...) where {F}
     I = @index(Global, Cartesian)
     dst[I] = fun(grid, loc, Tuple(I)..., args...)
 end

@@ -11,7 +11,7 @@ struct DirichletBC{Gradient,T}
 end
 
 # Create a DirichletBC with a continuous or discrete boundary function
-function DirichletBC{G}(fun::Function; kwargs...) where G
+function DirichletBC{G}(fun::Function; kwargs...) where {G}
     condition = BoundaryFunction(fun; kwargs...)
     return DirichletBC{G}(condition)
 end
@@ -24,9 +24,9 @@ Base.@propagate_inbounds (bc::DirichletBC{G,<:BoundaryFunction})(grid, loc, dim,
 Adapt.adapt_structure(to, f::DirichletBC{G,<:AbstractArray}) where {G} = DirichletBC{G}(Adapt.adapt(to, parent(f.condition)))
 
 Base.@propagate_inbounds _get_gradient(f2, bc::DirichletBC{HalfCell}, grid, loc, dim, I) = 2 * (bc(grid, loc, dim, I) - f2)
-Base.@propagate_inbounds _get_gradient(f2, bc::DirichletBC{FullCell}, grid, loc, dim, I) =     (bc(grid, loc, dim, I) - f2)
+Base.@propagate_inbounds _get_gradient(f2, bc::DirichletBC{FullCell}, grid, loc, dim, I) = (bc(grid, loc, dim, I) - f2)
 
-@inline function _apply_bc!(side, dim, grid, f, loc, Ibc, bc::DirichletBC)
+@inline function _apply_field_boundary_condition!(side, dim, grid, f, loc, Ibc, bc::DirichletBC)
     I = _bc_index(dim, side, loc, size(f), Ibc)
     DI = _bc_offset(Val(ndims(grid)), dim, side)
     @inbounds f[I] = f[I+DI] + _get_gradient(f[I+DI], bc, grid, loc, dim, I)

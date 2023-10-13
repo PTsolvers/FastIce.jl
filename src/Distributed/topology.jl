@@ -11,10 +11,10 @@ struct CartesianTopology{N}
     node_name::String
 end
 
-function CartesianTopology(dims::NTuple{N,Int}; comm = MPI.COMM_WORLD) where {N}
+function CartesianTopology(dims::NTuple{N,Int}; comm=MPI.COMM_WORLD) where {N}
     nprocs = MPI.Comm_size(comm)
     dims = Tuple(MPI.Dims_create(nprocs, dims))
-    cart_comm  = MPI.Cart_create(MPI.COMM_WORLD, dims)
+    cart_comm = MPI.Cart_create(MPI.COMM_WORLD, dims)
     global_rank = MPI.Comm_rank(cart_comm)
     shared_comm = MPI.Comm_split_type(cart_comm, MPI.COMM_TYPE_SHARED, global_rank)
     shared_rank = MPI.Comm_rank(shared_comm)
@@ -22,7 +22,7 @@ function CartesianTopology(dims::NTuple{N,Int}; comm = MPI.COMM_WORLD) where {N}
     cart_coords = Tuple(MPI.Cart_coords(cart_comm))
 
     neighbors = ntuple(Val(N)) do dim
-        MPI.Cart_shift(cart_comm, dim-1, 1)
+        MPI.Cart_shift(cart_comm, dim - 1, 1)
     end
 
     return CartesianTopology{N}(nprocs, dims, global_rank, shared_rank, cart_coords, neighbors, comm, cart_comm, shared_comm, node_name)
@@ -44,14 +44,16 @@ coordinates(t::CartesianTopology) = t.cart_coords
 
 neighbors(t::CartesianTopology) = t.neighbors
 
+neighbor(t::CartesianTopology, dim, side) = t.neighbors[dim][side]
+
 global_size(t::CartesianTopology) = MPI.Comm_size(t.cart_comm)
 node_size(t::CartesianTopology) = MPI.Comm_size(t.shared_comm)
 
-global_grid_size(t::CartesianTopology, local_size) =  t.dims .* local_size
+global_grid_size(t::CartesianTopology, local_size) = t.dims .* local_size
 
 function local_grid(g::CartesianGrid, t::CartesianTopology)
     local_extent = extent(g) ./ t.dims
-    local_size   = size(g) .÷ t.dims
+    local_size = size(g) .÷ t.dims
     local_origin = origin(g) .+ local_extent .* t.cart_coords
 
     return CartesianGrid(local_origin, local_extent, local_size)

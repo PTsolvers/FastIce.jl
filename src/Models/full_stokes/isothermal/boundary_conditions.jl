@@ -108,6 +108,5 @@ function _apply_bcs!(backend, grid, fields, bcs)
             apply_bcs!(Val(D), backend, grid, fs, values(bcs[D]))
         end
     end
-
     return
 end
