@@ -8,7 +8,7 @@ const HALO_SIZES = ((2, 2, 4), (0, 0, 0), (2, 0, 2), (0, 0, 0), (0, 1, 3))
 
 @testset "backend $backend" for backend in backends
     @testset "fields" begin
-        grid = CartesianGrid(origin = (0.0, 0.0, 0.0), extent=(1.0, 1.0, 1.0), size = (2, 2, 2))
+        grid = CartesianGrid(; origin=(0.0, 0.0, 0.0), extent=(1.0, 1.0, 1.0), size=(2, 2, 2))
         loc = (Center(), Vertex(), Center())
         @testset "location" begin
             @test location(Field(backend, grid, Center())) == (Center(), Center(), Center())
@@ -35,7 +35,7 @@ const HALO_SIZES = ((2, 2, 4), (0, 0, 0), (2, 0, 2), (0, 0, 0), (0, 1, 3))
                                              0.25; 0.75;; 0.25; 0.75;; 0.25; 0.75]
                 # with parameters
                 fill!(data(f), NaN)
-                set!(f, grid, (grid, loc, ix, iy, iz, sc) -> ycoord(grid, loc, iy) * sc; discrete=true, parameters=(2.0, ))
+                set!(f, grid, (grid, loc, ix, iy, iz, sc) -> ycoord(grid, loc, iy) * sc; discrete=true, parameters=(2.0,))
                 @test Array(interior(f)) == [0.0; 0.0;; 1.0; 1.0;; 2.0; 2.0;;;
                                              0.0; 0.0;; 1.0; 1.0;; 2.0; 2.0]
             end
@@ -52,7 +52,7 @@ const HALO_SIZES = ((2, 2, 4), (0, 0, 0), (2, 0, 2), (0, 0, 0), (0, 1, 3))
                                              0.25; 0.75;; 0.25; 0.75;; 0.25; 0.75]
                 # with parameters
                 fill!(data(f), NaN)
-                set!(f, grid, (x, y, z, sc) -> y * sc, parameters=(2.0, ))
+                set!(f, grid, (x, y, z, sc) -> y * sc; parameters=(2.0,))
                 @test Array(interior(f)) == [0.0; 0.0;; 1.0; 1.0;; 2.0; 2.0;;;
                                              0.0; 0.0;; 1.0; 1.0;; 2.0; 2.0]
             end
