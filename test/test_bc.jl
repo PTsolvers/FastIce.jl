@@ -16,8 +16,8 @@ using FastIce.BoundaryConditions
                 east_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(0.5),))
                 apply_boundary_conditions!(Val(1), Val(1), backend, grid, west_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(1), backend, grid, east_bc; async=false)
-                @test all((field[0, 1:ny, 1:nz] .+ field[1, 1:ny, 1:nz]) ./ 2 .≈ west_bc.conditions[1].condition)
-                @test all(field[nx+1, 1:ny, 1:nz] .≈ east_bc.conditions[1].condition)
+                @test all((parent(field)[1, 2:ny+1, 2:nz+1] .+ parent(field)[2, 2:ny+1, 2:nz+1]) ./ 2 .≈ west_bc.conditions[1].condition)
+                @test all(parent(field)[nx+2, 2:ny+1, 2:nz+1] .≈ east_bc.conditions[1].condition)
             end
             @testset "y-dim" begin
                 data(field) .= 0.0
@@ -25,8 +25,8 @@ using FastIce.BoundaryConditions
                 north_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(0.5),))
                 apply_boundary_conditions!(Val(1), Val(2), backend, grid, south_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(2), backend, grid, north_bc; async=false)
-                @test all((field[1:nx, 0, 1:nz] .+ field[1:nx, 1, 1:nz]) ./ 2 .≈ south_bc.conditions[1].condition)
-                @test all(field[1:nx, ny+1, 1:nz] .≈ north_bc.conditions[1].condition)
+                @test all((parent(field)[2:nx+1, 1, 2:nz+1] .+ parent(field)[2:nx+1, 2, 2:nz+1]) ./ 2 .≈ south_bc.conditions[1].condition)
+                @test all(parent(field)[2:nx+1, ny+2, 2:nz+1] .≈ north_bc.conditions[1].condition)
             end
             @testset "z-dim" begin
                 data(field) .= 0.0
@@ -34,8 +34,8 @@ using FastIce.BoundaryConditions
                 top_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(0.5),))
                 apply_boundary_conditions!(Val(1), Val(3), backend, grid, bottom_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(3), backend, grid, top_bc; async=false)
-                @test all((field[1:nx, 1:ny, 0] .+ field[1:nx, 1:ny, 1]) ./ 2 .≈ bottom_bc.conditions[1].condition)
-                @test all(field[1:nx, 1:ny, nz+1] .≈ top_bc.conditions[1].condition)
+                @test all((parent(field)[2:nx+1, 2:ny+1, 1] .+ parent(field)[2:nx+1, 2:ny+1, 2]) ./ 2 .≈ bottom_bc.conditions[1].condition)
+                @test all(parent(field)[2:nx+1, 2:ny+1, nz+2] .≈ top_bc.conditions[1].condition)
             end
         end
         @testset "array" begin
@@ -49,8 +49,8 @@ using FastIce.BoundaryConditions
                 east_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(bc_array_east),))
                 apply_boundary_conditions!(Val(1), Val(1), backend, grid, west_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(1), backend, grid, east_bc; async=false)
-                @test all((field[0, 1:ny, 1:nz] .+ field[1, 1:ny, 1:nz]) ./ 2 .≈ west_bc.conditions[1].condition)
-                @test all(field[nx+1, 1:ny, 1:nz] .≈ east_bc.conditions[1].condition)
+                @test all((parent(field)[1, 2:ny+1, 2:nz+1] .+ parent(field)[2, 2:ny+1, 2:nz+1]) ./ 2 .≈ west_bc.conditions[1].condition)
+                @test all(parent(field)[nx+2, 2:ny+1, 2:nz+1] .≈ east_bc.conditions[1].condition)
             end
             @testset "y-dim" begin
                 data(field) .= 0.0
@@ -62,8 +62,8 @@ using FastIce.BoundaryConditions
                 north_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(bc_array_north),))
                 apply_boundary_conditions!(Val(1), Val(2), backend, grid, south_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(2), backend, grid, north_bc; async=false)
-                @test all((field[1:nx, 0, 1:nz] .+ field[1:nx, 1, 1:nz]) ./ 2 .≈ south_bc.conditions[1].condition)
-                @test all(field[1:nx, ny+1, 1:nz] .≈ north_bc.conditions[1].condition)
+                @test all((parent(field)[2:nx+1, 1, 2:nz+1] .+ parent(field)[2:nx+1, 2, 2:nz+1]) ./ 2 .≈ south_bc.conditions[1].condition)
+                @test all(parent(field)[2:nx+1, ny+2, 2:nz+1] .≈ north_bc.conditions[1].condition)
             end
             @testset "z-dim" begin
                 data(field) .= 0.0
@@ -75,8 +75,8 @@ using FastIce.BoundaryConditions
                 top_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(bc_array_top),))
                 apply_boundary_conditions!(Val(1), Val(3), backend, grid, bottom_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(3), backend, grid, top_bc; async=false)
-                @test all((field[1:nx, 1:ny, 0] .+ field[1:nx, 1:ny, 1]) ./ 2 .≈ bottom_bc.conditions[1].condition)
-                @test all(field[1:nx, 1:ny, nz+1] .≈ top_bc.conditions[1].condition)
+                @test all((parent(field)[2:nx+1, 2:ny+1, 1] .+ parent(field)[2:nx+1, 2:ny+1, 2]) ./ 2 .≈ bottom_bc.conditions[1].condition)
+                @test all(parent(field)[2:nx+1, 2:ny+1, nz+2] .≈ top_bc.conditions[1].condition)
             end
         end
     end
