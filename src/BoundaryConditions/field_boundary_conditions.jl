@@ -8,9 +8,8 @@ function apply_boundary_conditions!(::Val{S}, ::Val{D}, arch::Architecture, grid
     _validate_boundary_conditions(bc, D, S)
     sizes = ntuple(ifield -> remove_dim(Val(D), size(bc.fields[ifield])), Val(length(bc.fields)))
     worksize = remove_dim(Val(D), size(grid, Vertex()))
-    # launch!(_apply_boundary_conditions! => (Val(S), Val(D), grid, bc.fields, bc.conditions); backend, worksize)
-    _apply_boundary_conditions!(arch.backend, 256, worksize)(Val(S), Val(D), grid, sizes, bc.fields, bc.conditions)
-    async || KernelAbstractions.synchronize(arch.backend)
+    _apply_boundary_conditions!(backend(arch), 256, worksize)(Val(S), Val(D), grid, sizes, bc.fields, bc.conditions)
+    async || KernelAbstractions.synchronize(backend(arch))
     return
 end
 
