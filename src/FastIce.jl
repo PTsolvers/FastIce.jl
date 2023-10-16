@@ -1,9 +1,5 @@
 module FastIce
 
-# export KernelLaunch.launch!
-
-using KernelAbstractions
-
 include("Grids/Grids.jl")
 include("GridOperators.jl")
 include("Logging.jl")
