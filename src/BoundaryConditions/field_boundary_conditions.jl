@@ -10,7 +10,7 @@ function apply_boundary_conditions!(::Val{S}, ::Val{D}, arch::Architecture, grid
     worksize = remove_dim(Val(D), size(grid, Vertex()))
     # launch!(_apply_boundary_conditions! => (Val(S), Val(D), grid, bc.fields, bc.conditions); backend, worksize)
     _apply_boundary_conditions!(arch.backend, 256, worksize)(Val(S), Val(D), grid, sizes, bc.fields, bc.conditions)
-    async || KernelAbstractions.synchronize(backend)
+    async || KernelAbstractions.synchronize(arch.backend)
     return
 end
 
