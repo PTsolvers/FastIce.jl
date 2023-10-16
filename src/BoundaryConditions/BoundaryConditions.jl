@@ -17,6 +17,12 @@ using FastIce.Architectures
 using KernelAbstractions
 using Adapt
 
+
+"""
+Overload this method for a custom boundary condition type.
+"""
+apply_boundary_conditions!(::Val{S}, ::Val{D}, arch::Architecture, grid::CartesianGrid, bc::Nothing) where {S,D} = nothing
+
 include("utils.jl")
 include("boundary_function.jl")
 include("dirichlet_bc.jl")
