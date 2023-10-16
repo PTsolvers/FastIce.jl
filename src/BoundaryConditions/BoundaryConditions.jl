@@ -18,9 +18,7 @@ using KernelAbstractions
 using Adapt
 
 
-"""
-Overload this method for a custom boundary condition type.
-"""
+"Overload this method for a custom boundary condition type."
 apply_boundary_conditions!(::Val{S}, ::Val{D}, arch::Architecture, grid::CartesianGrid, bc::Nothing) where {S,D} = nothing
 
 include("utils.jl")
