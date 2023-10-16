@@ -8,7 +8,6 @@ export synchronize, backend, device, details
 using FastIce.Grids
 
 using KernelAbstractions
-import KernelAbstractions.Kernel
 
 struct Architecture{Kind,B,D,Details}
     backend::B
