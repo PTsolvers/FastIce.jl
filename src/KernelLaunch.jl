@@ -1,7 +1,7 @@
 module KernelLaunch
 
-using FastIce.Architectures
 using FastIce.Grids
+using FastIce.Architectures
 using FastIce.BoundaryConditions
 
 export launch!
