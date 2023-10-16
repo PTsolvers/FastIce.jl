@@ -76,8 +76,8 @@ Base.view(f::Field, I...) = view(f.data, I...)
 data(f::Field) = f.data
 
 halo(f::Field) = f.halo
-halo(f::Field, dim) = f.halo[dim]
-halo(f::Field, dim, side) = f.halo[dim][side]
+halo(f::Field, dim::Integer) = f.halo[dim]
+halo(f::Field, dim::Integer, side::Integer) = f.halo[dim][side]
 
 Adapt.adapt_structure(to, f::Field{T,N,L}) where {T,N,L} = Field{L}(Adapt.adapt(to, f.data), f.halo, f.indices)
 
