@@ -13,18 +13,21 @@ using MPI
     if !isnothing(offset)
         I += offset
     end
-    f[I] = val
+    f[I] = val + I[1]
 end
 
 MPI.Init()
 
 arch = Architecture(CPU(), (0, 0))
 grid = CartesianGrid(; origin=(0.0, 0.0), extent=(1.0, 1.0), size=(10, 10))
-field = Field(backend(arch), grid, (Center(), Center()); halo=1)
+field = Field(backend(arch), grid, (Vertex(), Vertex()); halo=1)
+
 
 me = global_rank(details(arch))
 
-bc = FieldBoundaryConditions((field,), (DirichletBC{HalfCell}(me),))
+fill!(parent(field), Inf)
+
+bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(-me-10),))
 
 boundary_conditions = ((bc, bc),
                        (bc, bc))
@@ -43,7 +46,7 @@ hide_boundaries = HideBoundaries{2}(arch)
 
 outer_width = (4, 4)
 
-launch!(arch, grid, fill_field! => (field, me); location=Center(), hide_boundaries, boundary_conditions, outer_width)
+launch!(arch, grid, fill_field! => (field, me); location=location(field), hide_boundaries, boundary_conditions, outer_width)
 
 sleep(me)
 @show coordinates(details(arch))

@@ -1,7 +1,8 @@
 module Distributed
 
-using FastIce.Architectures
 using FastIce.Grids
+using FastIce.Fields
+using FastIce.Architectures
 import FastIce.BoundaryConditions: apply_boundary_conditions!
 
 using MPI

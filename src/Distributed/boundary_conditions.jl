@@ -65,8 +65,32 @@ function apply_boundary_conditions!(::Val{S}, ::Val{D}, arch::Architecture, grid
     return
 end
 
-get_recv_view(::Val{1}, ::Val{D}, A) where {D} = view(A, ntuple(I -> I == D ? 0 : Colon(), Val(ndims(A)))...)
-get_recv_view(::Val{2}, ::Val{D}, A) where {D} = view(A, ntuple(I -> I == D ? size(A, D) + 1 : Colon(), Val(ndims(A)))...)
+_overlap(::Vertex) = 1
+_overlap(::Center) = 0
 
-get_send_view(::Val{1}, ::Val{D}, A) where {D} = view(A, ntuple(I -> I == D ? 1 : Colon(), Val(ndims(A)))...)
-get_send_view(::Val{2}, ::Val{D}, A) where {D} = view(A, ntuple(I -> I == D ? size(A, D) : Colon(), Val(ndims(A)))...)
+get_recv_view(side::Val{S}, dim::Val{D}, f::Field) where {S,D} = get_recv_view(side, dim, parent(f), halo(f, D, S))
+get_send_view(side::Val{S}, dim::Val{D}, f::Field) where {S,D} = get_send_view(side, dim, parent(f), halo(f, D, S), _overlap(location(f, dim)))
+
+function get_recv_view(::Val{1}, ::Val{D}, array::AbstractArray, halo_width::Integer) where {D}
+    recv_range = Base.OneTo(halo_width)
+    indices = ntuple(I -> I == D ? recv_range : Colon(), Val(ndims(array)))
+    return view(array, indices...)
+end
+
+function get_recv_view(::Val{2}, ::Val{D}, array::AbstractArray, halo_width::Integer) where {D}
+    recv_range = (size(array, D)-halo_width+1):size(array, D)
+    indices = ntuple(I -> I == D ? recv_range : Colon(), Val(ndims(array)))
+    return view(array, indices...)
+end
+
+function get_send_view(::Val{1}, ::Val{D}, array::AbstractArray, halo_width::Integer, overlap::Integer) where {D}
+    send_range = (overlap+halo_width+1):(overlap+2halo_width)
+    indices = ntuple(I -> I == D ? send_range : Colon(), Val(ndims(array)))
+    return view(array, indices...)
+end
+
+function get_send_view(::Val{2}, ::Val{D}, array::AbstractArray, halo_width::Integer, overlap::Integer) where {D}
+    send_range = (size(array, D)-overlap-2halo_width+1):(size(array, D)-overlap-halo_width)
+    indices = ntuple(I -> I == D ? send_range : Colon(), Val(ndims(array)))
+    return view(array, indices...)
+end
