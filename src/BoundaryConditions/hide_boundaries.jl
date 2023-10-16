@@ -12,6 +12,7 @@ end
 function hide(fun::F, hb::HideBoundaries{N}, arch::Architecture, grid::CartesianGrid{N}, boundary_conditions, worksize;
               outer_width=nothing) where {F,N}
     inner_range, outer_ranges = split_ndrange(worksize, outer_width)
+    # execute inner range in a main Task with a normal priority
     fun(inner_range)
     for dim in N:-1:1
         ntuple(Val(2)) do side
