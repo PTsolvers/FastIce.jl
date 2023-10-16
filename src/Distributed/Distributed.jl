@@ -3,30 +3,25 @@ module Distributed
 using FastIce.Architectures
 using FastIce.Grids
 import FastIce.BoundaryConditions: apply_boundary_conditions!
+
 using MPI
 using KernelAbstractions
 
 export CartesianTopology
-
-export global_rank, shared_rank, node_name, cartesian_communicator, shared_communicator
-
+export global_rank, shared_rank, node_name, cartesian_communicator, shared_communicator, coordinates
 export dimensions, global_size, node_size
-
 export global_grid_size, local_grid
+export neighbors, neighbor
 
-struct DistributedArchitecture{C,T,R} <: AbstractArchitecture
-    child_arch::C
-    topology::T
-end
+export DistributedBoundaryConditions
 
-function DistributedArchitecture(backend::Backend, dims::NTuple{N,Int}; comm=MPI.COMM_WORLD) where {N}
+struct DistributedMPI end
+
+function Architectures.Architecture(backend::Backend, dims::NTuple{N,Int}, comm::MPI.Comm=MPI.COMM_WORLD) where {N}
     topo = CartesianTopology(dims; comm)
     device = set_device!(backend, shared_rank(topo))
-    child_arch = SingleDeviceArchitecture(backend, device)
-    return DistributedArchitecture(child_arch, topo)
+    return Architecture{DistributedMPI,typeof(backend),typeof(device),typeof(topo)}(backend, device, topo)
 end
-
-device(arch::DistributedArchitecture) = device(arch.child_arch)
 
 include("topology.jl")
 include("boundary_conditions.jl")

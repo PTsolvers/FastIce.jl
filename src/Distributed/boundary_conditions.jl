@@ -6,7 +6,9 @@ struct DistributedBoundaryConditions{F,B}
         exchange_infos = ntuple(Val(N)) do idx
             send_view = get_send_view(Val(S), Val(D), fields[idx])
             recv_view = get_recv_view(Val(S), Val(D), fields[idx])
-            ExchangeInfo(similar(send_view), similar(recv_view))
+            send_buffer = similar(parent(send_view), eltype(send_view), size(send_view))
+            recv_buffer = similar(parent(recv_view), eltype(recv_view), size(recv_view))
+            ExchangeInfo(send_buffer, recv_buffer)
         end
         return new{typeof(fields),typeof(exchange_infos)}(fields, exchange_infos)
     end
@@ -21,10 +23,10 @@ end
 
 ExchangeInfo(send_buf, recv_buf) = ExchangeInfo(send_buf, recv_buf, MPI.REQUEST_NULL, MPI.REQUEST_NULL)
 
-function apply_boundary_conditions!(::Val{S}, ::Val{D}, arch::DistributedArchitecture, grid::CartesianGrid,
+function apply_boundary_conditions!(::Val{S}, ::Val{D}, arch::Architecture, grid::CartesianGrid,
                                     bc::DistributedBoundaryConditions; async=true) where {S,D}
-    comm = cartesian_communicator(arch.topology)
-    nbrank = neighbor(arch.topology, D, S)
+    comm = cartesian_communicator(details(arch))
+    nbrank = neighbor(details(arch), D, S)
 
     # initiate non-blocking MPI recieve and device-to-device copy to the send buffer
     for idx in eachindex(bc.fields)
@@ -41,8 +43,8 @@ function apply_boundary_conditions!(::Val{S}, ::Val{D}, arch::DistributedArchite
         info.send_request = MPI.Isend(info.send_buffer, comm; dest=nbrank)
     end
 
-    recv_ready = BitVector(false for _ in eachindex(recv_requests))
-    send_ready = BitVector(false for _ in eachindex(send_requests))
+    recv_ready = BitVector(false for _ in eachindex(bc.exchange_infos))
+    send_ready = BitVector(false for _ in eachindex(bc.exchange_infos))
 
     # test send and receive requests, initiating device-to-device copy
     # to the receive buffer if the receive is complete

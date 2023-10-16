@@ -1,69 +1,46 @@
 module Architectures
 
-export AbstractArchitecture
-
-export SingleDeviceArchitecture
+export Architecture
 
 export launch!, set_device!, set_device_and_priority!, heuristic_groupsize
-export synchronize
+export synchronize, backend, device, details
 
 using FastIce.Grids
 
 using KernelAbstractions
 import KernelAbstractions.Kernel
 
-abstract type AbstractArchitecture end
-
-device(::AbstractArchitecture) = error("device function must be defined for architecture")
-backend(::AbstractArchitecture) = error("backend function must be defined for architecture")
-
-set_device!(arch::AbstractArchitecture) = set_device!(device(arch))
-
-synchronize(arch::AbstractArchitecture) = KernelAbstractions.synchronize(backend(arch))
-
-function set_device_and_priority!(arch::AbstractArchitecture, prio::Symbol)
-    set_device!(arch)
-    KernelAbstractions.priority!(backend(arch), prio)
-    return
-end
-
-heuristic_groupsize(arch::AbstractArchitecture) = heuristic_groupsize(device(arch))
-
-struct SingleDeviceArchitecture{B,D} <: AbstractArchitecture
+struct Architecture{Kind,B,D,Details}
     backend::B
     device::D
+    details::Details
 end
 
-function SingleDeviceArchitecture(backend::Backend)
-    device = set_device!(backend, 1)
-    return SingleDeviceArchitecture(backend, device)
+struct SingleDevice end
+
+function Architecture(backend::Backend, device_id::Integer=1)
+    device = set_device!(backend, device_id)
+    return Architecture{SingleDevice,typeof(backend),typeof(device),Nothing}(backend, device, nothing)
 end
 
-set_device!(::SingleDeviceArchitecture{CPU}) = nothing
-set_device!(::CPU, id::Integer) = nothing
+device(arch::Architecture) = arch.device
+backend(arch::Architecture) = arch.backend
+details(arch::Architecture) = arch.details
 
-heuristic_groupsize(::SingleDeviceArchitecture{CPU}) = 256
+synchronize(arch::Architecture) = KernelAbstractions.synchronize(arch.backend)
 
-device(arch::SingleDeviceArchitecture) = arch.device
+set_device!(arch::Architecture) = set_device!(arch.device)
 
-backend(arch::SingleDeviceArchitecture) = arch.backend
-
-function launch!(arch::SingleDeviceArchitecture, grid::CartesianGrid, kernel; kwargs...)
-    worksize = size(grid, Vertex())
-    launch!(arch, worksize, kernel; kwargs...)
-end
-
-function launch!(arch::SingleDeviceArchitecture, worksize::NTuple{N,Int}, kernel::Pair{Kernel,Args};
-                 boundary_conditions=nothing, async=true) where {N,Args}
-    fun, args = kernel
-
-    groupsize = heuristic_groupsize(arch)
-
-    fun(arch.backend, groupsize, worksize)(args...)
-    isnothing(boundary_conditions) || apply_boundary_conditions!(boundary_conditions)
-
-    async || synchronize(arch.backend)
+function set_device_and_priority!(arch::Architecture, prio::Symbol)
+    set_device!(arch)
+    KernelAbstractions.priority!(arch.backend, prio)
     return
 end
+
+set_device!(::Architecture{Kind,CPU}) where {Kind} = nothing
+set_device!(::CPU, id::Integer) = nothing
+
+heuristic_groupsize(arch::Architecture, ::Val{N}) where {N} = heuristic_groupsize(arch.device, Val(N))
+heuristic_groupsize(::Architecture{Kind,CPU}, N) where {Kind} = 256
 
 end
