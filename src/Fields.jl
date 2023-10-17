@@ -8,7 +8,9 @@ using Adapt
 using OffsetArrays
 using KernelAbstractions
 
-import FastIce.Grids: Location, CartesianGrid, coord
+using FastIce.Grids
+using FastIce.GridOperators
+using FastIce.Architectures
 
 abstract type AbstractField{T,N,L} <: AbstractArray{T,N} end
 
@@ -43,6 +45,8 @@ function Field(backend::Backend, grid::CartesianGrid, T::DataType, loc::L, halo:
     indices = Base.OneTo.(sz)
     return Field{L}(data, halo, indices)
 end
+
+Field(arch::Architecture, args...; kwargs...) = Field(backend(arch), args...; kwargs...)
 
 expand_axis_halo(::Nothing) = (0, 0)
 expand_axis_halo(halo::Integer) = (halo, halo)
@@ -123,5 +127,10 @@ function set!(f::Field{T,N}, grid::CartesianGrid{N}, fun::F; discrete=false, par
     end
     return
 end
+
+# grid operators
+Base.@propagate_inbounds ∂(f::AbstractField, I, dim) = ∂(f, I, dim, location(f, dim))
+Base.@propagate_inbounds ∂(f::AbstractField, I, dim, ::Vertex) = ∂ᶜ(f, I, dim)
+Base.@propagate_inbounds ∂(f::AbstractField, I, dim, ::Center) = ∂ᵛ(f, I, dim)
 
 end

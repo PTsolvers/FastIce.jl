@@ -30,7 +30,7 @@ end
 
 function _validate_boundary_conditions(bc::FieldBoundaryConditions, dim, side)
     for f in bc.fields
-        if halo(f, dim, side) < 1
+        if (location(f, Val(dim)) == Center()) && (halo(f, dim, side) < 1)
             error("to apply boundary conditions, halo width must be at least 1")
         end
     end
