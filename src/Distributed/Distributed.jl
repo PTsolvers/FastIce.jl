@@ -3,6 +3,7 @@ module Distributed
 using FastIce.Grids
 using FastIce.Fields
 using FastIce.Architectures
+using FastIce.BoundaryConditions
 import FastIce.BoundaryConditions: apply_boundary_conditions!
 
 using MPI
@@ -13,6 +14,8 @@ export global_rank, shared_rank, node_name, cartesian_communicator, shared_commu
 export dimensions, global_size, node_size
 export global_grid_size, local_grid
 export neighbors, neighbor
+export override_boundary_conditions
+export gather!
 
 export DistributedBoundaryConditions
 
@@ -26,5 +29,6 @@ end
 
 include("topology.jl")
 include("boundary_conditions.jl")
+include("gather.jl")
 
 end

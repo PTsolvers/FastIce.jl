@@ -1,6 +1,6 @@
 module BoundaryConditions
 
-export FieldBoundaryConditions
+export FieldBoundaryCondition, BoundaryConditionsBatch
 export apply_boundary_conditions!, apply_all_boundary_conditions!
 
 export DirichletBC, HalfCell, FullCell
@@ -17,14 +17,27 @@ using FastIce.Architectures
 using KernelAbstractions
 using Adapt
 
+abstract type FieldBoundaryCondition end
 
-"Overload this method for a custom boundary condition type."
-apply_boundary_conditions!(::Val{S}, ::Val{D}, arch::Architecture, grid::CartesianGrid, bc::Nothing) where {S,D} = nothing
-
+include("field_boundary_conditions.jl")
 include("utils.jl")
 include("boundary_function.jl")
 include("dirichlet_bc.jl")
-include("field_boundary_conditions.jl")
 include("hide_boundaries.jl")
+
+struct BoundaryConditionsBatch{F,BC}
+    fields::F
+    conditions::BC
+end
+
+@inline function apply_boundary_conditions!(::Val{S}, ::Val{D},
+                                            arch::Architecture,
+                                            grid::CartesianGrid,
+                                            batch::BoundaryConditionsBatch) where {S,D}
+    apply_boundary_conditions!(Val(S), Val(D), arch, grid, batch.fields, batch.conditions)
+end
+
+apply_boundary_conditions!(side, val, arch, grid, ::Nothing) = nothing
+apply_boundary_conditions!(side, val, arch, grid, fields, ::Nothing) = nothing
 
 end

@@ -5,7 +5,7 @@ struct HalfCell end
 struct FullCell end
 
 # First-kind Dirichlet boundary conditon parametrised by the gradient reconstruction kind (can be HalfCell or FullCell)
-struct DirichletBC{Gradient,T}
+struct DirichletBC{Gradient,T} <: FieldBoundaryCondition
     condition::T
     DirichletBC{Gradient}(condition::T) where {Gradient,T} = new{Gradient,T}(condition)
 end

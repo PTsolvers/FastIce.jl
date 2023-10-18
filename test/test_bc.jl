@@ -14,8 +14,8 @@ using FastIce.BoundaryConditions
         @testset "value" begin
             @testset "x-dim" begin
                 data(field) .= 0.0
-                west_bc = FieldBoundaryConditions((field,), (DirichletBC{HalfCell}(1.0),))
-                east_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(0.5),))
+                west_bc = BoundaryConditionsBatch((field,), (DirichletBC{HalfCell}(1.0),))
+                east_bc = BoundaryConditionsBatch((field,), (DirichletBC{FullCell}(0.5),))
                 apply_boundary_conditions!(Val(1), Val(1), arch, grid, west_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(1), arch, grid, east_bc; async=false)
                 @test all((parent(field)[1, 2:ny+1, 2:nz+1] .+ parent(field)[2, 2:ny+1, 2:nz+1]) ./ 2 .≈ west_bc.conditions[1].condition)
@@ -23,8 +23,8 @@ using FastIce.BoundaryConditions
             end
             @testset "y-dim" begin
                 data(field) .= 0.0
-                south_bc = FieldBoundaryConditions((field,), (DirichletBC{HalfCell}(1.0),))
-                north_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(0.5),))
+                south_bc = BoundaryConditionsBatch((field,), (DirichletBC{HalfCell}(1.0),))
+                north_bc = BoundaryConditionsBatch((field,), (DirichletBC{FullCell}(0.5),))
                 apply_boundary_conditions!(Val(1), Val(2), arch, grid, south_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(2), arch, grid, north_bc; async=false)
                 @test all((parent(field)[2:nx+1, 1, 2:nz+1] .+ parent(field)[2:nx+1, 2, 2:nz+1]) ./ 2 .≈ south_bc.conditions[1].condition)
@@ -32,8 +32,8 @@ using FastIce.BoundaryConditions
             end
             @testset "z-dim" begin
                 data(field) .= 0.0
-                bottom_bc = FieldBoundaryConditions((field,), (DirichletBC{HalfCell}(1.0),))
-                top_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(0.5),))
+                bottom_bc = BoundaryConditionsBatch((field,), (DirichletBC{HalfCell}(1.0),))
+                top_bc = BoundaryConditionsBatch((field,), (DirichletBC{FullCell}(0.5),))
                 apply_boundary_conditions!(Val(1), Val(3), arch, grid, bottom_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(3), arch, grid, top_bc; async=false)
                 @test all((parent(field)[2:nx+1, 2:ny+1, 1] .+ parent(field)[2:nx+1, 2:ny+1, 2]) ./ 2 .≈ bottom_bc.conditions[1].condition)
@@ -47,8 +47,8 @@ using FastIce.BoundaryConditions
                 bc_array_east = KernelAbstractions.allocate(backend, Float64, (size(grid, 2), size(grid, 3)))
                 bc_array_west .= 1.0
                 bc_array_east .= 0.5
-                west_bc = FieldBoundaryConditions((field,), (DirichletBC{HalfCell}(bc_array_west),))
-                east_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(bc_array_east),))
+                west_bc = BoundaryConditionsBatch((field,), (DirichletBC{HalfCell}(bc_array_west),))
+                east_bc = BoundaryConditionsBatch((field,), (DirichletBC{FullCell}(bc_array_east),))
                 apply_boundary_conditions!(Val(1), Val(1), arch, grid, west_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(1), arch, grid, east_bc; async=false)
                 @test all((parent(field)[1, 2:ny+1, 2:nz+1] .+ parent(field)[2, 2:ny+1, 2:nz+1]) ./ 2 .≈ west_bc.conditions[1].condition)
@@ -60,8 +60,8 @@ using FastIce.BoundaryConditions
                 bc_array_north = KernelAbstractions.allocate(backend, Float64, (size(grid, 2), size(grid, 3)))
                 bc_array_south .= 1.0
                 bc_array_north .= 0.5
-                south_bc = FieldBoundaryConditions((field,), (DirichletBC{HalfCell}(bc_array_south),))
-                north_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(bc_array_north),))
+                south_bc = BoundaryConditionsBatch((field,), (DirichletBC{HalfCell}(bc_array_south),))
+                north_bc = BoundaryConditionsBatch((field,), (DirichletBC{FullCell}(bc_array_north),))
                 apply_boundary_conditions!(Val(1), Val(2), arch, grid, south_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(2), arch, grid, north_bc; async=false)
                 @test all((parent(field)[2:nx+1, 1, 2:nz+1] .+ parent(field)[2:nx+1, 2, 2:nz+1]) ./ 2 .≈ south_bc.conditions[1].condition)
@@ -73,8 +73,8 @@ using FastIce.BoundaryConditions
                 bc_array_top = KernelAbstractions.allocate(backend, Float64, (size(grid, 2), size(grid, 3)))
                 bc_array_bot .= 1.0
                 bc_array_top .= 0.5
-                bottom_bc = FieldBoundaryConditions((field,), (DirichletBC{HalfCell}(bc_array_bot),))
-                top_bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(bc_array_top),))
+                bottom_bc = BoundaryConditionsBatch((field,), (DirichletBC{HalfCell}(bc_array_bot),))
+                top_bc = BoundaryConditionsBatch((field,), (DirichletBC{FullCell}(bc_array_top),))
                 apply_boundary_conditions!(Val(1), Val(3), arch, grid, bottom_bc; async=false)
                 apply_boundary_conditions!(Val(2), Val(3), arch, grid, top_bc; async=false)
                 @test all((parent(field)[2:nx+1, 2:ny+1, 1] .+ parent(field)[2:nx+1, 2:ny+1, 2]) ./ 2 .≈ bottom_bc.conditions[1].condition)

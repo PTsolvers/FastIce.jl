@@ -18,11 +18,11 @@ function hide(fun::F, hb::HideBoundaries{N}, arch::Architecture, grid::Cartesian
         ntuple(Val(2)) do side
             pipe  = hb.pipelines[dim][side]
             range = outer_ranges[dim][side]
-            bc    = boundary_conditions[dim][side]
+            batch = boundary_conditions[dim][side]
             # execute outer range and boundary conditions asynchronously
             put!(pipe) do
                 fun(range)
-                apply_boundary_conditions!(Val(side), Val(dim), arch, grid, bc)
+                apply_boundary_conditions!(Val(side), Val(dim), arch, grid, batch)
                 Architectures.synchronize(arch)
             end
         end
