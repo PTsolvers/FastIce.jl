@@ -70,18 +70,20 @@ function diffusion_3D(ka_backend=CPU())
     zero_flux_bc = DirichletBC{FullCell}(0.0)
     bc_q = NamedTuple(comp => BoundaryConditionsBatch((qC[comp],), (zero_flux_bc,)) for comp in eachindex(qC))
     # zero flux at physical boundaries and nothing at MPI boundaries
-    boundary_conditions_q = ((bc_q.x, bc_q.x), (bc_q.y, bc_q.y), (bc_q.z, bc_q.z))
-    boundary_conditions_q = override_boundary_conditions(arch, boundary_conditions_q)
+    bc_q = override_boundary_conditions(arch, ((bc_q.x, bc_q.x), (bc_q.y, bc_q.y), (bc_q.z, bc_q.z)))
     # nothing at physical boundaries and communication at MPI boundaries
     bc_c = BoundaryConditionsBatch((C,), nothing)
-    boundary_conditions_c = ((bc_c, bc_c), (bc_c, bc_c), (bc_c, bc_c))
-    boundary_conditions_c = override_boundary_conditions(arch, boundary_conditions_c; exchange=true)
+    bc_c = override_boundary_conditions(arch, ((bc_c, bc_c), (bc_c, bc_c), (bc_c, bc_c)); exchange=true)
+    ntuple(Val(ndims(grid))) do D
+        apply_boundary_conditions!(Val(1), Val(D), arch, grid, bc_c[D][1])
+        apply_boundary_conditions!(Val(2), Val(D), arch, grid, bc_c[D][2])
+    end
     # time loop
     for it in 1:nt
         launch!(arch, grid, update_qC! => (qC, C, dc, Δ);
-                location=Vertex(), hide_boundaries, boundary_conditions=boundary_conditions_q, outer_width)
+                location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
         launch!(arch, grid, update_C! => (C, qC, dt, Δ);
-                location=Center(), hide_boundaries, boundary_conditions=boundary_conditions_c, outer_width)
+                location=Center(), hide_boundaries, boundary_conditions=bc_c, outer_width)
         Architectures.synchronize(arch)
     end
 
