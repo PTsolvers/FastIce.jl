@@ -13,43 +13,44 @@ using MPI
     if !isnothing(offset)
         I += offset
     end
-    f[I] = val + I[1]
+    f[I] = val
 end
 
 MPI.Init()
 
 arch = Architecture(CPU(), (0, 0))
-grid = CartesianGrid(; origin=(0.0, 0.0), extent=(1.0, 1.0), size=(10, 10))
-field = Field(backend(arch), grid, (Vertex(), Vertex()); halo=1)
-
+grid = CartesianGrid(; origin=(0.0, 0.0), extent=(1.0, 1.0), size=(5, 5))
+field = Field(backend(arch), grid, (Center(), Center()); halo=1)
 
 me = global_rank(details(arch))
 
 fill!(parent(field), Inf)
 
-bc = FieldBoundaryConditions((field,), (DirichletBC{FullCell}(-me-10),))
+bc = BoundaryConditionsBatch((field,), (DirichletBC{FullCell}(-me-10),))
 
-boundary_conditions = ((bc, bc),
-                       (bc, bc))
-
-boundary_conditions = ntuple(Val(length(boundary_conditions))) do D
-    ntuple(Val(2)) do S
-        if neighbor(details(arch), D, S) != MPI.PROC_NULL
-            DistributedBoundaryConditions(Val(S), Val(D), (field, ))
-        else
-            boundary_conditions[D][S]
-        end
-    end
-end
+boundary_conditions = override_boundary_conditions(arch, ((bc, bc), (bc, bc)); exchange=true)
 
 hide_boundaries = HideBoundaries{2}(arch)
 
-outer_width = (4, 4)
+outer_width = (2, 2)
 
 launch!(arch, grid, fill_field! => (field, me); location=location(field), hide_boundaries, boundary_conditions, outer_width)
 
 sleep(me)
 @show coordinates(details(arch))
 display(parent(field))
+
+field_g = if global_rank(details(arch)) == 0
+    KernelAbstractions.allocate(Architectures.backend(arch), eltype(field), dimensions(details(arch)) .* size(field))
+else
+    nothing
+end
+
+gather!(arch, field_g, field)
+
+if global_rank(details(arch)) == 0
+    println("global matrix:")
+    display(field_g)
+end
 
 MPI.Finalize()
