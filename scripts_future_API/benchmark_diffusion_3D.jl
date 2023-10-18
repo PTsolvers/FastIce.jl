@@ -80,10 +80,8 @@ function diffusion_3D(ka_backend=CPU())
     end
     # time loop
     for it in 1:nt
-        launch!(arch, grid, update_qC! => (qC, C, dc, Δ);
-                location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
-        launch!(arch, grid, update_C! => (C, qC, dt, Δ);
-                location=Center(), hide_boundaries, boundary_conditions=bc_c, outer_width)
+        launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
+        launch!(arch, grid, update_C! => (C, qC, dt, Δ); location=Center(), hide_boundaries, boundary_conditions=bc_c, outer_width)
         Architectures.synchronize(arch)
     end
 
