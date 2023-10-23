@@ -33,11 +33,11 @@ end
 @inline function apply_boundary_conditions!(::Val{S}, ::Val{D},
                                             arch::Architecture,
                                             grid::CartesianGrid,
-                                            batch::BoundaryConditionsBatch) where {S,D}
+                                            batch::BoundaryConditionsBatch; kwargs...) where {S,D}
     apply_boundary_conditions!(Val(S), Val(D), arch, grid, batch.fields, batch.conditions)
 end
 
-apply_boundary_conditions!(side, val, arch, grid, ::Nothing) = nothing
-apply_boundary_conditions!(side, val, arch, grid, fields, ::Nothing) = nothing
+apply_boundary_conditions!(side, val, arch, grid, ::Nothing; kwargs...) = nothing
+apply_boundary_conditions!(side, val, arch, grid, fields, ::Nothing; kwargs...) = nothing
 
 end
