@@ -39,7 +39,7 @@ function diffusion_2D(ka_backend=CPU())
     lx, ly = 10.0, 10.0
     dc = 1
     # numerics
-    nx, ny = 10, 10
+    nx, ny = 32, 32
     nt = 500
     # preprocessing
     grid = CartesianGrid(; origin=(-0.5lx, -0.5ly),
@@ -81,7 +81,7 @@ function diffusion_2D(ka_backend=CPU())
     if global_rank(topology) == 0
         anim = Animation()
     end
-    for it in 1:5
+    for it in 1:nt
         if global_rank(topology) == 0
             println("it = $it")
         end
@@ -93,9 +93,9 @@ function diffusion_2D(ka_backend=CPU())
         end
         launch!(arch, grid, update_C! => (C, qC, dt, Δ); location=Center(), expand=1)
         Architectures.synchronize(arch)
-        sleep(0.5global_rank(topology))
-        @show coordinates(topology)
-        display(parent(C))
+        # sleep(0.5global_rank(topology))
+        # @show coordinates(topology)
+        # display(parent(C))
         # update_C!(ka_backend, 256, (nx+2, ny+2))(C, qC, dt, Δ, -CartesianIndex(1,1))
         # launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
         MPI.Barrier(cartesian_communicator(topology))
