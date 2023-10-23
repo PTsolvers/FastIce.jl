@@ -39,8 +39,8 @@ function diffusion_2D(ka_backend=CPU())
     lx, ly = 10.0, 10.0
     dc = 1
     # numerics
-    nx, ny = 32, 32
-    nt = 100
+    nx, ny = 10, 10
+    nt = 500
     # preprocessing
     grid = CartesianGrid(; origin=(-0.5lx, -0.5ly),
                          extent=(lx, ly),
@@ -51,40 +51,65 @@ function diffusion_2D(ka_backend=CPU())
     outer_width = (4, 4)
     # fields
     C = Field(arch, grid, Center(); halo=1)
-    qC = (x = Field(arch, grid, (Vertex(), Center())),
-          y = Field(arch, grid, (Center(), Vertex())))
+    qC = (x = Field(arch, grid, (Vertex(), Center()); halo=1),
+          y = Field(arch, grid, (Center(), Vertex()); halo=1))
     C_g = if global_rank(topology) == 0
         KernelAbstractions.allocate(Architectures.backend(arch), eltype(C), dimensions(topology) .* size(C))
     else
         nothing
     end
     # initial condition
-    foreach(comp -> set!(comp, 0.0), qC)
-    set!(C, grid, (x, y) -> exp(-x^2 - y^2))
+    foreach(comp -> fill!(parent(comp), 0.0), qC)
+    fill!(parent(C), 0.0)
+    set!(C, grid, (x, y) -> exp(-(x - 0.1lx)^2 - (y-0.05ly)^2))
     # boundary conditions
     zero_flux_bc = DirichletBC{FullCell}(0.0)
-    bc_q = NamedTuple(comp => BoundaryConditionsBatch((qC[comp],), (zero_flux_bc,)) for comp in eachindex(qC))
+    bc_q = (x = BoundaryConditionsBatch((qC.x, qC.y), (zero_flux_bc, nothing)),
+            y = BoundaryConditionsBatch((qC.x, qC.y), (nothing, zero_flux_bc)))
     # zero flux at physical boundaries and nothing at MPI boundaries
-    bc_q = override_boundary_conditions(arch, ((bc_q.x, bc_q.x), (bc_q.y, bc_q.y)))
+    bc_q = override_boundary_conditions(arch, ((bc_q.x, bc_q.x), (bc_q.y, bc_q.y)); exchange=true)
     # nothing at physical boundaries and communication at MPI boundaries
     bc_c = BoundaryConditionsBatch((C,), nothing)
     bc_c = override_boundary_conditions(arch, ((bc_c, bc_c), (bc_c, bc_c)); exchange=true)
-    ntuple(Val(ndims(grid))) do D
+    for D in ndims(grid):-1:1
         apply_boundary_conditions!(Val(1), Val(D), arch, grid, bc_c[D][1])
         apply_boundary_conditions!(Val(2), Val(D), arch, grid, bc_c[D][2])
+        apply_boundary_conditions!(Val(1), Val(D), arch, grid, bc_q[D][1])
+        apply_boundary_conditions!(Val(2), Val(D), arch, grid, bc_q[D][2])
     end
     # time loop
-    for it in 1:nt
-        launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
-        launch!(arch, grid, update_C! => (C, qC, dt, Δ); location=Center(), hide_boundaries, boundary_conditions=bc_c, outer_width)
-    end
-    Architectures.synchronize(arch)
-
-    gather!(arch, C_g, C)
-
     if global_rank(topology) == 0
-        p1 = heatmap(C_g; aspect_ratio=1, size=(600,600))
-        png(p1, "C.png")
+        anim = Animation()
+    end
+    for it in 1:5
+        if global_rank(topology) == 0
+            println("it = $it")
+        end
+        MPI.Barrier(cartesian_communicator(topology))
+        update_qC!(ka_backend, 256, (nx+1, ny+1))(qC, C, dc, Δ)
+        for D in ndims(grid):-1:1
+            apply_boundary_conditions!(Val(1), Val(D), arch, grid, bc_q[D][1])
+            apply_boundary_conditions!(Val(2), Val(D), arch, grid, bc_q[D][2])
+        end
+        launch!(arch, grid, update_C! => (C, qC, dt, Δ); location=Center(), expand=1)
+        Architectures.synchronize(arch)
+        sleep(0.5global_rank(topology))
+        @show coordinates(topology)
+        display(parent(C))
+        # update_C!(ka_backend, 256, (nx+2, ny+2))(C, qC, dt, Δ, -CartesianIndex(1,1))
+        # launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
+        MPI.Barrier(cartesian_communicator(topology))
+
+        if it % 5 == 0
+            gather!(arch, C_g, C)
+            if global_rank(topology) == 0
+                heatmap(C_g; aspect_ratio=1, size=(600, 600))
+                frame(anim)
+            end
+        end
+    end
+    if global_rank(topology) == 0
+        gif(anim, "C.gif")
     end
 
     return

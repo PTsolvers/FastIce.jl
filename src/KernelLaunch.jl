@@ -9,6 +9,8 @@ export launch!
 function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
                  location=nothing,
                  worksize=nothing,
+                 offset=nothing,
+                 expand=nothing,
                  hide_boundaries=nothing,
                  outer_width=nothing,
                  boundary_conditions=nothing,
@@ -27,15 +29,27 @@ function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
         worksize = size(grid, location)
     end
 
+    if !isnothing(expand)
+        if !isnothing(offset)
+            offset -= oneunit(CartesianIndex{ndims(grid)})
+        else
+            offset = -oneunit(CartesianIndex{ndims(grid)})
+        end
+        worksize = worksize .+ 2 .* expand
+    end
+
     groupsize = heuristic_groupsize(arch, length(worksize))
 
     if isnothing(hide_boundaries)
-        fun(arch.backend, groupsize, worksize)(args...)
+        fun(arch.backend, groupsize, worksize)(args..., offset)
         isnothing(boundary_conditions) || apply_all_boundary_conditions!(arch, grid, boundary_conditions)
     else
         hide(hide_boundaries, arch, grid, boundary_conditions, worksize; outer_width) do indices
-            offset, ndrange = first(indices) - oneunit(first(indices)), size(indices)
-            fun(arch.backend, groupsize)(args..., offset; ndrange)
+            sub_offset, ndrange = first(indices) - oneunit(first(indices)), size(indices)
+            if !isnothing(offset)
+                sub_offset += offset
+            end
+            fun(arch.backend, groupsize)(args..., sub_offset; ndrange)
         end
     end
 

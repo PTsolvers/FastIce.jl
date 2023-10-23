@@ -1,8 +1,10 @@
+const FieldOrNothing = Union{FieldBoundaryCondition,Nothing}
+
 function apply_boundary_conditions!(::Val{S}, ::Val{D},
                                     arch::Architecture,
                                     grid::CartesianGrid,
                                     fields::NTuple{N,Field},
-                                    conditions::NTuple{N,FieldBoundaryCondition}; async=true) where {S,D,N}
+                                    conditions::NTuple{N,FieldOrNothing}; async=true) where {S,D,N}
     _validate_fields(fields, D, S)
     sizes = ntuple(ifield -> remove_dim(Val(D), size(fields[ifield])), Val(length(fields)))
     worksize = remove_dim(Val(D), size(grid, Vertex()))
@@ -23,6 +25,8 @@ end
         end
     end
 end
+
+_apply_field_boundary_condition!(side, dim, grid, field, loc, I, ::Nothing) = nothing
 
 function _validate_fields(fields::NTuple{N,Field}, dim, side) where {N}
     for f in fields
