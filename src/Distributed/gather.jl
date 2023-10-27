@@ -3,7 +3,8 @@ function gather!(dst::Union{AbstractArray,Nothing}, src::AbstractArray, comm::MP
     dims = Tuple(dims)
     if MPI.Comm_rank(comm) == root
         # make subtype for gather
-        subtype = MPI.Types.create_subarray(size(dst), size(src), (0, 0), MPI.Datatype(eltype(dst)))
+        offset  = Tuple(0 for _ in 1:ndims(src))
+        subtype = MPI.Types.create_subarray(size(dst), size(src), offset, MPI.Datatype(eltype(dst)))
         subtype = MPI.Types.create_resized(subtype, 0, size(src, 1) * Base.elsize(dst))
         MPI.Types.commit!(subtype)
         # make VBuffer for collective communication
@@ -15,7 +16,7 @@ function gather!(dst::Union{AbstractArray,Nothing}, src::AbstractArray, comm::MP
                 displs[i, j] = d
                 d += 1
             end
-            d += (size(src, 2) - 1) * dims[2]
+            d += (size(src, 2) - 1) * dims[1]
         end
         # transpose displs as cartesian communicator is row-major
         recvbuf = MPI.VBuffer(dst, vec(counts), vec(displs'), subtype)
