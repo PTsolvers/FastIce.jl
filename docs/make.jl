@@ -10,6 +10,7 @@ makedocs(
     modules = [FastIce],
     pages=[
         "Home" => "index.md",
+        "Usage" => "usage.md",
         "Library" => "library.md"
     ]
 )
