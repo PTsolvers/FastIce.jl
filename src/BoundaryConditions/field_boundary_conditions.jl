@@ -6,22 +6,30 @@ function apply_boundary_conditions!(::Val{S}, ::Val{D},
                                     fields::NTuple{N,Field},
                                     conditions::NTuple{N,FieldOrNothing}; async=true) where {S,D,N}
     _validate_fields(fields, D, S)
-    sizes = ntuple(ifield -> remove_dim(Val(D), size(fields[ifield])), Val(length(fields)))
-    worksize = remove_dim(Val(D), size(grid, Vertex()))
-    _apply_boundary_conditions!(backend(arch), 256, worksize)(Val(S), Val(D), grid, sizes, fields, conditions)
+    sizes = ntuple(ifield -> remove_dim(Val(D), size(parent(fields[ifield]))), Val(N))
+    halos = ntuple(ifield -> remove_dim(Val(D), halo(fields[ifield])), Val(N))
+    offsets = ntuple(Val(N)) do ifield
+        NF = ndims(fields[ifield]) - 1
+        ntuple(Val(NF)) do RD
+            -halos[ifield][RD][1]
+        end |> CartesianIndex
+    end
+    worksize = maximum(sizes)
+    _apply_boundary_conditions!(backend(arch), 256, worksize)(Val(S), Val(D), grid, sizes, offsets, fields, conditions)
     async || KernelAbstractions.synchronize(backend(arch))
     return
 end
 
-@kernel function _apply_boundary_conditions!(side, dim, grid, sizes, fields, conditions)
+@kernel function _apply_boundary_conditions!(side, dim, grid, sizes, offsets, fields, conditions)
     I = @index(Global, Cartesian)
     # ntuple here unrolls the loop over fields
     ntuple(Val(length(fields))) do ifield
         Base.@_inline_meta
         if _checkindices(sizes[ifield], I)
-            field = fields[ifield]
+            Ibc       = I + offsets[ifield]
+            field     = fields[ifield]
             condition = conditions[ifield]
-            _apply_field_boundary_condition!(side, dim, grid, field, location(field), I, condition)
+            _apply_field_boundary_condition!(side, dim, grid, field, location(field), Ibc, condition)
         end
     end
 end

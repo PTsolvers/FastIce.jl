@@ -33,14 +33,14 @@ end
 
 function diffusion_2D(ka_backend=CPU())
     # setup arch
-    arch = Architecture(ka_backend, (0, 0))
+    arch     = Architecture(ka_backend, (0, 0))
     topology = details(arch)
     # physics
-    lx, ly = 10.0, 10.0
+    lx, ly = 1.0, 1.0
     dc = 1
     # numerics
     nx, ny = 32, 32
-    nt = 500
+    nt = 1000
     # preprocessing
     grid = CartesianGrid(; origin=(-0.5lx, -0.5ly),
                          extent=(lx, ly),
@@ -60,8 +60,9 @@ function diffusion_2D(ka_backend=CPU())
     end
     # initial condition
     foreach(comp -> fill!(parent(comp), 0.0), qC)
-    fill!(parent(C), 0.0)
-    set!(C, grid, (x, y) -> exp(-(x - 0.1lx)^2 - (y-0.05ly)^2))
+    # fill!(parent(C), me)
+    set!(C, grid, (x, y) -> exp(-x^2 - y^2))
+    # set!(C, me)
     # boundary conditions
     zero_flux_bc = DirichletBC{FullCell}(0.0)
     bc_q = (x = BoundaryConditionsBatch((qC.x, qC.y), (zero_flux_bc, nothing)),
@@ -85,21 +86,8 @@ function diffusion_2D(ka_backend=CPU())
         if global_rank(topology) == 0
             println("it = $it")
         end
-        MPI.Barrier(cartesian_communicator(topology))
-        update_qC!(ka_backend, 256, (nx+1, ny+1))(qC, C, dc, Δ)
-        for D in ndims(grid):-1:1
-            apply_boundary_conditions!(Val(1), Val(D), arch, grid, bc_q[D][1])
-            apply_boundary_conditions!(Val(2), Val(D), arch, grid, bc_q[D][2])
-        end
+        launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
         launch!(arch, grid, update_C! => (C, qC, dt, Δ); location=Center(), expand=1)
-        Architectures.synchronize(arch)
-        # sleep(0.5global_rank(topology))
-        # @show coordinates(topology)
-        # display(parent(C))
-        # update_C!(ka_backend, 256, (nx+2, ny+2))(C, qC, dt, Δ, -CartesianIndex(1,1))
-        # launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
-        MPI.Barrier(cartesian_communicator(topology))
-
         if it % 5 == 0
             gather!(arch, C_g, C)
             if global_rank(topology) == 0
