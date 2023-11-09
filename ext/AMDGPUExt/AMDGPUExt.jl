@@ -1,12 +1,12 @@
 module AMDGPUExt
 
-using AMDGPU
+using AMDGPU, AMDGPU.ROCKernels
 
 import FastIce.Architecture: heuristic_groupsize, set_device!
 
 set_device!(dev::HIPDevice) = AMDGPU.device!(dev)
 
-set_device!(::HIPDevice, id::Integer) = AMDGPU.device_id!(id)
+get_device(::ROCBackend, id::Integer) = HIPDevice(id)
 
 heuristic_groupsize(::HIPDevice, ::Val{1}) = (256, )
 heuristic_groupsize(::HIPDevice, ::Val{2}) = (128, 2, )
