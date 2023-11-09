@@ -2,7 +2,7 @@ module CUDAExt
 
 using CUDA, CUDA.CUDAKernels
 
-import FastIce.Architecture: heuristic_groupsize, set_device!
+import FastIce.Architecture: heuristic_groupsize, set_device!, get_device
 
 set_device!(dev::CuDevice) = CUDA.device!(dev)
 

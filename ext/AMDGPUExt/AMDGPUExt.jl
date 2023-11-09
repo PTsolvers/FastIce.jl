@@ -2,7 +2,7 @@ module AMDGPUExt
 
 using AMDGPU, AMDGPU.ROCKernels
 
-import FastIce.Architecture: heuristic_groupsize, set_device!
+import FastIce.Architecture: heuristic_groupsize, set_device!, get_device
 
 set_device!(dev::HIPDevice) = AMDGPU.device!(dev)
 
