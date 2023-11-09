@@ -1,6 +1,6 @@
 module CUDAExt
 
-using CUDA, CUDA.CUDAKernels
+using FastIce, CUDA, CUDA.CUDAKernels
 
 import FastIce.Architectures: heuristic_groupsize, set_device!, get_device
 
