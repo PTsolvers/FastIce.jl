@@ -1,4 +1,4 @@
-module CUDAExt
+module FsatIceCUDAExt
 
 using FastIce, CUDA, CUDA.CUDAKernels
 

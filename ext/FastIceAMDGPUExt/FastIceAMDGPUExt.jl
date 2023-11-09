@@ -1,4 +1,4 @@
-module AMDGPUExt
+module FastIceAMDGPUExt
 
 using FastIce, AMDGPU, AMDGPU.ROCKernels
 import FastIce.Architectures: heuristic_groupsize, set_device!, get_device
