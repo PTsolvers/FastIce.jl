@@ -45,6 +45,6 @@ function extrapolate!(A::Field; async=true)
     kernel_extrapolate_x!(backend, 256, (size(A, 2) + 2, size(A, 3) + 2))(A, I[1], N[1])
     kernel_extrapolate_y!(backend, 256, (size(A, 1) + 2, size(A, 3) + 2))(A, I[2], N[2])
     kernel_extrapolate_z!(backend, 256, (size(A, 1) + 2, size(A, 2) + 2))(A, I[3], N[3])
-    async || synchronize(backend)
+    async || KernelAbstractions.synchronize(backend)
     return
 end
