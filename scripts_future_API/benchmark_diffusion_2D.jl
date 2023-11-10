@@ -33,19 +33,21 @@ end
 
 function diffusion_2D(ka_backend=CPU())
     # setup arch
-    arch     = Architecture(ka_backend, (0, 0))
-    topology = details(arch)
+    arch = Architecture(ka_backend, (0, 0))
+    topo = details(arch)
     # physics
-    lx, ly = 1.0, 1.0
+    lx, ly = 10.0, 10.0
     dc = 1
     # numerics
-    nx, ny = 32, 32
+    size_g = (32, 32)
     nt = 1000
     # preprocessing
-    grid = CartesianGrid(; origin=(-0.5lx, -0.5ly),
-                         extent=(lx, ly),
-                         size=(nx, ny))
-    Δ = NamedTuple{(:x, :y)}(spacing(grid))
+    size_g = global_grid_size(topo, size_g)
+    global_grid = CartesianGrid(; origin=(-0.5lx, -0.5ly),
+                                extent=(lx, ly),
+                                size=size_g)
+    grid = local_grid(global_grid, topo)
+    Δ = NamedTuple{(:x, :y)}(spacing(global_grid))
     dt = minimum(Δ)^2 / dc / ndims(grid) / 2.1
     hide_boundaries = HideBoundaries{ndims(grid)}(arch)
     outer_width = (4, 4)
@@ -53,8 +55,8 @@ function diffusion_2D(ka_backend=CPU())
     C = Field(arch, grid, Center(); halo=1)
     qC = (x = Field(arch, grid, (Vertex(), Center()); halo=1),
           y = Field(arch, grid, (Center(), Vertex()); halo=1))
-    C_g = if global_rank(topology) == 0
-        KernelAbstractions.allocate(Architectures.backend(arch), eltype(C), dimensions(topology) .* size(C))
+    C_g = if global_rank(topo) == 0
+        KernelAbstractions.allocate(Architectures.backend(arch), eltype(C), size_g)
     else
         nothing
     end
@@ -79,24 +81,23 @@ function diffusion_2D(ka_backend=CPU())
         apply_boundary_conditions!(Val(2), Val(D), arch, grid, bc_q[D][2])
     end
     # time loop
-    if global_rank(topology) == 0
+    if global_rank(topo) == 0
         anim = Animation()
     end
     for it in 1:nt
-        if global_rank(topology) == 0
-            println("it = $it")
-        end
+        (global_rank(topo) == 0) && println("it = $it")
         launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
         launch!(arch, grid, update_C! => (C, qC, dt, Δ); location=Center(), expand=1)
+        Architectures.synchronize(arch)
         if it % 5 == 0
             gather!(arch, C_g, C)
-            if global_rank(topology) == 0
-                heatmap(C_g; aspect_ratio=1, size=(600, 600))
+            if global_rank(topo) == 0
+                heatmap(C_g; aspect_ratio=1, size=(600, 600), clims=(0, 1))
                 frame(anim)
             end
         end
     end
-    if global_rank(topology) == 0
+    if global_rank(topo) == 0
         gif(anim, "C.gif")
     end
 

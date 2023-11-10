@@ -38,18 +38,20 @@ end
 function diffusion_3D(ka_backend=CPU())
     # setup arch
     arch = Architecture(ka_backend, (0, 0, 0))
-    topology = details(arch)
+    topo = details(arch)
     # physics
     lx, ly, lz = 10.0, 10.0, 10.0
     dc = 1
     # numerics
-    nx, ny, nz = 32, 32, 32
+    size_g = (32, 32, 32)
     nt = 100
     # preprocessing
-    grid = CartesianGrid(; origin=(-0.5lx, -0.5ly, -0.5lz),
-                         extent=(lx, ly, lz),
-                         size=(nx, ny, nz))
-    Δ = NamedTuple{(:x, :y, :z)}(spacing(grid))
+    size_g = global_grid_size(topo, size_g)
+    global_grid = CartesianGrid(; origin=(-0.5lx, -0.5ly, -0.5lz),
+                                extent=(lx, ly, lz),
+                                size=size_g)
+    grid = local_grid(global_grid, topo)
+    Δ = NamedTuple{(:x, :y, :z)}(spacing(global_grid))
     dt = minimum(Δ)^2 / dc / ndims(grid) / 2.1
     hide_boundaries = HideBoundaries{ndims(grid)}(arch)
     outer_width = (4, 4, 4)
@@ -58,8 +60,8 @@ function diffusion_3D(ka_backend=CPU())
     qC = (x = Field(arch, grid, (Vertex(), Center(), Center())),
           y = Field(arch, grid, (Center(), Vertex(), Center())),
           z = Field(arch, grid, (Center(), Center(), Vertex())))
-    C_g = if global_rank(topology) == 0
-        KernelAbstractions.allocate(Architectures.backend(arch), eltype(C), dimensions(topology) .* size(C))
+    C_g = if global_rank(topo) == 0
+        KernelAbstractions.allocate(Architectures.backend(arch), eltype(C), size_g)
     else
         nothing
     end
@@ -80,6 +82,7 @@ function diffusion_3D(ka_backend=CPU())
     end
     # time loop
     for it in 1:nt
+        (global_rank(topo) == 0) && println("it = $it")
         launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
         launch!(arch, grid, update_C! => (C, qC, dt, Δ); location=Center(), hide_boundaries, boundary_conditions=bc_c, outer_width)
         Architectures.synchronize(arch)
@@ -87,8 +90,9 @@ function diffusion_3D(ka_backend=CPU())
 
     gather!(arch, C_g, C)
 
-    if global_rank(topology) == 0
-        p1 = heatmap(interior(C)[:, :, nz÷2]; aspect_ratio=1)
+    if global_rank(topo) == 0
+        p1 = heatmap(xcenters(global_grid), ycenters(global_grid), C_g[:, :, size_g[3]÷2];
+                     aspect_ratio=1, xlims=extrema(xcenters(global_grid)), ylims=extrema(ycenters(global_grid)))
         png(p1, "C.png")
     end
 
