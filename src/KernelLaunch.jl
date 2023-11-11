@@ -41,7 +41,7 @@ function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
     groupsize = heuristic_groupsize(arch, length(worksize))
 
     if isnothing(hide_boundaries)
-        fun(arch.backend, groupsize, worksize)(args..., offset)
+        fun(backend(arch), groupsize, worksize)(args..., offset)
         isnothing(boundary_conditions) || apply_all_boundary_conditions!(arch, grid, boundary_conditions)
     else
         hide(hide_boundaries, arch, grid, boundary_conditions, worksize; outer_width) do indices
@@ -49,11 +49,11 @@ function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
             if !isnothing(offset)
                 sub_offset += offset
             end
-            fun(arch.backend, groupsize)(args..., sub_offset; ndrange)
+            fun(backend(arch), groupsize)(args..., sub_offset; ndrange)
         end
     end
 
-    async || KernelAbstractions.synchronize(arch.backend)
+    async || KernelAbstractions.synchronize(backend(arch))
     return
 end
 

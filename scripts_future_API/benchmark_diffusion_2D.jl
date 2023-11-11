@@ -88,7 +88,7 @@ function diffusion_2D(ka_backend=CPU())
         (global_rank(topo) == 0) && println("it = $it")
         launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
         launch!(arch, grid, update_C! => (C, qC, dt, Δ); location=Center(), expand=1)
-        synchronize(arch.backend)
+        synchronize(Architectures.backend(arch))
         if it % 5 == 0
             gather!(arch, C_g, C)
             if global_rank(topo) == 0

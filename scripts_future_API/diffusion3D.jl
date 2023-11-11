@@ -11,11 +11,11 @@ using Plots
 
 backend = CPU()
 
-# if I < size(grid, location(Field))
-
-@kernel function update_qT!(qT, T, λ, Δ, nx, ny, nz, offset=nothing)
+@kernel function update_qT!(qT, T, λ, Δ, nx, ny, nz, grid, offset=nothing)
     I = @index(Global, Cartesian)
-    @inbounds if (I[1] <= nx+1 && I[2] <= ny && I[3] <= nz)
+    @inline isin(Field) = (I <= CartesianIndex(size(grid, location(Field))))
+    # @inbounds if (I[1] <= nx+1 && I[2] <= ny && I[3] <= nz)
+    @inbounds if isin(qT.x)
         qT.x[I] = - avᵛx(λ, I) * ∂ᵛx(T, I) / Δ.x
     end
     @inbounds if (I[1] <= nx && I[2] <= ny+1 && I[3] <= nz)
@@ -61,7 +61,7 @@ function diffusion(ka_backend=CPU())
     # initial condition
     foreach(comp -> set!(comp, 0.0), qT)
     set!(λ, λ0)
-    extrapolate!(λ)
+    extrapolate!(arch, λ)
     fill!(parent(T), 0.0)
     set!(T, grid, (x, y, z) -> exp(-x^2 - y^2 - z^2))
     # boundary conditions
@@ -98,9 +98,9 @@ function diffusion(ka_backend=CPU())
         # bc_x!(bc_q); bc_y!(bc_q); bc_z!(bc_q)
         # update_T!(ka_backend, 256, (nx, ny, nz))(T, qT, ρ_cp, dt, Δ)
         # FastIce version
-        launch!(arch, grid, update_qT! => (qT, T, λ, Δ, nx, ny, nz); location=Vertex(), boundary_conditions=bc_q)
+        launch!(arch, grid, update_qT! => (qT, T, λ, Δ, nx, ny, nz, grid); location=Vertex(), boundary_conditions=bc_q)
         launch!(arch, grid, update_T! => (T, qT, ρ_cp, dt, Δ); location=Center(), boundary_conditions=bc_t)
-        Architectures.synchronize(arch)
+        KernelAbstractions.synchronize(backend(arch))
     end
     # visualise
     p1 = heatmap(xcenters(grid), ycenters(grid), interior(T)[:, :, nz÷2]'; aspect_ratio=1, xlims=extrema(xcenters(grid)), ylims=extrema(ycenters(grid)))
