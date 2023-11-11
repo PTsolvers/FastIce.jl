@@ -53,7 +53,7 @@ function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
         end
     end
 
-    async || Architectures.synchronize(arch)
+    async || KernelAbstractions.synchronize(arch.backend)
     return
 end
 

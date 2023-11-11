@@ -16,7 +16,7 @@ function apply_boundary_conditions!(::Val{S}, ::Val{D},
     end
     worksize = maximum(sizes)
     _apply_boundary_conditions!(backend(arch), 256, worksize)(Val(S), Val(D), grid, sizes, offsets, fields, conditions)
-    async || Architectures.synchronize(arch)
+    async || KernelAbstractions.synchronize(arch.backend)
     return
 end
 

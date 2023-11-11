@@ -3,7 +3,7 @@ module Architectures
 export Architecture
 
 export launch!, set_device!, get_device, set_device_and_priority!, heuristic_groupsize
-export synchronize, backend, device, details
+export backend, device, details
 
 using FastIce.Grids
 
@@ -25,8 +25,6 @@ end
 device(arch::Architecture) = arch.device
 backend(arch::Architecture) = arch.backend
 details(arch::Architecture) = arch.details
-
-synchronize(arch::Architecture) = KernelAbstractions.synchronize(arch.backend)
 
 set_device!(arch::Architecture) = set_device!(arch.device)
 

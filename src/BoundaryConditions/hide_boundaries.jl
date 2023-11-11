@@ -23,7 +23,7 @@ function hide(fun::F, hb::HideBoundaries{N}, arch::Architecture, grid::Cartesian
             put!(pipe) do
                 fun(range)
                 apply_boundary_conditions!(Val(side), Val(dim), arch, grid, batch)
-                Architectures.synchronize(arch)
+                KernelAbstractions.synchronize(arch.backend)
             end
         end
         wait.(hb.pipelines[dim]) # synchronize spatial dimension

@@ -29,7 +29,7 @@ function apply_boundary_conditions!(::Val{S}, ::Val{D},
         send_view = get_send_view(Val(S), Val(D), fields[idx])
         copyto!(info.send_buffer, send_view)
     end
-    Architectures.synchronize(arch)
+    KernelAbstractions.synchronize(arch.backend)
 
     # initiate non-blocking MPI send
     for idx in eachindex(fields)
@@ -54,7 +54,7 @@ function apply_boundary_conditions!(::Val{S}, ::Val{D},
         end
         yield()
     end
-    async || Architectures.synchronize(arch)
+    async || KernelAbstractions.synchronize(arch.backend)
 
     return
 end
