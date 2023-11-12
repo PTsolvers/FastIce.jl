@@ -34,7 +34,7 @@ end
                                             arch::Architecture,
                                             grid::CartesianGrid,
                                             batch::BoundaryConditionsBatch; kwargs...) where {S,D}
-    apply_boundary_conditions!(Val(S), Val(D), arch, grid, batch.fields, batch.conditions)
+    apply_boundary_conditions!(Val(S), Val(D), arch, grid, batch.fields, batch.conditions; kwargs...)
 end
 
 apply_boundary_conditions!(side, val, arch, grid, ::Nothing; kwargs...) = nothing
