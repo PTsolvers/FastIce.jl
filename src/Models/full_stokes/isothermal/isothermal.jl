@@ -3,6 +3,7 @@ module Isothermal
 export BoundaryCondition, Traction, Velocity, Slip
 export IsothermalFullStokesModel, advance_iteration!, advance_timestep!
 
+using FastIce.Architectures
 using FastIce.Physics
 using FastIce.Grids
 using FastIce.Fields
@@ -78,7 +79,7 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async=true
             location=Vertex(), boundary_conditions=model.boundary_conditions.velocity)
 
     # rheology
-    launch!(model.arch, grid, update_η! => (η, η_rh, η_rel, model.grid, model.fields); location=Center())
+    launch!(model.arch, model.grid, update_η! => (η, η_rh, η_rel, model.grid, model.fields); location=Center())
     extrapolate!(η)
 
     async || synchronize(backend(model.arch))

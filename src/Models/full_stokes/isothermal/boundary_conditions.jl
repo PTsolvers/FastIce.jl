@@ -57,6 +57,14 @@ for (dim, val) in _COORDINATES
     end
 end
 
+function make_batch(::CartesianGrid{2}, bcs::NamedTuple{bnames, Tuple{}}, fields::NamedTuple) where {bnames}
+    return nothing
+end
+
+function make_batch(::CartesianGrid{3}, bcs::NamedTuple{bnames, Tuple{}}, fields::NamedTuple) where {bnames}
+    return nothing
+end
+
 function make_batch(::CartesianGrid{2}, bcs::NamedTuple, fields::NamedTuple)
     field_map = (Pr  = fields.Pr,
                  τxx = fields.τ.xx, τyy = fields.τ.yy, τxy = fields.τ.xy,
@@ -87,15 +95,12 @@ function make_field_boundary_conditions(grid::CartesianGrid{N}, fields, logical_
 
     field_bcs = ntuple(Val(N)) do dim
         left, right = logical_boundary_conditions[ordering[dim]]
-
         left  = extract_boundary_conditions(Val(dim), left)
         right = extract_boundary_conditions(Val(dim), right)
-
         Tuple(zip(left, right))
     end
 
     stress, velocity = zip(field_bcs...)
-
     stress   = make_batches(grid, stress, fields)
     velocity = make_batches(grid, velocity, fields)
 

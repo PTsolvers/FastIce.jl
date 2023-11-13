@@ -2,14 +2,16 @@ using KernelAbstractions
 
 using FastIce.GridOperators
 
-@kernel function update_η!(η, η_rh, χ, grid, fields, args...)
+@kernel function update_η!(η, η_rh, χ, grid, fields, offset=nothing)
     I = @index(Global, Cartesian)
-    ηt = η_rh(grid, I, fields, args...)
+    isnothing(offset) || (I += offset)
+    ηt = η_rh(grid, I, fields)
     @inbounds η[I] = exp(log(η[I]) * (1 - χ) + log(ηt) * χ)
 end
 
-@kernel function update_σ!(Pr, τ, V, η, Δτ, Δ)
+@kernel function update_σ!(Pr, τ, V, η, Δτ, Δ, offset=nothing)
     I = @index(Global, Cartesian)
+    isnothing(offset) || (I += offset)
     @inbounds if checkbounds(Bool, Pr, I)
         ε̇xx = ∂ᶜx(V.x, I) / Δ.x
         ε̇yy = ∂ᶜy(V.y, I) / Δ.y
@@ -36,8 +38,9 @@ end
     end
 end
 
-@kernel function update_V!(V, Pr, τ, η, Δτ, Δ)
+@kernel function update_V!(V, Pr, τ, η, Δτ, Δ, offset=nothing)
     I = @index(Global, Cartesian)
+    isnothing(offset) || (I += offset)
     @inbounds if checkbounds(Bool, V.x, I)
         ∂σxx_∂x = (-∂ᵛx(Pr, I) + ∂ᵛx(τ.xx, I)) / Δ.x
         ∂τxy_∂y = ∂ᶜy(τ.xy, I) / Δ.y
