@@ -1,15 +1,18 @@
 struct Traction end
 struct Velocity end
-struct Slip     end
+struct Slip end
 
-struct BoundaryCondition{Kind, N, C}
+"""
+Boundary condition for Stokes problem.
+"""
+struct BoundaryCondition{Kind,N,C}
     components::C
-    BoundaryCondition{Kind}(components::Tuple) where {Kind} = new{Kind, length(components), typeof(components)}(components)
+    BoundaryCondition{Kind}(components::Tuple) where {Kind} = new{Kind,length(components),typeof(components)}(components)
 end
 
 BoundaryCondition{Kind}(components...) where {Kind} = BoundaryCondition{Kind}(components)
 
-const _COORDINATES  = ((:x, 1), (:y, 2), (:z, 3))
+const _COORDINATES = ((:x, 1), (:y, 2), (:z, 3))
 
 for (dim, val) in _COORDINATES
     td = remove_dim(Val(val), _COORDINATES)
@@ -20,7 +23,7 @@ for (dim, val) in _COORDINATES
     N  = Symbol(:τ, dim, dim)
 
     ex1 = Expr(:(=), :Pr, :(DirichletBC{HalfCell}(bc.components[$val])))
-    ex2 = Expr(:(=), N,   :(DirichletBC{HalfCell}(convert(eltype(bc.components[$val]), 0))))
+    ex2 = Expr(:(=), N, :(DirichletBC{HalfCell}(convert(eltype(bc.components[$val]), 0))))
     ex3 = ntuple(Val(length(TN))) do I
         Expr(:(=), TN[I], :(DirichletBC{FullCell}(bc.components[$(td[I][2])])))
     end
@@ -54,59 +57,47 @@ for (dim, val) in _COORDINATES
     end
 end
 
-no_bcs(names) = NamedTuple(f => nothing for f in names)
-
-unique_names(a, b) = Tuple(unique(tuple(a..., b...)))
-
-function expand_boundary_conditions(left, right)
-    names = unique_names(keys(left), keys(right))
-
-    if isempty(names)
-        return nothing
-    end
-
-    default = no_bcs(names)
-    left    = merge(default, left)
-    right   = merge(default, right)
-
-    return NamedTuple{names}(zip(left, right))
+function make_batch(::CartesianGrid{2}, bcs::NamedTuple, fields::NamedTuple)
+    field_map = (Pr  = fields.Pr,
+                 τxx = fields.τ.xx, τyy = fields.τ.yy, τxy = fields.τ.xy,
+                 Vx  = fields.V.x, Vy  = fields.V.y)
+    batch_fields = Tuple(field_map[name] for name in eachindex(bcs))
+    return BoundaryConditionsBatch(batch_fields, values(bcs))
 end
 
-function make_field_boundary_conditions(bcs)
-    ordering = (
-        (:west  , :east),
-        (:south , :north),
-        (:bottom, :top),
-    )
+function make_batch(::CartesianGrid{3}, bcs::NamedTuple, fields::NamedTuple)
+    field_map = (Pr  = fields.Pr,
+                 τxx = fields.τ.xx, τyy = fields.τ.yy, τzz = fields.τ.zz,
+                 τxy = fields.τ.xy, τxz = fields.τ.xz, τyz = fields.τ.yz,
+                 Vx  = fields.V.x, Vy  = fields.V.y, Vz  = fields.V.z)
+    batch_fields = Tuple(field_map[name] for name in eachindex(bcs))
+    return BoundaryConditionsBatch(batch_fields, values(bcs))
+end
 
-    field_bcs = ntuple(Val(length(ordering))) do dim
-        left, right = bcs[ordering[dim]]
+function make_batches(grid, bcs, fields)
+    ntuple(Val(ndims(grid))) do D
+        ntuple(Val(2)) do S
+            make_batch(grid, bcs[D][S], fields)
+        end
+    end
+end
+
+function make_field_boundary_conditions(grid::CartesianGrid{N}, fields, logical_boundary_conditions) where {N}
+    ordering = (:x, :y, :z)
+
+    field_bcs = ntuple(Val(N)) do dim
+        left, right = logical_boundary_conditions[ordering[dim]]
 
         left  = extract_boundary_conditions(Val(dim), left)
         right = extract_boundary_conditions(Val(dim), right)
 
-        stress, velocity = Tuple(zip(left, right))
-
-        stress   = expand_boundary_conditions(stress...)
-        velocity = expand_boundary_conditions(velocity...)
-
-        stress, velocity
+        Tuple(zip(left, right))
     end
 
-    return NamedTuple{(:stress, :velocity)}(zip(field_bcs...))
-end
+    stress, velocity = zip(field_bcs...)
 
-function _apply_bcs!(backend, grid, fields, bcs)
-    field_map = (Pr = fields.Pr,
-            τxx = fields.τ.xx, τyy = fields.τ.yy, τzz = fields.τ.zz,
-            τxy = fields.τ.xy, τxz = fields.τ.xz, τyz = fields.τ.yz,
-             Vx = fields.V.x ,  Vy = fields.V.y ,  Vz = fields.V.z)
-    
-    ntuple(Val(length(bcs))) do D
-        if !isnothing(bcs[D])
-            fs = Tuple( field_map[f] for f in eachindex(bcs[D]) )
-            apply_bcs!(Val(D), backend, grid, fs, values(bcs[D]))
-        end
-    end
-    return
+    stress   = make_batches(grid, stress, fields)
+    velocity = make_batches(grid, velocity, fields)
+
+    return (; stress, velocity)
 end
