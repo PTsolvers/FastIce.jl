@@ -62,9 +62,9 @@ function diffusion_3D(ka_backend=CPU(), dTyp::DataType=Float64, dims=(0,0,0); do
     lx, ly, lz = 10.0, 10.0, 10.0
     dc = 1
     # numerics
-    size = (511, 511, 511)
+    size = (1023, 1023, 1023)
     nt = 100
-    iters, warmup = 100, 10
+    iters, warmup = 20, 5
     # preprocessing
     size_g = global_grid_size(topo, size)
     global_grid = CartesianGrid(; origin=(-0.5lx, -0.5ly, -0.5lz),
