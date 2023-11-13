@@ -3,13 +3,18 @@ using FastIce.GridOperators
 using FastIce.Fields
 using FastIce.Architectures
 using FastIce.BoundaryConditions
-using FastIce.Distributed
 using FastIce.KernelLaunch
 
 using KernelAbstractions
+using AMDGPU
+
+using FastIce.Distributed
 using MPI
 
+using Printf
 using Plots
+
+# @inline isin(Field) = (I <= CartesianIndex(size(grid, location(Field))))
 
 @kernel function update_C!(C, qC, dt, Δ, offset=nothing)
     I = @index(Global, Cartesian)
@@ -35,18 +40,33 @@ end
     end
 end
 
-function diffusion_3D(ka_backend=CPU())
+function compute(arch, grid, hide_boundaries, bc_q, bc_c, outer_width, qC, C, dc, dt, Δ, iters)
+    tic = time_ns()
+    for _ in 1:iters
+        launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
+        launch!(arch, grid, update_C! => (C, qC, dt, Δ); location=Center(), hide_boundaries, boundary_conditions=bc_c, outer_width)
+        synchronize(Architectures.backend(arch))
+    end
+    wtime = (time_ns() - tic) * 1e-9
+    return wtime
+end
+
+function diffusion_3D(ka_backend=CPU(), dTyp::DataType=Float64, dims=(0,0,0); do_visu=true)
     # setup arch
-    arch = Architecture(ka_backend, (0, 0, 0))
+    arch = Architecture(ka_backend, dims)
     topo = details(arch)
+    set_device!(arch)
+    me = global_rank(topo)
+    comm = cartesian_communicator(topo)
     # physics
     lx, ly, lz = 10.0, 10.0, 10.0
     dc = 1
     # numerics
-    size_g = (32, 32, 32)
+    size = (511, 511, 511)
     nt = 100
+    iters, warmup = 100, 10
     # preprocessing
-    size_g = global_grid_size(topo, size_g)
+    size_g = global_grid_size(topo, size)
     global_grid = CartesianGrid(; origin=(-0.5lx, -0.5ly, -0.5lz),
                                 extent=(lx, ly, lz),
                                 size=size_g)
@@ -54,17 +74,12 @@ function diffusion_3D(ka_backend=CPU())
     Δ = NamedTuple{(:x, :y, :z)}(spacing(global_grid))
     dt = minimum(Δ)^2 / dc / ndims(grid) / 2.1
     hide_boundaries = HideBoundaries{ndims(grid)}(arch)
-    outer_width = (4, 4, 4)
+    outer_width = (128, 32, 4)
     # fields
-    C = Field(arch, grid, Center(); halo=1)
-    qC = (x = Field(arch, grid, (Vertex(), Center(), Center())),
-          y = Field(arch, grid, (Center(), Vertex(), Center())),
-          z = Field(arch, grid, (Center(), Center(), Vertex())))
-    C_g = if global_rank(topo) == 0
-        KernelAbstractions.allocate(Architectures.backend(arch), eltype(C), size_g)
-    else
-        nothing
-    end
+    C = Field(arch, grid, Center(), dTyp; halo=1)
+    qC = (x = Field(arch, grid, (Vertex(), Center(), Center()), dTyp),
+          y = Field(arch, grid, (Center(), Vertex(), Center()), dTyp),
+          z = Field(arch, grid, (Center(), Center(), Vertex()), dTyp))
     # initial condition
     foreach(comp -> set!(comp, 0.0), qC)
     set!(C, grid, (x, y, z) -> exp(-x^2 - y^2 - z^2))
@@ -80,25 +95,48 @@ function diffusion_3D(ka_backend=CPU())
         apply_boundary_conditions!(Val(1), Val(D), arch, grid, bc_c[D][1])
         apply_boundary_conditions!(Val(2), Val(D), arch, grid, bc_c[D][2])
     end
-    # time loop
-    for it in 1:nt
-        (global_rank(topo) == 0) && println("it = $it")
-        launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
-        launch!(arch, grid, update_C! => (C, qC, dt, Δ); location=Center(), hide_boundaries, boundary_conditions=bc_c, outer_width)
-        synchronize(Architectures.backend(arch))
+    # # time loop
+    # for it in 1:nt
+    #     (me == 0) && println("it = $it")
+    #     launch!(arch, grid, update_qC! => (qC, C, dc, Δ); location=Vertex(), hide_boundaries, boundary_conditions=bc_q, outer_width)
+    #     launch!(arch, grid, update_C! => (C, qC, dt, Δ); location=Center(), hide_boundaries, boundary_conditions=bc_c, outer_width)
+    #     synchronize(Architectures.backend(arch))
+    # end
+
+    # measure perf
+    # warmup
+    compute(arch, grid, hide_boundaries, bc_q, bc_c, outer_width, qC, C, dc, dt, Δ, warmup)
+    # time
+    MPI.Barrier(comm)
+    for ex in 1:5
+        (me==0) && (sleep(2); println("Experiment = $ex"))
+        MPI.Barrier(comm)
+        wtime = compute(arch, grid, hide_boundaries, bc_q, bc_c, outer_width, qC, C, dc, dt, Δ, (iters - warmup))
+        # report
+        A_eff = 12 / 2^30 * prod(size) * sizeof(dTyp)
+        wtime_it = wtime ./ (iters - warmup)
+        T_eff = A_eff ./ wtime_it
+        @printf("  Executed %d steps in = %1.3e sec (@ T_eff = %1.2f GB/s - device %s) \n", (iters - warmup), wtime, round(T_eff, sigdigits=3), AMDGPU.device_id(AMDGPU.device()))
     end
 
-    gather!(arch, C_g, C)
-
-    if global_rank(topo) == 0
-        p1 = heatmap(xcenters(global_grid), ycenters(global_grid), C_g[:, :, size_g[3]÷2];
-                     aspect_ratio=1, xlims=extrema(xcenters(global_grid)), ylims=extrema(ycenters(global_grid)))
-        png(p1, "C.png")
+    if do_visu
+        ENV["GKSwstype"]="nul"
+        C_g = (me == 0) ? KernelAbstractions.allocate(Architectures.backend(arch), eltype(C), size_g) : nothing
+        gather!(arch, C_g, C)
+        if me == 0
+            p1 = heatmap(xcenters(global_grid), ycenters(global_grid), Array(C_g)[:, :, size_g[3]÷2];
+            aspect_ratio=1, xlims=extrema(xcenters(global_grid)), ylims=extrema(ycenters(global_grid)))
+            png(p1, "C.png")
+        end
     end
 
     return
 end
 
+ka_backend = ROCBackend()
+T::DataType = Float64
+dims = (0, 0, 0)
+
 MPI.Init()
-diffusion_3D()
+diffusion_3D(ka_backend, T, dims; do_visu=false)
 MPI.Finalize()
