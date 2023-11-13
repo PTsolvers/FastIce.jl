@@ -23,7 +23,7 @@ struct DistributedMPI end
 
 function Architectures.Architecture(backend::Backend, dims::NTuple{N,Int}, comm::MPI.Comm=MPI.COMM_WORLD) where {N}
     topo = CartesianTopology(dims; comm)
-    device = get_device(backend, shared_rank(topo))
+    device = get_device(backend, shared_rank(topo)+1)
     return Architecture{DistributedMPI,typeof(backend),typeof(device),typeof(topo)}(backend, device, topo)
 end
 

@@ -38,6 +38,6 @@ set_device!(::Architecture{Kind,CPU}) where {Kind} = nothing
 get_device(::CPU, id::Integer) = nothing
 
 heuristic_groupsize(arch::Architecture, ::Val{N}) where {N} = heuristic_groupsize(arch.device, Val(N))
-heuristic_groupsize(::Architecture{Kind,CPU}, N) where {Kind} = 256
+heuristic_groupsize(::Architecture{Kind,CPU}, ::Val{N}) where {Kind,N} = 256
 
 end

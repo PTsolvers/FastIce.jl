@@ -10,6 +10,7 @@ using FastIce.Fields
 using FastIce.BoundaryConditions
 using FastIce.Utils
 using FastIce.KernelLaunch
+using FastIce.Distributed
 
 include("kernels.jl")
 
@@ -31,16 +32,18 @@ struct IsothermalFullStokesModel{Arch,Grid,BC,Physics,IterParams,Fields}
 end
 
 function make_fields_mechanics(backend, grid)
-    return (Pr = Field(backend, grid, Center(); halo=1),
-            τ  = (xx=Field(backend, grid, Center(); halo=1),
-            yy=Field(backend, grid, Center(); halo=1),
-            zz=Field(backend, grid, Center(); halo=1),
-            xy=Field(backend, grid, (Vertex(), Vertex(), Center()); halo=0),
-            xz=Field(backend, grid, (Vertex(), Center(), Vertex()); halo=0),
-            yz=Field(backend, grid, (Center(), Vertex(), Vertex()); halo=0)),
-            V  = (x=Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
-            y=Field(backend, grid, (Center(), Vertex(), Center()); halo=1),
-            z=Field(backend, grid, (Center(), Center(), Vertex()); halo=1)))
+    return (Pr=Field(backend, grid, Center(); halo=1),
+            # deviatoric stress
+            τ=(xx=Field(backend, grid, Center(); halo=1),
+               yy=Field(backend, grid, Center(); halo=1),
+               zz=Field(backend, grid, Center(); halo=1),
+               xy=Field(backend, grid, (Vertex(), Vertex(), Center()); halo=0),
+               xz=Field(backend, grid, (Vertex(), Center(), Vertex()); halo=0),
+               yz=Field(backend, grid, (Center(), Vertex(), Vertex()); halo=0)),
+            # velocity
+            V=(x=Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
+               y=Field(backend, grid, (Center(), Vertex(), Center()); halo=1),
+               z=Field(backend, grid, (Center(), Center(), Vertex()); halo=1)))
 end
 
 function IsothermalFullStokesModel(; arch, grid, boundary_conditions, physics=nothing, iter_params, fields=nothing, other_fields=nothing)
@@ -60,6 +63,12 @@ function IsothermalFullStokesModel(; arch, grid, boundary_conditions, physics=no
 
     boundary_conditions = make_field_boundary_conditions(grid, fields, boundary_conditions)
 
+    if arch isa Architecture{Distributed.DistributedMPI}
+        stress = override_boundary_conditions(arch, boundary_conditions.stress)
+        velocity = override_boundary_conditions(arch, boundary_conditions.velocity; exchange=true)
+        boundary_conditions = (; stress, velocity)
+    end
+
     return IsothermalFullStokesModel(arch, grid, boundary_conditions, physics, iter_params, fields)
 end
 
@@ -73,7 +82,7 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async=true
     Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
 
     launch!(model.arch, model.grid, update_σ! => (Pr, τ, V, η, Δτ, Δ);
-            location=Vertex(), boundary_conditions=model.boundary_conditions.stress)
+            location=Vertex(), expand=1, boundary_conditions=model.boundary_conditions.stress)
 
     launch!(model.arch, model.grid, update_V! => (V, Pr, τ, η, Δτ, Δ);
             location=Vertex(), boundary_conditions=model.boundary_conditions.velocity)

@@ -38,7 +38,7 @@ function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
         worksize = worksize .+ 2 .* expand
     end
 
-    groupsize = heuristic_groupsize(arch, length(worksize))
+    groupsize = heuristic_groupsize(arch, Val(length(worksize)))
 
     if isnothing(hide_boundaries)
         fun(backend(arch), groupsize, worksize)(args..., offset)

@@ -37,8 +37,8 @@ function apply_boundary_conditions!(::Val{S}, ::Val{D},
         info.send_request = MPI.Isend(info.send_buffer, comm; dest=nbrank)
     end
 
-    recv_ready = BitVector(false for _ in eachindex(exchange_infos))
-    send_ready = BitVector(false for _ in eachindex(exchange_infos))
+    recv_ready = falses(N)
+    send_ready = falses(N)
 
     # test send and receive requests, initiating device-to-device copy
     # to the receive buffer if the receive is complete
@@ -92,15 +92,21 @@ function get_send_view(::Val{2}, ::Val{D}, array::AbstractArray, halo_width::Int
     return view(array, indices...)
 end
 
+const BatchOrNothing = Union{BoundaryConditionsBatch,Nothing}
+
 function override_boundary_conditions(arch::Architecture{DistributedMPI},
-    batches::NTuple{N, NTuple{2, BoundaryConditionsBatch}}; exchange=false) where {N}
+                                      batches::NTuple{N,NTuple{2,BatchOrNothing}}; exchange=false) where {N}
     return ntuple(Val(N)) do D
         ntuple(Val(2)) do S
             batch = batches[D][S]
-            if neighbor(details(arch), D, S) != MPI.PROC_NULL
-                exchange ? BoundaryConditionsBatch(batch.fields, ExchangeInfo.(Val(S), Val(D), batch.fields)) : nothing
+            if !isnothing(batch)
+                if neighbor(details(arch), D, S) != MPI.PROC_NULL
+                    exchange ? BoundaryConditionsBatch(batch.fields, ExchangeInfo.(Val(S), Val(D), batch.fields)) : nothing
+                else
+                    batch
+                end
             else
-                batch
+                nothing
             end
         end
     end
