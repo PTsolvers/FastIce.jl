@@ -1,10 +1,8 @@
-const FieldOrNothing = Union{FieldBoundaryCondition,Nothing}
-
 function apply_boundary_conditions!(::Val{S}, ::Val{D},
                                     arch::Architecture,
                                     grid::CartesianGrid,
                                     fields::NTuple{N,Field},
-                                    conditions::NTuple{N,FieldOrNothing}; async=true) where {S,D,N}
+                                    conditions::NTuple{N,FieldBoundaryCondition}; async=true) where {S,D,N}
     _validate_fields(fields, D, S)
     sizes = ntuple(ifield -> remove_dim(Val(D), size(parent(fields[ifield]))), Val(N))
     halos = ntuple(ifield -> remove_dim(Val(D), halo(fields[ifield])), Val(N))

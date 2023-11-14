@@ -46,6 +46,8 @@ neighbors(t::CartesianTopology) = t.neighbors
 
 neighbor(t::CartesianTopology, dim, side) = t.neighbors[dim][side]
 
+has_neighbor(t::CartesianTopology, dim, side) = t.neighbors[dim][side] != MPI.PROC_NULL
+
 global_size(t::CartesianTopology) = MPI.Comm_size(t.cart_comm)
 node_size(t::CartesianTopology) = MPI.Comm_size(t.shared_comm)
 

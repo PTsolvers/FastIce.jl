@@ -4,6 +4,7 @@ export FieldBoundaryCondition, BoundaryConditionsBatch
 export apply_boundary_conditions!, apply_all_boundary_conditions!
 
 export DirichletBC, HalfCell, FullCell
+export ExtrapolateBC
 export ContinuousBC, DiscreteBC
 export BoundaryFunction, DiscreteBoundaryFunction, ContinuousBoundaryFunction
 
@@ -23,6 +24,7 @@ include("field_boundary_conditions.jl")
 include("utils.jl")
 include("boundary_function.jl")
 include("dirichlet_bc.jl")
+include("extrapolate_bc.jl")
 include("hide_boundaries.jl")
 
 struct BoundaryConditionsBatch{F,BC}
@@ -38,6 +40,5 @@ end
 end
 
 apply_boundary_conditions!(side, val, arch, grid, ::Nothing; kwargs...) = nothing
-apply_boundary_conditions!(side, val, arch, grid, fields, ::Nothing; kwargs...) = nothing
 
 end

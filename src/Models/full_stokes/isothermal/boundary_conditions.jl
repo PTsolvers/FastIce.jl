@@ -43,66 +43,75 @@ for (dim, val) in _COORDINATES
     ex_slip_vel = Expr(:tuple, ex_slip_vel)
 
     @eval begin
-        function extract_boundary_conditions(::Val{$val}, bc::BoundaryCondition{Traction})
-            return $ex_tr, NamedTuple()
-        end
+        extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Traction}) = $ex_tr
+        extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Velocity}) = ()
+        extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Slip})     = $ex_slip_tr
 
-        function extract_boundary_conditions(::Val{$val}, bc::BoundaryCondition{Velocity})
-            return NamedTuple(), $ex_vel
-        end
-
-        function extract_boundary_conditions(::Val{$val}, bc::BoundaryCondition{Slip})
-            return $ex_slip_tr, $ex_slip_vel
-        end
+        extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Traction}) = ()
+        extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Velocity}) = $ex_vel
+        extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Slip})     = $ex_slip_vel
     end
 end
 
-function make_batch(::CartesianGrid{2}, bcs::NamedTuple{bnames, Tuple{}}, fields::NamedTuple) where {bnames}
-    return nothing
-end
-
-function make_batch(::CartesianGrid{3}, bcs::NamedTuple{bnames, Tuple{}}, fields::NamedTuple) where {bnames}
-    return nothing
-end
-
-function make_batch(::CartesianGrid{2}, bcs::NamedTuple, fields::NamedTuple)
-    field_map = (Pr  = fields.Pr,
-                 τxx = fields.τ.xx, τyy = fields.τ.yy, τxy = fields.τ.xy,
-                 Vx  = fields.V.x, Vy  = fields.V.y)
-    batch_fields = Tuple(field_map[name] for name in eachindex(bcs))
+function make_batch(bcs::NamedTuple, fields::NamedTuple)
+    batch_fields = Tuple(fields[name] for name in eachindex(bcs))
     return BoundaryConditionsBatch(batch_fields, values(bcs))
 end
 
-function make_batch(::CartesianGrid{3}, bcs::NamedTuple, fields::NamedTuple)
-    field_map = (Pr  = fields.Pr,
-                 τxx = fields.τ.xx, τyy = fields.τ.yy, τzz = fields.τ.zz,
-                 τxy = fields.τ.xy, τxz = fields.τ.xz, τyz = fields.τ.yz,
-                 Vx  = fields.V.x, Vy  = fields.V.y, Vz  = fields.V.z)
-    batch_fields = Tuple(field_map[name] for name in eachindex(bcs))
-    return BoundaryConditionsBatch(batch_fields, values(bcs))
-end
-
-function make_batches(grid, bcs, fields)
-    ntuple(Val(ndims(grid))) do D
-        ntuple(Val(2)) do S
-            make_batch(grid, bcs[D][S], fields)
-        end
-    end
-end
-
-function make_field_boundary_conditions(grid::CartesianGrid{N}, fields, logical_boundary_conditions) where {N}
+function make_stress_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields, bc) where {Kind,N}
     ordering = (:x, :y, :z)
-
-    field_bcs = ntuple(Val(N)) do dim
-        left, right = logical_boundary_conditions[ordering[dim]]
-        left  = extract_boundary_conditions(Val(dim), left)
-        right = extract_boundary_conditions(Val(dim), right)
-        Tuple(zip(left, right))
+    ntuple(Val(N)) do D
+        ntuple(Val(2)) do S
+            if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
+                nothing
+            else
+                new_bc = extract_stress_bc(Val(D), bc[ordering[D]][S])
+                if isempty(new_bc)
+                    nothing
+                else
+                    make_batch(new_bc, fields)
+                end
+            end
+        end
     end
+end
 
-    stress, velocity = zip(field_bcs...)
-    stress   = make_batches(grid, stress, fields)
-    velocity = make_batches(grid, velocity, fields)
+function make_velocity_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::NamedTuple{names}, bc) where {Kind,N,names}
+    ordering = (:x, :y, :z)
+    ntuple(Val(N)) do D
+        ntuple(Val(2)) do S
+            if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
+                new_bc = NamedTuple{names}(ExchangeInfo(Val(S), Val(D), V) for V in fields)
+                make_batch(new_bc, fields)
+            else
+                new_bc = extract_velocity_bc(Val(D), bc[ordering[D]][S])
+                if isempty(new_bc)
+                    nothing
+                else
+                    make_batch(new_bc, fields)
+                end
+            end
+        end
+    end
+end
 
-    return (; stress, velocity)
+function make_rheology_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, η) where {Kind,N}
+    ntuple(Val(N)) do D
+        ntuple(Val(2)) do S
+            if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
+                BoundaryConditionsBatch((η,), (ExchangeInfo(Val(S), Val(D), η),))
+            else
+                BoundaryConditionsBatch((η,), (ExtrapolateBC(),))
+            end
+        end
+    end
+end
+
+function make_field_boundary_conditions(arch::Architecture, grid::CartesianGrid, fields, bc)
+    stress_fields   = (; Pr=fields.Pr, NamedTuple{Symbol.(:τ, keys(fields.τ))}(values(fields.τ))...)
+    velocity_fields = NamedTuple{Symbol.(:V, keys(fields.V))}(values(fields.V))
+
+    return (stress   = make_stress_bc(arch, grid, stress_fields, bc),
+            velocity = make_velocity_bc(arch, grid, velocity_fields, bc),
+            rheology = make_rheology_bc(arch, grid, fields.η))
 end

@@ -1,13 +1,10 @@
 module Physics
 
-export AbstractPhysics
 export IncompressibleIceEOS, IceThermalProperties
-export IceRheology, GlensLawRheology, τ
+export IceRheology, GlensLawRheology
 export default
 
 using FastIce.GridOperators
-
-abstract type AbstractPhysics end
 
 struct IncompressibleIceEOS{T}
     density::T

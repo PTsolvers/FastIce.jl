@@ -13,11 +13,11 @@ export CartesianTopology
 export global_rank, shared_rank, node_name, cartesian_communicator, shared_communicator, coordinates
 export dimensions, global_size, node_size
 export global_grid_size, local_grid
-export neighbors, neighbor
+export neighbors, neighbor, has_neighbor
 export override_boundary_conditions
 export gather!
 
-export DistributedBoundaryConditions
+export ExchangeInfo, DistributedBoundaryConditions
 
 struct DistributedMPI end
 

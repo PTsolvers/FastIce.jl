@@ -31,7 +31,18 @@ struct IsothermalFullStokesModel{Arch,Grid,BC,Physics,IterParams,Fields}
     fields::Fields
 end
 
-function make_fields_mechanics(backend, grid)
+function make_fields_mechanics(backend, grid::CartesianGrid{2})
+    return (Pr=Field(backend, grid, Center(); halo=1),
+            # deviatoric stress
+            τ=(xx=Field(backend, grid, Center(); halo=1),
+               yy=Field(backend, grid, Center(); halo=1),
+               xy=Field(backend, grid, (Vertex(), Vertex(), Center()))),
+            # velocity
+            V=(x=Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
+               y=Field(backend, grid, (Center(), Vertex(), Center()); halo=1)))
+end
+
+function make_fields_mechanics(backend, grid::CartesianGrid{3})
     return (Pr=Field(backend, grid, Center(); halo=1),
             # deviatoric stress
             τ=(xx=Field(backend, grid, Center(); halo=1),
@@ -61,13 +72,7 @@ function IsothermalFullStokesModel(; arch, grid, boundary_conditions, physics=no
         physics = default_physics(eltype(grid))
     end
 
-    boundary_conditions = make_field_boundary_conditions(grid, fields, boundary_conditions)
-
-    if arch isa Architecture{Distributed.DistributedMPI}
-        stress = override_boundary_conditions(arch, boundary_conditions.stress)
-        velocity = override_boundary_conditions(arch, boundary_conditions.velocity; exchange=true)
-        boundary_conditions = (; stress, velocity)
-    end
+    boundary_conditions = make_field_boundary_conditions(arch, grid, fields, boundary_conditions)
 
     return IsothermalFullStokesModel(arch, grid, boundary_conditions, physics, iter_params, fields)
 end
@@ -88,8 +93,8 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async=true
             location=Vertex(), boundary_conditions=model.boundary_conditions.velocity)
 
     # rheology
-    launch!(model.arch, model.grid, update_η! => (η, η_rh, η_rel, model.grid, model.fields); location=Center())
-    extrapolate!(η)
+    launch!(model.arch, model.grid, update_η! => (η, η_rh, η_rel, model.grid, model.fields);
+            location=Center(), boundary_conditions=model.boundary_conditions.rheology)
 
     async || synchronize(backend(model.arch))
     return

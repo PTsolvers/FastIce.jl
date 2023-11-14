@@ -14,7 +14,7 @@ const SBC = BoundaryCondition{Slip}
 
 using KernelAbstractions
 
-# using GLMakie
+using GLMakie
 
 using FastIce.Distributed
 using MPI
@@ -30,7 +30,7 @@ ebg = 1.0
 
 topo = details(arch)
 
-size_l = (32, 32, 32)
+size_l = (64, 64, 64)
 size_g = global_grid_size(topo, size_l)
 
 if global_rank(topo) == 0
@@ -73,7 +73,7 @@ physics = (rheology=GlensLawRheology(1),)
 other_fields = (A=Field(backend, grid_l, Center()),)
 
 init_incl(x, y, z, x0, y0, z0, r, Ai, Am) = ifelse((x - x0)^2 + (y - y0)^2 + (z - z0)^2 < r^2, Ai, Am)
-set!(other_fields.A, grid_l, init_incl; parameters=(x0=0.0, y0=0.0, z0=0.5, r=0.2, Ai=1e-1, Am=1.0))
+set!(other_fields.A, grid_l, init_incl; parameters=(x0=0.0, y0=0.0, z0=1.0, r=0.2, Ai=1e-1, Am=1.0))
 
 model = IsothermalFullStokesModel(;
                                   arch,
@@ -83,22 +83,37 @@ model = IsothermalFullStokesModel(;
                                   iter_params,
                                   other_fields)
 
-# if global_rank(topo) == 0
-    # fig = Figure(; resolution=(1200, 1000), fontsize=32)
-    # axs = (Pr=Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
-    #        Vx=Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
-    #        Vy=Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
-    #        Vz=Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
+if global_rank(topo) == 0
+    fig = Figure(; resolution=(1200, 1000), fontsize=32)
+    axs = (Pr=Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
+           Vx=Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
+           Vy=Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
+           Vz=Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
 
-    # plt = (Pr=heatmap!(axs.Pr, xcenters(grid_l), zcenters(grid_l), interior(model.fields.Pr)[:, size(grid_l, 2)÷2, :]; colormap=:turbo),
-    #        Vx=heatmap!(axs.Vx, xvertices(grid_l), zcenters(grid_l), interior(model.fields.V.x)[:, size(grid_l, 2)÷2, :]; colormap=:turbo),
-    #        Vy=heatmap!(axs.Vy, xcenters(grid_l), zcenters(grid_l), interior(model.fields.V.y)[:, size(grid_l, 2)÷2, :]; colormap=:turbo),
-    #        Vz=heatmap!(axs.Vz, xcenters(grid_l), zvertices(grid_l), interior(model.fields.V.z)[:, size(grid_l, 2)÷2, :]; colormap=:turbo))
-    # Colorbar(fig[1, 1][1, 2], plt.Pr)
-    # Colorbar(fig[1, 2][1, 2], plt.Vx)
-    # Colorbar(fig[2, 1][1, 2], plt.Vy)
-    # Colorbar(fig[2, 2][1, 2], plt.Vz)
-# end
+    Pr_g = zeros(size(grid_g))
+    Vx_g = zeros(size(grid_g))
+    Vy_g = zeros(size(grid_g))
+    Vz_g = zeros(size(grid_g))
+
+    Pr_v = zeros(size(grid_l))
+    Vx_v = zeros(size(grid_l))
+    Vy_v = zeros(size(grid_l))
+    Vz_v = zeros(size(grid_l))
+
+    plt = (Pr=heatmap!(axs.Pr, xcenters(grid_g), zcenters(grid_g), @view Pr_g[:, size(grid_g, 2)÷2, :]; colormap=:turbo),
+           Vx=heatmap!(axs.Vx, xcenters(grid_g), zcenters(grid_g), @view Vx_g[:, size(grid_g, 2)÷2, :]; colormap=:turbo),
+           Vy=heatmap!(axs.Vy, xcenters(grid_g), zcenters(grid_g), @view Vy_g[:, size(grid_g, 2)÷2, :]; colormap=:turbo),
+           Vz=heatmap!(axs.Vz, xcenters(grid_g), zcenters(grid_g), @view Vz_g[:, size(grid_g, 2)÷2, :]; colormap=:turbo))
+    Colorbar(fig[1, 1][1, 2], plt.Pr)
+    Colorbar(fig[1, 2][1, 2], plt.Vx)
+    Colorbar(fig[2, 1][1, 2], plt.Vy)
+    Colorbar(fig[2, 2][1, 2], plt.Vz)
+else
+    Pr_g = nothing
+    Vx_g = nothing
+    Vy_g = nothing
+    Vz_g = nothing
+end
 
 # set!(model.fields.Pr, 0.0)
 # foreach(x -> set!(x, 0.0), model.fields.τ)
@@ -108,43 +123,43 @@ foreach(x -> fill!(parent(x), 0.0), model.fields.τ)
 foreach(x -> fill!(parent(x), 0.0), model.fields.V)
 
 KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.stress)
-println("$(global_rank(topo)) applied stress BCs")
 
 set!(model.fields.V.x, grid_l, psh_x)
 set!(model.fields.V.y, grid_l, psh_y)
 set!(model.fields.V.z, 0.0)
 
-# println("at rank $(global_rank(topo)) bcs $(typeof(model.boundary_conditions.velocity))")
-println("at rank $(global_rank(topo)) topo $topo")
-MPI.Barrier(cartesian_communicator(topo))
-
 KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.velocity)
-println("$(global_rank(topo)) applied velocity BCs")
 
 set!(model.fields.η, other_fields.A)
-extrapolate!(model.fields.η)
+KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.rheology)
 
-# if global_rank(topo) == 0
-    # display(fig)
-# end
-
-println("Hi from $(global_rank(topo))")
-MPI.Barrier(cartesian_communicator(topo))
+if global_rank(topo) == 0
+    display(fig)
+end
 
 for it in 1:nt
     advance_iteration!(model, 0.0, 1.0; async=false)
-    if it % nviz == 0# && global_rank(topo) == 0
+    if it % nviz == 0
+        @views avx(A) = 0.5.*(A[1:end-1,:,:] .+ A[2:end,:,:])
+        @views avy(A) = 0.5.*(A[:,1:end-1,:] .+ A[:,2:end,:])
+        @views avz(A) = 0.5.*(A[:,:,1:end-1] .+ A[:,:,2:end])
+
+        comm = cartesian_communicator(topo)
+
+        gather!(Pr_g, interior(model.fields.Pr), comm)
+        gather!(Vx_g, avx(interior(model.fields.V.x)), comm)
+        gather!(Vy_g, avy(interior(model.fields.V.y)), comm)
+        gather!(Vz_g, avz(interior(model.fields.V.z)), comm)
         if global_rank(topo) == 0
-            println("it = $it/$nt")
+            plt.Pr[3][] = @view Pr_g[:, size(grid_g, 2)÷2, :]
+            plt.Vx[3][] = @view Vx_g[:, size(grid_g, 2)÷2, :]
+            plt.Vy[3][] = @view Vy_g[:, size(grid_g, 2)÷2, :]
+            plt.Vz[3][] = @view Vz_g[:, size(grid_g, 2)÷2, :]
+            yield()
         end
-        # plt.Pr[3][] = interior(model.fields.Pr)[:, size(grid_l, 2)÷2, :]
-        # plt.Vx[3][] = interior(model.fields.V.x)[:, size(grid_l, 2)÷2, :]
-        # plt.Vy[3][] = interior(model.fields.V.y)[:, size(grid_l, 2)÷2, :]
-        # plt.Vz[3][] = interior(model.fields.V.z)[:, size(grid_l, 2)÷2, :]
-        # yield()
     end
 end
 
-sleep(30)
+sleep(120)
 
 MPI.Finalize()
