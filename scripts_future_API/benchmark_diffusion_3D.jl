@@ -121,10 +121,11 @@ function diffusion_3D(ka_backend=CPU(), dTyp::DataType=Float64, dims=(0,0,0); do
 
     if do_visu
         ENV["GKSwstype"]="nul"
-        C_g = (me == 0) ? KernelAbstractions.allocate(Architectures.backend(arch), eltype(C), size_g) : nothing
-        gather!(arch, C_g, C)
+        C_g = (me == 0) ? KernelAbstractions.allocate(CPU(), eltype(C), size_g) : nothing
+        C_v = Array(C)
+        gather!(arch, C_g, C_v)
         if me == 0
-            p1 = heatmap(xcenters(global_grid), ycenters(global_grid), Array(C_g)[:, :, size_g[3]÷2];
+            p1 = heatmap(xcenters(global_grid), ycenters(global_grid), C_g[:, :, size_g[3]÷2];
             aspect_ratio=1, xlims=extrema(xcenters(global_grid)), ylims=extrema(ycenters(global_grid)))
             png(p1, "C.png")
         end
