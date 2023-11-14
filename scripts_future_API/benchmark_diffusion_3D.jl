@@ -113,7 +113,7 @@ function diffusion_3D(ka_backend=CPU(), dTyp::DataType=Float64, dims=(0,0,0); do
         MPI.Barrier(comm)
         wtime = compute(arch, grid, hide_boundaries, bc_q, bc_c, outer_width, qC, C, dc, dt, Δ, (iters - warmup))
         # report
-        A_eff = 12 / 2^30 * prod(size) * sizeof(dTyp)
+        A_eff = 8 / 1e9 * prod(size) * sizeof(dTyp)
         wtime_it = wtime ./ (iters - warmup)
         T_eff = A_eff ./ wtime_it
         @printf("  Executed %d steps in = %1.3e sec (@ T_eff = %1.2f GB/s - device %s) \n", (iters - warmup), wtime, round(T_eff, sigdigits=3), AMDGPU.device_id(AMDGPU.device()))
