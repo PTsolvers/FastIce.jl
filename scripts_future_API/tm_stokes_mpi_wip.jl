@@ -37,7 +37,7 @@ ebg = 1.0
 
 topo = details(arch)
 
-size_l = (128, 128, 128)
+size_l = (126, 126, 126)
 size_g = global_grid_size(topo, size_l)
 
 if global_rank(topo) == 0
