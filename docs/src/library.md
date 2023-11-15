@@ -5,6 +5,6 @@
 ### Grids
 
 ```@autodocs
-Modules = [FastIce.Grids]
+Modules = [FastIce.Grids, FastIce.Distributed]
 Order   = [:type, :function]
 ```
