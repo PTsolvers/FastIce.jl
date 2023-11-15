@@ -1,3 +1,8 @@
+"""
+    ExchangeInfo
+
+Structure containing the information to exchange halos of one side of an N-dimensional array.
+"""
 mutable struct ExchangeInfo{SB,RB}
     send_buffer::SB
     recv_buffer::RB
@@ -6,6 +11,11 @@ mutable struct ExchangeInfo{SB,RB}
     ExchangeInfo(send_buf, recv_buf) = new{typeof(send_buf),typeof(recv_buf)}(send_buf, recv_buf, MPI.REQUEST_NULL, MPI.REQUEST_NULL)
 end
 
+"""
+ExchangeInfo(::Val{S}, ::Val{D}, field::Field) where {S,D}
+
+    Create `ExchangeInfo` to exchange halos on side `S` in the spatial direction `D`.
+"""
 function ExchangeInfo(::Val{S}, ::Val{D}, field::Field) where {S,D}
     send_view = get_send_view(Val(S), Val(D), field)
     recv_view = get_recv_view(Val(S), Val(D), field)
@@ -14,6 +24,15 @@ function ExchangeInfo(::Val{S}, ::Val{D}, field::Field) where {S,D}
     return ExchangeInfo(send_buffer, recv_buffer)
 end
 
+"""
+    apply_boundary_conditions!(::Val{S}, ::Val{D},
+                               arch::Architecture,
+                               grid::CartesianGrid,
+                               fields::NTuple{N,Field},
+                               exchange_infos::NTuple{N,ExchangeInfo}; async=true) where {S,D,N}
+
+Perform a non-blocking MPI exchange for a set of fields.
+"""
 function apply_boundary_conditions!(::Val{S}, ::Val{D},
                                     arch::Architecture,
                                     grid::CartesianGrid,
@@ -90,24 +109,4 @@ function get_send_view(::Val{2}, ::Val{D}, array::AbstractArray, halo_width::Int
     send_range = (size(array, D)-overlap-2halo_width+1):(size(array, D)-overlap-halo_width)
     indices = ntuple(I -> I == D ? send_range : Colon(), Val(ndims(array)))
     return view(array, indices...)
-end
-
-const BatchOrNothing = Union{BoundaryConditionsBatch,Nothing}
-
-function override_boundary_conditions(arch::Architecture{DistributedMPI},
-                                      batches::NTuple{N,NTuple{2,BatchOrNothing}}; exchange=false) where {N}
-    return ntuple(Val(N)) do D
-        ntuple(Val(2)) do S
-            batch = batches[D][S]
-            if !isnothing(batch)
-                if neighbor(details(arch), D, S) != MPI.PROC_NULL
-                    exchange ? BoundaryConditionsBatch(batch.fields, ExchangeInfo.(Val(S), Val(D), batch.fields)) : nothing
-                else
-                    batch
-                end
-            else
-                nothing
-            end
-        end
-    end
 end
