@@ -14,7 +14,8 @@ function init_distributed(dims::Tuple=(0, 0, 0); init_MPI=true)
     comm_node = MPI.Comm_split_type(comm, MPI.COMM_TYPE_SHARED, me)
     dev_id = MPI.Comm_rank(comm_node)
     # @show device = CUDA.device!(dev_id)
-    @show device = AMDGPU.device_id!(dev_id + 1)
+    # @show device = AMDGPU.device_id!(dev_id + 1)
+    @show device = AMDGPU.device_id!(dev_id*2 + 1)
     return (dims, comm, me, neighbors, coords, device)
 end
 
@@ -63,10 +64,14 @@ mutable struct Exchanger
                         copyto!(send_buf, border)
                         KernelAbstractions.synchronize(backend)
                         send = MPI.Isend(send_buf, comm; dest=rank)
+                        flag = false
                         while true
                             test_recv = MPI.Test(recv)
                             test_send = MPI.Test(send)
-                            if test_recv copyto!(halo, recv_buf) end
+                            if test_recv && !flag
+                                copyto!(halo, recv_buf)
+                                flag = true
+                            end
                             if test_recv && test_send break end
                             yield()
                         end

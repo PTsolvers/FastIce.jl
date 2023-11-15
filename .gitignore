@@ -8,3 +8,4 @@ LocalPreferences.toml
 .vscode
 
 # Project-specific files
+prof_*
