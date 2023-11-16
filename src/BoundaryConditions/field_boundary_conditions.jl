@@ -12,9 +12,9 @@ function apply_boundary_conditions!(::Val{S}, ::Val{D},
             -halos[ifield][RD][1]
         end |> CartesianIndex
     end
-    worksize = maximum(sizes)
-    _apply_boundary_conditions!(backend(arch), 256, worksize)(Val(S), Val(D), grid, sizes, offsets, fields, conditions)
-    async || KernelAbstractions.synchronize(backend(arch))
+    worksize = max.(sizes...)
+    _apply_boundary_conditions!(backend(arch), 256)(Val(S), Val(D), grid, sizes, offsets, fields, conditions; ndrange=worksize)
+    async || synchronize(backend(arch))
     return
 end
 
@@ -23,7 +23,7 @@ end
     # ntuple here unrolls the loop over fields
     ntuple(Val(length(fields))) do ifield
         Base.@_inline_meta
-        if _checkindices(sizes[ifield], I)
+        @inbounds if _checkindices(sizes[ifield], I)
             Ibc       = I + offsets[ifield]
             field     = fields[ifield]
             condition = conditions[ifield]

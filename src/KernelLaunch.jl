@@ -4,6 +4,8 @@ using FastIce.Grids
 using FastIce.Architectures
 using FastIce.BoundaryConditions
 
+using KernelAbstractions
+
 export launch!
 
 function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
