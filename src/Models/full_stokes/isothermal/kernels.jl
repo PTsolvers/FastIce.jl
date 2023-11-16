@@ -2,11 +2,19 @@ using KernelAbstractions
 
 using FastIce.GridOperators
 
+@inline @generated function within(grid::CartesianGrid{N}, f::Field{T,N}, I::CartesianIndex{N}) where {T,N}
+    quote
+        Base.Cartesian.@nall $N i->I[i] <= size(grid, location(f, Val(i)), i)
+    end
+end
+
 @kernel function update_η!(η, η_rh, χ, grid, fields, offset=nothing)
     I = @index(Global, Cartesian)
     isnothing(offset) || (I += offset)
-    ηt = η_rh(grid, I, fields)
-    @inbounds η[I] = exp(log(η[I]) * (1 - χ) + log(ηt) * χ)
+    @inbounds begin
+        ηt = η_rh(grid, I, fields)
+        η[I] = exp(log(η[I]) * (1 - χ) + log(ηt) * χ)
+    end
 end
 
 @kernel function update_σ!(Pr, τ, V, η, Δτ, Δ, offset=nothing)
@@ -38,22 +46,22 @@ end
     end
 end
 
-@kernel function update_V!(V, Pr, τ, η, Δτ, ρg, Δ, offset=nothing)
+@kernel function update_V!(V, Pr, τ, η, Δτ, ρg, grid, Δ, offset=nothing)
     I = @index(Global, Cartesian)
     isnothing(offset) || (I += offset)
-    @inbounds if checkbounds(Bool, V.x, I)
+    @inbounds if within(grid, V.x, I)
         ∂σxx_∂x = (-∂ᵛx(Pr, I) + ∂ᵛx(τ.xx, I)) / Δ.x
         ∂τxy_∂y = ∂ᶜy(τ.xy, I) / Δ.y
         ∂τxz_∂z = ∂ᶜz(τ.xz, I) / Δ.z
         V.x[I] += (∂σxx_∂x + ∂τxy_∂y + ∂τxz_∂z - ρg.x) / maxlᵛx(η, I) * Δτ.V.x
     end
-    @inbounds if checkbounds(Bool, V.y, I)
+    @inbounds if within(grid, V.y, I)
         ∂σyy_∂y = (-∂ᵛy(Pr, I) + ∂ᵛy(τ.yy, I)) / Δ.y
         ∂τxy_∂x = ∂ᶜx(τ.xy, I) / Δ.x
         ∂τyz_∂z = ∂ᶜz(τ.yz, I) / Δ.z
         V.y[I] += (∂σyy_∂y + ∂τxy_∂x + ∂τyz_∂z - ρg.y) / maxlᵛy(η, I) * Δτ.V.y
     end
-    @inbounds if checkbounds(Bool, V.z, I)
+    @inbounds if within(grid, V.z, I)
         ∂σzz_∂z = (-∂ᵛz(Pr, I) + ∂ᵛz(τ.zz, I)) / Δ.z
         ∂τxz_∂x = ∂ᶜx(τ.xz, I) / Δ.x
         ∂τyz_∂y = ∂ᶜy(τ.yz, I) / Δ.y
