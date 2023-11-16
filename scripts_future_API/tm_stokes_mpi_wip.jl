@@ -15,8 +15,6 @@ const SBC = BoundaryCondition{Slip}
 using KernelAbstractions
 using AMDGPU
 
-using CairoMakie
-
 using FastIce.Distributed
 using MPI
 
@@ -29,7 +27,7 @@ println("import done")
 MPI.Init()
 
 backend = ROCBackend()
-dims    = (0, 0, 0)
+dims    = (4, 2, 2)
 arch    = Architecture(backend, dims, MPI.COMM_WORLD)
 
 # physics
@@ -37,7 +35,7 @@ ebg = 1.0
 
 topo = details(arch)
 
-size_l = (126, 126, 126)
+size_l = (254, 254, 254)
 size_g = global_grid_size(topo, size_l)
 
 if global_rank(topo) == 0
@@ -45,21 +43,21 @@ if global_rank(topo) == 0
     @show size_g
 end
 
-grid_g = CartesianGrid(; origin=(-1.0, -1.0, 0.0),
-                       extent=(2.0, 2.0, 2.0),
+grid_g = CartesianGrid(; origin=(-2.0, -1.0, 0.0),
+                       extent=(4.0, 2.0, 2.0),
                        size=size_g)
 
 grid_l = local_grid(grid_g, topo)
 
-psh_x(x, _, _, ebg) = -x * ebg
-psh_y(_, y, _, ebg) = y * ebg
+no_slip      = VBC(0.0, 0.0, 0.0)
+free_slip    = SBC(0.0, 0.0, 0.0)
+free_surface = TBC(0.0, 0.0, 0.0)
 
-x_bc = BoundaryFunction(psh_x; reduce_dims=false, parameters=(ebg,))
-y_bc = BoundaryFunction(psh_y; reduce_dims=false, parameters=(ebg,))
+boundary_conditions = (x = (free_slip, free_slip),
+                       y = (free_slip, free_slip),
+                       z = (no_slip, free_surface))
 
-boundary_conditions = (x = (VBC(x_bc, y_bc, 0.0), VBC(x_bc, y_bc, 0.0)),
-                       y = (VBC(x_bc, y_bc, 0.0), VBC(x_bc, y_bc, 0.0)),
-                       z = (SBC(0.0, 0.0, 0.0), TBC(0.0, 0.0, 0.0)))
+gravity = (x=-0.25, y=0.0, z=1.0)
 
 # numerics
 nt     = 50maximum(size(grid_g))
@@ -79,39 +77,21 @@ iter_params = (η_rel=1e-1,
 physics = (rheology=GlensLawRheology(1),)
 other_fields = (A=Field(backend, grid_l, Center()),)
 
-init_incl(x, y, z, x0, y0, z0, r, Ai, Am) = ifelse((x - x0)^2 + (y - y0)^2 + (z - z0)^2 < r^2, Ai, Am)
-set!(other_fields.A, grid_l, init_incl; parameters=(x0=0.0, y0=0.0, z0=1.0, r=0.2, Ai=1e-1, Am=1.0))
-
 model = IsothermalFullStokesModel(;
                                   arch,
                                   grid=grid_l,
                                   physics,
+                                  gravity,
                                   boundary_conditions,
                                   iter_params,
                                   other_fields)
 
-println("model created")
-
 if global_rank(topo) == 0
-    fig = Figure(; resolution=(1200, 1000), fontsize=32)
-    axs = (Pr=Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
-           Vx=Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
-           Vy=Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
-           Vz=Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
-
+    println("model created")
     Pr_g = zeros(size(grid_g))
     Vx_g = zeros(size(grid_g))
     Vy_g = zeros(size(grid_g))
     Vz_g = zeros(size(grid_g))
-
-    plt = (Pr=heatmap!(axs.Pr, xcenters(grid_g), zcenters(grid_g), @view Pr_g[:, size(grid_g, 2)÷2, :]; colormap=:turbo),
-           Vx=heatmap!(axs.Vx, xcenters(grid_g), zcenters(grid_g), @view Vx_g[:, size(grid_g, 2)÷2, :]; colormap=:turbo),
-           Vy=heatmap!(axs.Vy, xcenters(grid_g), zcenters(grid_g), @view Vy_g[:, size(grid_g, 2)÷2, :]; colormap=:turbo),
-           Vz=heatmap!(axs.Vz, xcenters(grid_g), zcenters(grid_g), @view Vz_g[:, size(grid_g, 2)÷2, :]; colormap=:turbo))
-    Colorbar(fig[1, 1][1, 2], plt.Pr)
-    Colorbar(fig[1, 2][1, 2], plt.Vx)
-    Colorbar(fig[2, 1][1, 2], plt.Vy)
-    Colorbar(fig[2, 2][1, 2], plt.Vz)
 else
     Pr_g = nothing
     Vx_g = nothing
@@ -130,23 +110,16 @@ Vz_v = zeros(size(grid_l))
 fill!(parent(model.fields.Pr), 0.0)
 foreach(x -> fill!(parent(x), 0.0), model.fields.τ)
 foreach(x -> fill!(parent(x), 0.0), model.fields.V)
+fill!(parent(other_fields.A), 1.0)
+set!(model.fields.η, other_fields.A)
 
 KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.stress)
-
-set!(model.fields.V.x, grid_l, psh_x; parameters=(ebg,))
-set!(model.fields.V.y, grid_l, psh_y; parameters=(ebg,))
-set!(model.fields.V.z, 0.0)
-
 KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.velocity)
-
-set!(model.fields.η, other_fields.A)
 KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.rheology)
 
 if global_rank(topo) == 0
-    display(fig)
+    println("action")
 end
-
-@info "action"
 
 for it in 1:nt
     advance_iteration!(model, 0.0, 1.0; async=false)
@@ -170,12 +143,12 @@ gather!(Vy_g, Vy_v, comm)
 gather!(Vz_g, Vz_v, comm)
 
 if global_rank(topo) == 0
-    plt.Pr[3][] = @view Pr_g[:, size(grid_g, 2)÷2, :]
-    plt.Vx[3][] = @view Vx_g[:, size(grid_g, 2)÷2, :]
-    plt.Vy[3][] = @view Vy_g[:, size(grid_g, 2)÷2, :]
-    plt.Vz[3][] = @view Vz_g[:, size(grid_g, 2)÷2, :]
-
-    save("stokes.png", fig)
+    open("data.bin", "w") do io
+        write(io, Pr_g)
+        write(io, Vx_g)
+        write(io, Vy_g)
+        write(io, Vz_g)
+    end
 end
 
 MPI.Finalize()

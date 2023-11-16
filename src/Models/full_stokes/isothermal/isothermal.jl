@@ -22,11 +22,13 @@ function default_physics(::Type{T}) where {T}
             rheology=default(GlensLawRheology{Int64}))
 end
 
-struct IsothermalFullStokesModel{Arch,Grid,BC,Physics,IterParams,Fields}
+struct IsothermalFullStokesModel{Arch,Grid,BC,HB,Physics,Gravity,IterParams,Fields}
     arch::Arch
     grid::Grid
     boundary_conditions::BC
+    hide_boundaries::HB
     physics::Physics
+    gravity::Gravity
     iter_params::IterParams
     fields::Fields
 end
@@ -57,7 +59,15 @@ function make_fields_mechanics(backend, grid::CartesianGrid{3})
                z=Field(backend, grid, (Center(), Center(), Vertex()); halo=1)))
 end
 
-function IsothermalFullStokesModel(; arch, grid, boundary_conditions, physics=nothing, iter_params, fields=nothing, other_fields=nothing)
+function IsothermalFullStokesModel(;
+                                   arch,
+                                   grid,
+                                   boundary_conditions,
+                                   iter_params,
+                                   gravity,
+                                   physics=nothing,
+                                   fields=nothing,
+                                   other_fields=nothing)
     if isnothing(fields)
         mechanic_fields = make_fields_mechanics(backend(arch), grid)
         rheology_fields = (η=Field(backend(arch), grid, Center(); halo=1),)
@@ -73,8 +83,9 @@ function IsothermalFullStokesModel(; arch, grid, boundary_conditions, physics=no
     end
 
     boundary_conditions = make_field_boundary_conditions(arch, grid, fields, boundary_conditions)
+    hide_boundaries = HideBoundaries{ndims(grid)}(arch)
 
-    return IsothermalFullStokesModel(arch, grid, boundary_conditions, physics, iter_params, fields)
+    return IsothermalFullStokesModel(arch, grid, boundary_conditions, hide_boundaries, physics, gravity, iter_params, fields)
 end
 
 fields(model::IsothermalFullStokesModel) = model.fields
@@ -82,19 +93,24 @@ grid(model::IsothermalFullStokesModel) = model.grid
 
 function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async=true)
     (; Pr, τ, V, η) = model.fields
-    (; η_rel, Δτ) = model.iter_params
-    η_rh = model.physics.rheology
+    (; η_rel, Δτ)   = model.iter_params
+    η_rh            = model.physics.rheology
+    ρg              = model.gravity
+    hide_boundaries = model.hide_boundaries
+
+    outer_width = (16, 8, 4)
+
     Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
 
     launch!(model.arch, model.grid, update_σ! => (Pr, τ, V, η, Δτ, Δ);
-            location=Vertex(), expand=1, boundary_conditions=model.boundary_conditions.stress)
+            location=Vertex(), expand=1, boundary_conditions=model.boundary_conditions.stress, hide_boundaries, outer_width)
 
-    launch!(model.arch, model.grid, update_V! => (V, Pr, τ, η, Δτ, Δ);
-            location=Vertex(), boundary_conditions=model.boundary_conditions.velocity)
+    launch!(model.arch, model.grid, update_V! => (V, Pr, τ, η, Δτ, ρg, Δ);
+            location=Vertex(), boundary_conditions=model.boundary_conditions.velocity, hide_boundaries, outer_width)
 
     # rheology
     launch!(model.arch, model.grid, update_η! => (η, η_rh, η_rel, model.grid, model.fields);
-            location=Center(), boundary_conditions=model.boundary_conditions.rheology)
+            location=Center(), boundary_conditions=model.boundary_conditions.rheology, hide_boundaries, outer_width)
 
     async || synchronize(backend(model.arch))
     return
