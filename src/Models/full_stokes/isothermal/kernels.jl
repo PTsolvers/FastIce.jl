@@ -68,3 +68,32 @@ end
         V.z[I] += (∂σzz_∂z + ∂τxz_∂x + ∂τyz_∂y - ρg.z) / maxlᵛz(η, I) * Δτ.V.z
     end
 end
+
+@kernel function compute_residuals!(r_V, r_Pr, Pr, τ, V, ρg, grid, Δ, offset=nothing)
+    I = @index(Global, Cartesian)
+    isnothing(offset) || (I += offset)
+    @inbounds if within(grid, r_Pr, I)
+        ε̇xx = ∂ᶜx(V.x, I) / Δ.x
+        ε̇yy = ∂ᶜy(V.y, I) / Δ.y
+        ε̇zz = ∂ᶜz(V.z, I) / Δ.z
+        r_Pr[I] = ε̇xx + ε̇yy + ε̇zz
+    end
+    @inbounds if within(grid, r_V.x, I)
+        ∂σxx_∂x = (-∂ᵛx(Pr, I) + ∂ᵛx(τ.xx, I)) / Δ.x
+        ∂τxy_∂y = ∂ᶜy(τ.xy, I) / Δ.y
+        ∂τxz_∂z = ∂ᶜz(τ.xz, I) / Δ.z
+        r_V.x[I] = ∂σxx_∂x + ∂τxy_∂y + ∂τxz_∂z - ρg.x
+    end
+    @inbounds if within(grid, r_V.y, I)
+        ∂σyy_∂y = (-∂ᵛy(Pr, I) + ∂ᵛy(τ.yy, I)) / Δ.y
+        ∂τxy_∂x = ∂ᶜx(τ.xy, I) / Δ.x
+        ∂τyz_∂z = ∂ᶜz(τ.yz, I) / Δ.z
+        r_V.y[I] = ∂σyy_∂y + ∂τxy_∂x + ∂τyz_∂z - ρg.y
+    end
+    @inbounds if within(grid, r_V.z, I)
+        ∂σzz_∂z = (-∂ᵛz(Pr, I) + ∂ᵛz(τ.zz, I)) / Δ.z
+        ∂τxz_∂x = ∂ᶜx(τ.xz, I) / Δ.x
+        ∂τyz_∂y = ∂ᶜy(τ.yz, I) / Δ.y
+        r_V.z[I] = ∂σzz_∂z + ∂τxz_∂x + ∂τyz_∂y - ρg.z
+    end
+end
