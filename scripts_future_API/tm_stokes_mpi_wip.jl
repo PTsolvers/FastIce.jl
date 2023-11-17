@@ -36,6 +36,7 @@ function main()
     set_device!(arch)
 
     topo = details(arch)
+    comm = cartesian_communicator(topo)
 
     size_l = (254, 254, 254)
     size_g = global_grid_size(topo, size_l)
@@ -143,7 +144,7 @@ function main()
     ttot_ns = UInt64(0)
     for iter in 1:niter
         if iter == 10
-            MPI.Barrier(cartesian_communicator(topo))
+            MPI.Barrier(comm)
             ttot_ns = time_ns()
         end
         advance_iteration!(model, 0.0, 1.0; async=false)
@@ -153,8 +154,6 @@ function main()
     end
     ttot = float(time_ns() - ttot_ns)
     ttot /= (niter - 10)
-
-    comm = cartesian_communicator(topo)
 
     MPI.Barrier(comm)
 
