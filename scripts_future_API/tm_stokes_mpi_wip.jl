@@ -37,7 +37,7 @@ function main()
 
     topo = details(arch)
 
-    size_l = (126, 126, 126)
+    size_l = (254, 254, 254)
     size_g = global_grid_size(topo, size_l)
 
     if global_rank(topo) == 0
@@ -66,9 +66,9 @@ function main()
     ncheck = 1maximum(size(grid_g))
 
     r       = 0.7
-    re_mech = 10π
+    re_mech = 5π
     lτ_re_m = minimum(extent(grid_g)) / re_mech
-    vdτ     = minimum(spacing(grid_g)) / sqrt(ndims(grid_g) * 3.1)
+    vdτ     = minimum(spacing(grid_g)) / sqrt(ndims(grid_g) * 10.1)
     θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
     dτ_r    = 1.0 / (θ_dτ + 1.0)
     nudτ    = vdτ * lτ_re_m
@@ -128,7 +128,7 @@ function main()
     foreach(x -> fill!(parent(x), 0.0), model.fields.τ)
     foreach(x -> fill!(parent(x), 0.0), model.fields.V)
     fill!(parent(other_fields.A), 1.0)
-    fill!(parent(model.fields.η), 1.0)
+    fill!(parent(model.fields.η), 0.5)
 
     KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.stress)
     KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.velocity)
@@ -161,7 +161,7 @@ function main()
     ttot = MPI.Allreduce(ttot, MPI.MIN, comm)
 
     if global_rank(topo) == 0
-        Aeff = 22 * prod(size(grid_g)) / ttot
+        Aeff = 23 * prod(size(grid_g)) / ttot
         println("A_eff = $Aeff")
     end
 

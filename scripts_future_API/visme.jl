@@ -1,7 +1,7 @@
 using CairoMakie
 
 # function visme()
-    nx, ny, nz = 126*4, 126*2, 126*2
+    nx, ny, nz = 254*4, 254*2, 254*2
 
     Pr = zeros(nx, ny, nz)
     τxx = zeros(nx, ny, nz)
