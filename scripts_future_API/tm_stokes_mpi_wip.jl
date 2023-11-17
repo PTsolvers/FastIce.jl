@@ -30,7 +30,7 @@ function main()
     MPI.Init(; threadlevel=:multiple)
 
     backend = ROCBackend()
-    dims    = (4, 2, 2)
+    dims = (4, 2, 2)
     # dims = (0, 0, 0)
     arch = Architecture(backend, dims, MPI.COMM_WORLD)
     set_device!(arch)
@@ -135,7 +135,7 @@ function main()
     KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.velocity)
     KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.rheology)
 
-    MPI.Barrier(cartesian_communicator(topo))
+    MPI.Barrier(comm)
 
     if global_rank(topo) == 0
         println("action")
@@ -160,7 +160,7 @@ function main()
     ttot = MPI.Allreduce(ttot, MPI.MIN, comm)
 
     if global_rank(topo) == 0
-        Aeff = 23 * prod(size(grid_g)) / ttot
+        Aeff = 23 * prod(size(grid_l)) / ttot
         println("A_eff = $Aeff")
     end
 

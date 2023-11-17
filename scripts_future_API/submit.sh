@@ -2,9 +2,9 @@
 #SBATCH --job-name="FastIce3D"
 #SBATCH --output=FastIce3D.%j.o
 #SBATCH --error=FastIce3D.%j.e
-#SBATCH --time=00:10:00
-#SBATCH --nodes=1024
-#SBATCH --ntasks=4096
+#SBATCH --time=00:05:00
+#SBATCH --nodes=16
+#SBATCH --ntasks=64
 # #SBATCH --ntasks-per-node=8
 #SBATCH --gpus-per-node=8
 #SBATCH --partition=standard-g
