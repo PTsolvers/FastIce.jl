@@ -29,17 +29,6 @@ export ExchangeInfo, DistributedBoundaryConditions
 "Trait structure used as a type parameters to indicate that the Architecture is a distributed MPI Architecture."
 struct DistributedMPI end
 
-"""
-    Architecture(backend::Backend, dims::NTuple{N,Int}, comm::MPI.Comm=MPI.COMM_WORLD) where {N}
-
-Create a distributed Architecture using `backend`. For GPU backends, device will be selected automatically based on a process id within a node.
-"""
-function Architectures.Architecture(backend::Backend, dims::NTuple{N,Int}, comm::MPI.Comm=MPI.COMM_WORLD) where {N}
-    topo = CartesianTopology(dims; comm)
-    device = get_device(backend, shared_rank(topo)+1)
-    return Architecture{DistributedMPI,typeof(backend),typeof(device),typeof(topo)}(backend, device, topo)
-end
-
 include("topology.jl")
 include("boundary_conditions.jl")
 include("gather.jl")

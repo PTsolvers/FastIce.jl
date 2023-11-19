@@ -92,7 +92,6 @@ Coordinates of a current process within a Cartesian topology.
 """
 coordinates(t::CartesianTopology) = t.cart_coords
 
-
 """
     neighbors(t::CartesianTopology)
 
@@ -150,4 +149,14 @@ function local_grid(g::CartesianGrid, t::CartesianTopology)
     local_origin = origin(g) .+ local_extent .* t.cart_coords
 
     return CartesianGrid(local_origin, local_extent, local_size)
+end
+
+"""
+    Architecture(backend::Backend, topology::CartesianTopology) where {N}
+
+Create a distributed Architecture using `backend` and `topology`. For GPU backends, device will be selected automatically based on a process id within a node.
+"""
+function Architectures.Architecture(backend::Backend, topology::CartesianTopology)
+    device = get_device(backend, shared_rank(topology)+1)
+    return Architecture{DistributedMPI,typeof(backend),typeof(device),typeof(topology)}(backend, device, topology)
 end
