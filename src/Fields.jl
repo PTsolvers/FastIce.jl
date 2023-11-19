@@ -114,7 +114,7 @@ end
 
 @kernel function _set_discrete!(dst, grid, loc, fun::F, args...) where {F}
     I = @index(Global, Cartesian)
-    dst[I] = fun(grid, loc, Tuple(I)..., args...)
+    dst[I] = fun(grid, loc, I, args...)
 end
 
 function set!(f::Field{T,N}, grid::CartesianGrid{N}, fun::F; discrete=false, parameters=()) where {T,F,N}
