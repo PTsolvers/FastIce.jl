@@ -36,7 +36,7 @@ function runtests()
 
     for f in testfiles
         println("")
-        if f ∈ excludedfiles
+        if basename(f) ∈ excludedfiles
             println("Test Skip:")
             println("$f")
             continue
