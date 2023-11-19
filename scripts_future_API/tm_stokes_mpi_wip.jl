@@ -32,10 +32,10 @@ function main()
     backend = CPU()
     # dims = (4, 2, 2)
     dims = (1, 1, 1)
-    arch = Architecture(backend, dims, MPI.COMM_WORLD)
+    topo = CartesianTopology(dims)
+    arch = Architecture(backend, topo)
     set_device!(arch)
 
-    topo = details(arch)
     comm = cartesian_communicator(topo)
 
     size_l = (128, 64, 64)
