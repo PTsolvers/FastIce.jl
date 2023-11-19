@@ -2,7 +2,7 @@ include("common.jl")
 
 using FastIce.Utils
 
-@testset verbose = true "pipelines" begin
+@testset "pipelines" begin
     @testset "pre" begin
         a = 0
         pipe = Pipeline(; pre=() -> a += 1)
