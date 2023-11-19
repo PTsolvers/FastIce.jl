@@ -13,7 +13,7 @@ const TBC = BoundaryCondition{Traction}
 const SBC = BoundaryCondition{Slip}
 
 using KernelAbstractions
-using AMDGPU
+# using AMDGPU
 
 using FastIce.Distributed
 using MPI
@@ -27,18 +27,18 @@ using MPI
 @views av_yz(A) = 0.25 .* (A[:, 1:end-1, 1:end-1] .+ A[:, 2:end, 1:end-1] .+ A[:, 2:end, 2:end] .+ A[:, 1:end-1, 2:end])
 
 function main()
-    MPI.Init(; threadlevel=:multiple)
+    MPI.Init()
 
-    backend = ROCBackend()
-    dims = (4, 2, 2)
-    # dims = (0, 0, 0)
+    backend = CPU()
+    # dims = (4, 2, 2)
+    dims = (1, 1, 1)
     arch = Architecture(backend, dims, MPI.COMM_WORLD)
     set_device!(arch)
 
     topo = details(arch)
     comm = cartesian_communicator(topo)
 
-    size_l = (254, 254, 254)
+    size_l = (128, 64, 64)
     size_g = global_grid_size(topo, size_l)
 
     if global_rank(topo) == 0
@@ -47,8 +47,8 @@ function main()
     end
 
     grid_g = CartesianGrid(; origin=(-2.0, -1.0, 0.0),
-                           extent=(4.0, 2.0, 2.0),
-                           size=size_g)
+                             extent=(4.0, 2.0, 2.0),
+                             size=size_g)
 
     grid_l = local_grid(grid_g, topo)
 
@@ -129,7 +129,8 @@ function main()
     foreach(x -> fill!(parent(x), 0.0), model.fields.τ)
     foreach(x -> fill!(parent(x), 0.0), model.fields.V)
     fill!(parent(other_fields.A), 1.0)
-    fill!(parent(model.fields.η), 0.5)
+
+    set!(model.fields.η, grid_l, (grid, loc, I, fields) -> physics.rheology(grid, I, fields); discrete=true, parameters=(model.fields,))
 
     KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.stress)
     KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.velocity)
