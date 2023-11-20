@@ -3,7 +3,15 @@ using FastIce
 
 using Pkg
 
-excludedfiles = ["test_excluded.jl"];
+excludedfiles = ["test_excluded.jl"]
+
+# distributed
+test_distributed = ["test_distributed_2D.jl", "test_distributed_3D.jl"]
+nprocs_2D = 4
+nprocs_3D = 8
+ENV["DIMX"] = 2
+ENV["DIMY"] = 2
+ENV["DIMZ"] = 2
 
 function parse_flags!(args, flag; default=nothing, typ=typeof(default))
     for f in args
@@ -42,7 +50,15 @@ function runtests()
             continue
         end
         try
-            run(`$exename --startup-file=no $(joinpath(testdir, f))`)
+            if basename(f) ∈ test_distributed
+                nprocs = contains(f, "2D") ? nprocs_2D : nprocs_3D
+                cmd(n=nprocs) = `mpiexecjl -n $n $exename --startup-file=no --color=yes $(joinpath(testdir, f))`
+                withenv("JULIA_NUM_THREADS" => "4") do
+                    run(cmd())
+                end
+            else
+                run(`$exename --startup-file=no $(joinpath(testdir, f))`)
+            end
         catch ex
             nfail += 1
         end
