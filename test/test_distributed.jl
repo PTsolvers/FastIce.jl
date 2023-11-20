@@ -22,15 +22,20 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD)
             if global_rank(topo) == 0
                 @test neighbor(topo, 1, 1) == MPI.PROC_NULL
                 @test neighbor(topo, 2, 1) == MPI.PROC_NULL
-                @test neighbor(topo, 1, 2) == mpi_dims[2]
-                @test has_heighbor(topo, 1, 1) == false
-                @test has_heighbor(topo, 2, 1) == false
-                @test has_heighbor(topo, 1, 2) == true
+                @test has_neighbor(topo, 1, 1) == false
+                @test has_neighbor(topo, 2, 1) == false
+                if mpi_dims[2] > 1
+                    @test neighbor(topo, 1, 2) == mpi_dims[2]
+                    @test has_neighbor(topo, 1, 2) == true
+                else
+                    @test neighbor(topo, 1, 2) == MPI.PROC_NULL
+                    @test has_neighbor(topo, 1, 2) == false
+                end
             end
             @test global_grid_size(topo, local_size) == mpi_dims .* local_size
         end
         @testset "gather!" begin
-            src = fill!(me + 1, global_rank(topo))
+            src = fill(global_rank(topo) + 1, local_size)
             dst = (global_rank(topo) == 0) ? zeros(Int, mpi_dims .* local_size) : nothing
             gather!(dst, src, cartesian_communicator(topo))
             @test dst == repeat(reshape(1:global_size(topo), dimensions(topo))'; inner=size(src))
@@ -51,17 +56,25 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD)
                 @test neighbor(topo, 1, 1) == MPI.PROC_NULL
                 @test neighbor(topo, 2, 1) == MPI.PROC_NULL
                 @test neighbor(topo, 3, 1) == MPI.PROC_NULL
-                @test neighbor(topo, 1, 2) == mpi_dims[2] * mpi_dims[3]
-                @test neighbor(topo, 2, 2) == mpi_dims[3]
-                @test has_heighbor(topo, 1, 1) == false
-                @test has_heighbor(topo, 2, 1) == false
-                @test has_heighbor(topo, 3, 1) == false
-                @test has_heighbor(topo, 1, 2) == true
+                @test has_neighbor(topo, 1, 1) == false
+                @test has_neighbor(topo, 2, 1) == false
+                @test has_neighbor(topo, 3, 1) == false
+                if mpi_dims[2] > 1 && mpi_dims[3] > 1
+                    @test neighbor(topo, 1, 2) == mpi_dims[2] * mpi_dims[3]
+                    @test neighbor(topo, 2, 2) == mpi_dims[3]
+                    @test has_neighbor(topo, 1, 2) == true
+                    @test has_neighbor(topo, 2, 2) == true
+                else
+                    @test neighbor(topo, 1, 2) == MPI.PROC_NULL
+                    @test neighbor(topo, 2, 2) == MPI.PROC_NULL
+                    @test has_neighbor(topo, 1, 2) == false
+                    @test has_neighbor(topo, 2, 2) == false
+                end
             end
             @test global_grid_size(topo, local_size) == mpi_dims .* local_size
         end
         @testset "gather!" begin
-            src = fill!(me + 1, global_rank(topo))
+            src = fill(global_rank(topo) + 1, local_size)
             dst = (global_rank(topo) == 0) ? zeros(Int, mpi_dims .* local_size) : nothing
             gather!(dst, src, cartesian_communicator(topo))
             ranks_mat = permutedims(reshape(1:global_size(topo), dimensions(topo)), reverse(1:3))

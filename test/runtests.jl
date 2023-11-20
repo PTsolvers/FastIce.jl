@@ -3,7 +3,7 @@ using FastIce
 
 using Pkg
 
-excludedfiles = ["test_excluded.jl","test_distributed.jl"];
+excludedfiles = ["test_excluded.jl"];
 
 function parse_flags!(args, flag; default=nothing, typ=typeof(default))
     for f in args
