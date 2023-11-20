@@ -7,6 +7,7 @@ excludedfiles = ["test_excluded.jl"]
 
 # distributed
 test_distributed = ["test_distributed_2D.jl", "test_distributed_3D.jl"]
+using MPI
 nprocs_2D = 4
 nprocs_3D = 8
 ENV["DIMX"] = 2
@@ -52,7 +53,7 @@ function runtests()
         try
             if basename(f) ∈ test_distributed
                 nprocs = contains(f, "2D") ? nprocs_2D : nprocs_3D
-                cmd(n=nprocs) = `mpiexecjl -n $n $exename --startup-file=no --color=yes $(joinpath(testdir, f))`
+                cmd(n=nprocs) = `$(mpiexec()) -n $n $exename --startup-file=no --color=yes $(joinpath(testdir, f))`
                 withenv("JULIA_NUM_THREADS" => "4") do
                     run(cmd())
                 end
