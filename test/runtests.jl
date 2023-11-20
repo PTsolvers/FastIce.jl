@@ -61,6 +61,7 @@ function runtests()
                 run(`$exename --startup-file=no $(joinpath(testdir, f))`)
             end
         catch ex
+            @error ex
             nfail += 1
         end
     end
