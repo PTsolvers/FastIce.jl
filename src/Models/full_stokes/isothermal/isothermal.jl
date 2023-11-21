@@ -22,11 +22,12 @@ function default_physics(::Type{T}) where {T}
             rheology=default(GlensLawRheology{Int64}))
 end
 
-struct IsothermalFullStokesModel{Arch,Grid,BC,HB,Physics,Gravity,IterParams,Fields}
+struct IsothermalFullStokesModel{Arch,Grid,BC,HB,OW,Physics,Gravity,IterParams,Fields}
     arch::Arch
     grid::Grid
     boundary_conditions::BC
     hide_boundaries::HB
+    outer_width::OW
     physics::Physics
     gravity::Gravity
     iter_params::IterParams
@@ -65,6 +66,7 @@ function IsothermalFullStokesModel(;
                                    boundary_conditions,
                                    iter_params,
                                    gravity,
+                                   outer_width=(2, 2, 2),
                                    physics=nothing,
                                    fields=nothing,
                                    other_fields=nothing)
@@ -85,7 +87,7 @@ function IsothermalFullStokesModel(;
     boundary_conditions = make_field_boundary_conditions(arch, grid, fields, boundary_conditions)
     hide_boundaries = HideBoundaries{ndims(grid)}(arch)
 
-    return IsothermalFullStokesModel(arch, grid, boundary_conditions, hide_boundaries, physics, gravity, iter_params, fields)
+    return IsothermalFullStokesModel(arch, grid, boundary_conditions, hide_boundaries, outer_width, physics, gravity, iter_params, fields)
 end
 
 fields(model::IsothermalFullStokesModel) = model.fields
@@ -97,8 +99,7 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async=true
     η_rh            = model.physics.rheology
     ρg              = model.gravity
     hide_boundaries = model.hide_boundaries
-
-    outer_width = (16, 8, 4)
+    outer_width     = model.outer_width
 
     Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
 

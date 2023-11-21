@@ -41,6 +41,8 @@ function main()
     size_l = (128, 64, 64)
     size_g = global_grid_size(topo, size_l)
 
+    b_width = (16, 8, 4) #(128, 32, 4)#
+
     if global_rank(topo) == 0
         @show dimensions(topo)
         @show size_g
@@ -86,6 +88,7 @@ function main()
                                       physics,
                                       gravity,
                                       boundary_conditions,
+                                      outer_width=b_width,
                                       iter_params,
                                       other_fields)
 
@@ -158,11 +161,13 @@ function main()
 
     MPI.Barrier(comm)
 
-    ttot = MPI.Allreduce(ttot, MPI.MIN, comm)
+    ttot_min = MPI.Allreduce(ttot, MPI.MIN, comm)
+    ttot_max = MPI.Allreduce(ttot, MPI.MAX, comm)
 
     if global_rank(topo) == 0
-        Aeff = 23 * prod(size(grid_l)) / ttot
-        println("A_eff = $Aeff")
+        Teff_min = 23 * 8 * prod(size(grid_l)) / ttot_max
+        Teff_max = 23 * 8 * prod(size(grid_l)) / ttot_min
+        println("T_eff [min max] = $Teff_min $Teff_max")
     end
 
     copyto!(Pr_v, interior(model.fields.Pr))

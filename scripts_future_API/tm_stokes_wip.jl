@@ -27,6 +27,8 @@ function main()
 
     size_l = (64, 64, 64)
 
+    b_width = (16, 8, 4) #(128, 32, 4)#
+
     grid = CartesianGrid(; origin=(-0.5, -0.5, 0.0),
                            extent=(1.0, 1.0, 1.0),
                            size=size_l)
@@ -70,6 +72,7 @@ function main()
                                       physics,
                                       gravity,
                                       boundary_conditions,
+                                      outer_width=b_width,
                                       iter_params,
                                       other_fields)
 
