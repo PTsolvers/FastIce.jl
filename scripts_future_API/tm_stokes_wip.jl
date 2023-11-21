@@ -49,6 +49,9 @@ function main()
     gravity = (x=0.0, y=0.0, z=0.0)
 
     # numerics
+    niter   = 10maximum(size(grid))
+    ncheck  = maximum(size(grid))
+
     r       = 0.7
     re_mech = 10π
     lτ_re_m = minimum(extent(grid)) / re_mech
@@ -104,9 +107,10 @@ function main()
 
     display(fig)
 
-    for it in 1:1000
+    for iter in 1:niter
         advance_iteration!(model, 0.0, 1.0; async=false)
-        if it % 20 == 0
+        (iter % ncheck == 0) && println("iter/nx = $(iter/maximum(size(grid)))")
+        if iter % ncheck == 0
             plt.Pr[3][] = interior(model.fields.Pr)[:, size(grid, 2)÷2, :]
             plt.Vx[3][] = interior(model.fields.V.x)[:, size(grid, 2)÷2, :]
             plt.Vy[3][] = interior(model.fields.V.y)[:, size(grid, 2)÷2, :]
