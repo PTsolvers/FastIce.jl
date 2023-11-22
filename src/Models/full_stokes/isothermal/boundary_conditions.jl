@@ -95,6 +95,25 @@ function make_velocity_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::
     end
 end
 
+function make_residuals_vel_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::NamedTuple{names}, bc) where {Kind,N,names}
+    ordering = (:x, :y, :z)
+    ntuple(Val(N)) do D
+        ntuple(Val(2)) do S
+            if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
+                new_bc = NamedTuple{names}(ExchangeInfo(Val(S), Val(D), V) for V in fields)
+                make_batch(new_bc, fields)
+            else
+                new_bc = extract_velocity_bc(Val(D), bc[ordering[D]][S])
+                if isempty(new_bc)
+                    nothing
+                else
+                    make_batch(new_bc, fields)
+                end
+            end
+        end
+    end
+end
+
 function make_rheology_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, η) where {Kind,N}
     ntuple(Val(N)) do D
         ntuple(Val(2)) do S

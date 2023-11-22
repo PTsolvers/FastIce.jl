@@ -42,7 +42,11 @@ function make_fields_mechanics(backend, grid::CartesianGrid{2})
                xy=Field(backend, grid, (Vertex(), Vertex()))),
             # velocity
             V=(x=Field(backend, grid, (Vertex(), Center()); halo=1),
-               y=Field(backend, grid, (Center(), Vertex()); halo=1)))
+               y=Field(backend, grid, (Center(), Vertex()); halo=1)),
+            # residual
+            r_Pr=Field(backend, grid, Center(); halo=1),
+            r_V=(x=Field(backend, grid, (Vertex(), Center()); halo=1),
+                 y=Field(backend, grid, (Center(), Vertex()); halo=1)))
 end
 
 function make_fields_mechanics(backend, grid::CartesianGrid{3})
@@ -57,7 +61,12 @@ function make_fields_mechanics(backend, grid::CartesianGrid{3})
             # velocity
             V=(x=Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
                y=Field(backend, grid, (Center(), Vertex(), Center()); halo=1),
-               z=Field(backend, grid, (Center(), Center(), Vertex()); halo=1)))
+               z=Field(backend, grid, (Center(), Center(), Vertex()); halo=1))
+            # residual
+            r_Pr=Field(backend, grid, Center(); halo=0),
+            r_V=(x=Field(backend, grid, (Vertex(), Center(), Center()); halo=0),
+                 y=Field(backend, grid, (Center(), Vertex(), Center()); halo=0),
+                 z=Field(backend, grid, (Center(), Center(), Vertex()); halo=0)))
 end
 
 function IsothermalFullStokesModel(;
@@ -112,6 +121,19 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async=true
     # rheology
     launch!(model.arch, model.grid, update_η! => (η, η_rh, η_rel, model.grid, model.fields);
             location=Center(), boundary_conditions=model.boundary_conditions.rheology, hide_boundaries, outer_width)
+
+    async || synchronize(backend(model.arch))
+    return
+end
+
+function evaluate_error(model::IsothermalFullStokesModel; async=true)
+    (; Pr, τ, V, r_Pr, r_V) = model.fields
+    ρg              = model.gravity
+    hide_boundaries = model.hide_boundaries
+    outer_width     = model.outer_width
+
+    launch!(model.arch, model.grid, compute_residuals! => (r_V, r_Pr, Pr, τ, V, ρg, model.grid, Δ);
+            location=Vertex(), expand=1, boundary_conditions=model.boundary_conditions.residuals_vel, hide_boundaries, outer_width)
 
     async || synchronize(backend(model.arch))
     return

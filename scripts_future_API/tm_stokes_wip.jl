@@ -14,8 +14,9 @@ const SBC = BoundaryCondition{Slip}
 
 using KernelAbstractions
 
-using GLMakie
-Makie.inline!(true)
+# using CairoMakie
+# using GLMakie
+# Makie.inline!(true)
 
 function main()
     backend = CPU()
@@ -79,19 +80,19 @@ function main()
                                       iter_params,
                                       other_fields)
 
-    fig = Figure(; resolution=(1200, 1000), fontsize=32)
-    axs = (Pr = Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
-           Vx = Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
-           Vy = Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
-           Vz = Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
-    plt = (Pr = heatmap!(axs.Pr, xcenters(grid), zcenters(grid), interior(model.fields.Pr)[:, size(grid, 2)÷2, :]; colormap=:turbo),
-           Vx = heatmap!(axs.Vx, xvertices(grid), zcenters(grid), interior(model.fields.V.x)[:, size(grid, 2)÷2, :]; colormap=:turbo),
-           Vy = heatmap!(axs.Vy, xcenters(grid), zcenters(grid), interior(model.fields.V.y)[:, size(grid, 2)÷2, :]; colormap=:turbo),
-           Vz = heatmap!(axs.Vz, xcenters(grid), zvertices(grid), interior(model.fields.V.z)[:, size(grid, 2)÷2, :]; colormap=:turbo))
-    Colorbar(fig[1, 1][1, 2], plt.Pr)
-    Colorbar(fig[1, 2][1, 2], plt.Vx)
-    Colorbar(fig[2, 1][1, 2], plt.Vy)
-    Colorbar(fig[2, 2][1, 2], plt.Vz)
+    # fig = Figure(; resolution=(1200, 1000), fontsize=32)
+    # axs = (Pr = Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
+    #        Vx = Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
+    #        Vy = Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
+    #        Vz = Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
+    # plt = (Pr = heatmap!(axs.Pr, xcenters(grid), zcenters(grid), interior(model.fields.Pr)[:, size(grid, 2)÷2, :]; colormap=:turbo),
+    #        Vx = heatmap!(axs.Vx, xvertices(grid), zcenters(grid), interior(model.fields.V.x)[:, size(grid, 2)÷2, :]; colormap=:turbo),
+    #        Vy = heatmap!(axs.Vy, xcenters(grid), zcenters(grid), interior(model.fields.V.y)[:, size(grid, 2)÷2, :]; colormap=:turbo),
+    #        Vz = heatmap!(axs.Vz, xcenters(grid), zvertices(grid), interior(model.fields.V.z)[:, size(grid, 2)÷2, :]; colormap=:turbo))
+    # Colorbar(fig[1, 1][1, 2], plt.Pr)
+    # Colorbar(fig[1, 2][1, 2], plt.Vx)
+    # Colorbar(fig[2, 1][1, 2], plt.Vy)
+    # Colorbar(fig[2, 2][1, 2], plt.Vz)
 
     fill!(parent(model.fields.Pr), 0.0)
     foreach(x -> fill!(parent(x), 0.0), model.fields.τ)
@@ -105,18 +106,21 @@ function main()
     KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.velocity)
     KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.rheology)
 
-    display(fig)
+    # display(fig)
 
     for iter in 1:niter
         advance_iteration!(model, 0.0, 1.0; async=false)
-        (iter % ncheck == 0) && println("iter/nx = $(iter/maximum(size(grid)))")
-        if iter % ncheck == 0
-            plt.Pr[3][] = interior(model.fields.Pr)[:, size(grid, 2)÷2, :]
-            plt.Vx[3][] = interior(model.fields.V.x)[:, size(grid, 2)÷2, :]
-            plt.Vy[3][] = interior(model.fields.V.y)[:, size(grid, 2)÷2, :]
-            plt.Vz[3][] = interior(model.fields.V.z)[:, size(grid, 2)÷2, :]
-            display(fig)
+        if (iter % ncheck == 0)
+            println("iter/nx = $(iter/maximum(size(grid)))")
+            evaluate_error(model; async=false)
         end
+        # if iter % ncheck == 0
+        #     plt.Pr[3][] = interior(model.fields.Pr)[:, size(grid, 2)÷2, :]
+        #     plt.Vx[3][] = interior(model.fields.V.x)[:, size(grid, 2)÷2, :]
+        #     plt.Vy[3][] = interior(model.fields.V.y)[:, size(grid, 2)÷2, :]
+        #     plt.Vz[3][] = interior(model.fields.V.z)[:, size(grid, 2)÷2, :]
+        #     display(fig)
+        # end
     end
 
     return
