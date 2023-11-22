@@ -26,7 +26,7 @@ export gather!
 
 export ExchangeInfo, DistributedBoundaryConditions
 
-"Trait structure used as a type parameters to indicate that the Architecture is a distributed MPI Architecture."
+"Trait structure used as a type parameter to indicate that the Architecture is a distributed MPI Architecture."
 struct DistributedMPI end
 
 include("topology.jl")
