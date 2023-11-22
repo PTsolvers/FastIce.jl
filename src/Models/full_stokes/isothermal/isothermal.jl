@@ -61,7 +61,7 @@ function make_fields_mechanics(backend, grid::CartesianGrid{3})
             # velocity
             V=(x=Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
                y=Field(backend, grid, (Center(), Vertex(), Center()); halo=1),
-               z=Field(backend, grid, (Center(), Center(), Vertex()); halo=1))
+               z=Field(backend, grid, (Center(), Center(), Vertex()); halo=1)),
             # residual
             r_Pr=Field(backend, grid, Center(); halo=0),
             r_V=(x=Field(backend, grid, (Vertex(), Center(), Center()); halo=0),
