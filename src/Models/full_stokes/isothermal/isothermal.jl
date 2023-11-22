@@ -39,10 +39,10 @@ function make_fields_mechanics(backend, grid::CartesianGrid{2})
             # deviatoric stress
             τ=(xx=Field(backend, grid, Center(); halo=1),
                yy=Field(backend, grid, Center(); halo=1),
-               xy=Field(backend, grid, (Vertex(), Vertex(), Center()))),
+               xy=Field(backend, grid, (Vertex(), Vertex()))),
             # velocity
-            V=(x=Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
-               y=Field(backend, grid, (Center(), Vertex(), Center()); halo=1)))
+            V=(x=Field(backend, grid, (Vertex(), Center()); halo=1),
+               y=Field(backend, grid, (Center(), Vertex()); halo=1)))
 end
 
 function make_fields_mechanics(backend, grid::CartesianGrid{3})
