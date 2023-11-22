@@ -18,16 +18,30 @@ using KernelAbstractions
 using FastIce.Distributed
 using MPI
 
-vx(x, y, z) = sin(π * x) * (cos(π * y) * (z^2 - 1)^2 - cos(π * z) * (y^2 - 1)^2)
-vy(x, y, z) = sin(π * y) * (cos(π * z) * (x^2 - 1)^2 - cos(π * x) * (z^2 - 1)^2)
-vz(x, y, z) = sin(π * z) * (cos(π * x) * (y^2 - 1)^2 - cos(π * y) * (x^2 - 1)^2)
-
-τxx(x, y, z, η) = 2 * η * π * cos(π * x) * (cos(π * y) * (z^2 - 1)^2 - cos(π * z) * (y^2 - 1)^2)
-τyy(x, y, z, η) = 2 * η * π * cos(π * y) * (cos(π * z) * (x^2 - 1)^2 - cos(π * x) * (z^2 - 1)^2)
-τzz(x, y, z, η) = 2 * η * π * cos(π * z) * (cos(π * x) * (y^2 - 1)^2 - cos(π * y) * (x^2 - 1)^2)
-τxy(x, y, z, η) = 4 * η * cos(π * z) * ((x^3 - x) * sin(π * y) - (y^3 - y) * sin(π * x))
-τxz(x, y, z, η) = 4 * η * cos(π * y) * ((z^3 - z) * sin(π * x) - (x^3 - x) * sin(π * z))
-τyz(x, y, z, η) = 4 * η * cos(π * x) * ((y^3 - y) * sin(π * z) - (z^3 - z) * sin(π * y))
+# manufactured solution for the confined Stokes flow with free-slip boundaries
+# helper functions
+f(ξ, η) = cos(π * ξ) * (η^2 - 1)^2 -
+          cos(π * η) * (ξ^2 - 1)^2
+g(ξ, η) = sin(π * η) * (ξ^2 - 1) * ξ -
+          sin(π * ξ) * (η^2 - 1) * η
+p(ξ, η) = cos(π * η) * (1 - 3 * ξ^2) * 2 -
+          cos(π * ξ) * (1 - 3 * η^2) * 2
+# velocity
+vx(x, y, z) = sin(π * x) * f(y, z)
+vy(x, y, z) = sin(π * y) * f(z, x)
+vz(x, y, z) = sin(π * z) * f(x, y)
+# diagonal deviatoric stress
+τxx(x, y, z, η) = 2 * η * π * cos(π * x) * f(y, z)
+τyy(x, y, z, η) = 2 * η * π * cos(π * y) * f(z, x)
+τzz(x, y, z, η) = 2 * η * π * cos(π * z) * f(x, y)
+# off-diagonal deviatoric stress
+τxy(x, y, z, η) = 4 * η * cos(π * z) * g(x, y)
+τxz(x, y, z, η) = 4 * η * cos(π * y) * g(z, x)
+τyz(x, y, z, η) = 4 * η * cos(π * x) * g(y, z)
+# forcing terms
+ρgx(x, y, z, η) = -2 * η * sin(π * x) * (f(y, z) * π^2 - p(y, z))
+ρgy(x, y, z, η) = -2 * η * sin(π * y) * (f(z, x) * π^2 - p(z, x))
+ρgz(x, y, z, η) = -2 * η * sin(π * z) * (f(x, y) * π^2 - p(x, y))
 
 function main()
     MPI.Init()
@@ -64,15 +78,15 @@ function main()
     niter  = 20maximum(size(grid_g))
     ncheck = 1maximum(size(grid_g))
     # PT params
-    r           = 0.7
-    re_mech     = 5π
-    lτ_re_m     = minimum(extent(grid_g)) / re_mech
-    vdτ         = minimum(spacing(grid_g)) / sqrt(ndims(grid_g) * 10.1)
-    θ_dτ        = lτ_re_m * (r + 4 / 3) / vdτ
-    dτ_r        = 1.0 / (θ_dτ + 1.0)
-    nudτ        = vdτ * lτ_re_m
-    iter_params = (η_rel=1e-1,     # pack PT params
-    Δτ=(Pr=r / θ_dτ, τ=(xx=dτ_r, yy=dτ_r, zz=dτ_r, xy=dτ_r, xz=dτ_r, yz=dτ_r), V=(x=nudτ, y=nudτ, z=nudτ)))
+    r       = 0.7
+    re_mech = 5π
+    lτ_re_m = minimum(extent(grid_g)) / re_mech
+    vdτ     = minimum(spacing(grid_g)) / sqrt(ndims(grid_g) * 10.1)
+    θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
+    dτ_r    = 1.0 / (θ_dτ + 1.0)
+    nudτ    = vdτ * lτ_re_m
+    # pack PT params
+    iter_params = (η_rel=1e-1, Δτ=(Pr=r / θ_dτ, τ=(xx=dτ_r, yy=dτ_r, zz=dτ_r, xy=dτ_r, xz=dτ_r, yz=dτ_r), V=(x=nudτ, y=nudτ, z=nudτ)))
     # model
     model = IsothermalFullStokesModel(; arch,
                                       grid=grid_l,
