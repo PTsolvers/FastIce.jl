@@ -42,6 +42,16 @@ for (dim, val) in _COORDINATES
     ex_slip_vel = Expr(:(=), Symbol(:V, dim), :(DirichletBC{FullCell}(bc.components[$val])))
     ex_slip_vel = Expr(:tuple, ex_slip_vel)
 
+    ex_res_vel = ntuple(length(_COORDINATES)) do I
+        kind = I == val ? :(FullCell) : :(HalfCell)
+        Expr(:(=), Symbol(:V, _COORDINATES[I][1]), :(DirichletBC{$kind}(0.0)))
+    end
+
+    ex_res_vel = Expr(:tuple, ex_res_vel...)
+
+    ex_res_slip_vel = Expr(:(=), Symbol(:V, dim), :(DirichletBC{FullCell}(0.0)))
+    ex_res_slip_vel = Expr(:tuple, ex_slip_vel)
+
     @eval begin
         extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Traction}) = $ex_tr
         extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Velocity}) = ()
@@ -50,6 +60,10 @@ for (dim, val) in _COORDINATES
         extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Traction}) = ()
         extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Velocity}) = $ex_vel
         extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Slip})     = $ex_slip_vel
+
+        extract_residuals_vel_bc(::Val{$val}, bc::BoundaryCondition{Traction}) = ()
+        extract_residuals_vel_bc(::Val{$val}, bc::BoundaryCondition{Velocity}) = $ex_res_vel
+        extract_residuals_vel_bc(::Val{$val}, bc::BoundaryCondition{Slip})     = $ex_res_slip_vel
     end
 end
 
@@ -103,7 +117,7 @@ function make_residuals_vel_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fie
                 new_bc = NamedTuple{names}(ExchangeInfo(Val(S), Val(D), V) for V in fields)
                 make_batch(new_bc, fields)
             else
-                new_bc = extract_velocity_bc(Val(D), bc[ordering[D]][S])
+                new_bc = extract_residuals_vel_bc(Val(D), bc[ordering[D]][S])
                 if isempty(new_bc)
                     nothing
                 else
@@ -129,8 +143,10 @@ end
 function make_field_boundary_conditions(arch::Architecture, grid::CartesianGrid, fields, bc)
     stress_fields   = (; Pr=fields.Pr, NamedTuple{Symbol.(:τ, keys(fields.τ))}(values(fields.τ))...)
     velocity_fields = NamedTuple{Symbol.(:V, keys(fields.V))}(values(fields.V))
+    residuals_vel_fields = NamedTuple{Symbol.(:r_V, keys(fields.r_V))}(values(fields.r_V))
 
     return (stress   = make_stress_bc(arch, grid, stress_fields, bc),
             velocity = make_velocity_bc(arch, grid, velocity_fields, bc),
+            residuals_vel = make_residuals_vel_bc(arch, grid, residuals_vel_fields, bc),
             rheology = make_rheology_bc(arch, grid, fields.η))
 end
