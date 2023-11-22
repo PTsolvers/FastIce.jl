@@ -12,9 +12,9 @@ mutable struct ExchangeInfo{SB,RB}
 end
 
 """
-ExchangeInfo(::Val{S}, ::Val{D}, field::Field) where {S,D}
+    ExchangeInfo(::Val{S}, ::Val{D}, field::Field) where {S,D}
 
-    Create `ExchangeInfo` to exchange halos on side `S` in the spatial direction `D`.
+Create `ExchangeInfo` to exchange halos on side `S` in the spatial direction `D`.
 """
 function ExchangeInfo(::Val{S}, ::Val{D}, field::Field) where {S,D}
     send_view = get_send_view(Val(S), Val(D), field)
