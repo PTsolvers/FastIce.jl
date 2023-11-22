@@ -106,7 +106,7 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async=true
     launch!(model.arch, model.grid, update_σ! => (Pr, τ, V, η, Δτ, Δ);
             location=Center(), expand=1, boundary_conditions=model.boundary_conditions.stress, hide_boundaries, outer_width)
 
-    launch!(model.arch, model.grid, update_V! => (V, Pr, τ, η, Δτ, ρg, model.grid, Δ);
+    launch!(model.arch, model.grid, update_V! => (V, Pr, τ, η, ρg, Δτ, model.grid, Δ);
             location=Vertex(), boundary_conditions=model.boundary_conditions.velocity, hide_boundaries, outer_width)
 
     # rheology

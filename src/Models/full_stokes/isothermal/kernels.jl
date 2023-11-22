@@ -49,26 +49,26 @@ end
     end
 end
 
-@kernel function update_V!(V, Pr, τ, η, Δτ, ρg, grid, Δ, offset=nothing)
+@kernel function update_V!(V, Pr, τ, η, ρg, Δτ, grid, Δ, offset=nothing)
     I = @index(Global, Cartesian)
     isnothing(offset) || (I += offset)
     @inbounds if within(grid, V.x, I)
         ∂σxx_∂x = (-∂ᵛx(Pr, I) + ∂ᵛx(τ.xx, I)) / Δ.x
         ∂τxy_∂y = ∂ᶜy(τ.xy, I) / Δ.y
         ∂τxz_∂z = ∂ᶜz(τ.xz, I) / Δ.z
-        V.x[I] += (∂σxx_∂x + ∂τxy_∂y + ∂τxz_∂z - ρg.x) / maxlᵛx(η, I) * Δτ.V.x
+        V.x[I] += (∂σxx_∂x + ∂τxy_∂y + ∂τxz_∂z - ρg.x[I]) / maxlᵛx(η, I) * Δτ.V.x
     end
     @inbounds if within(grid, V.y, I)
         ∂σyy_∂y = (-∂ᵛy(Pr, I) + ∂ᵛy(τ.yy, I)) / Δ.y
         ∂τxy_∂x = ∂ᶜx(τ.xy, I) / Δ.x
         ∂τyz_∂z = ∂ᶜz(τ.yz, I) / Δ.z
-        V.y[I] += (∂σyy_∂y + ∂τxy_∂x + ∂τyz_∂z - ρg.y) / maxlᵛy(η, I) * Δτ.V.y
+        V.y[I] += (∂σyy_∂y + ∂τxy_∂x + ∂τyz_∂z - ρg.y[I]) / maxlᵛy(η, I) * Δτ.V.y
     end
     @inbounds if within(grid, V.z, I)
         ∂σzz_∂z = (-∂ᵛz(Pr, I) + ∂ᵛz(τ.zz, I)) / Δ.z
         ∂τxz_∂x = ∂ᶜx(τ.xz, I) / Δ.x
         ∂τyz_∂y = ∂ᶜy(τ.yz, I) / Δ.y
-        V.z[I] += (∂σzz_∂z + ∂τxz_∂x + ∂τyz_∂y - ρg.z) / maxlᵛz(η, I) * Δτ.V.z
+        V.z[I] += (∂σzz_∂z + ∂τxz_∂x + ∂τyz_∂y - ρg.z[I]) / maxlᵛz(η, I) * Δτ.V.z
     end
 end
 
@@ -114,18 +114,18 @@ end
         ∂σxx_∂x = (-∂ᵛx(Pr, I) + ∂ᵛx(τ.xx, I)) / Δ.x
         ∂τxy_∂y = ∂ᶜy(τ.xy, I) / Δ.y
         ∂τxz_∂z = ∂ᶜz(τ.xz, I) / Δ.z
-        r_V.x[I] = ∂σxx_∂x + ∂τxy_∂y + ∂τxz_∂z - ρg.x
+        r_V.x[I] = ∂σxx_∂x + ∂τxy_∂y + ∂τxz_∂z - ρg.x[I]
     end
     @inbounds if within(grid, r_V.y, I)
         ∂σyy_∂y = (-∂ᵛy(Pr, I) + ∂ᵛy(τ.yy, I)) / Δ.y
         ∂τxy_∂x = ∂ᶜx(τ.xy, I) / Δ.x
         ∂τyz_∂z = ∂ᶜz(τ.yz, I) / Δ.z
-        r_V.y[I] = ∂σyy_∂y + ∂τxy_∂x + ∂τyz_∂z - ρg.y
+        r_V.y[I] = ∂σyy_∂y + ∂τxy_∂x + ∂τyz_∂z - ρg.y[I]
     end
     @inbounds if within(grid, r_V.z, I)
         ∂σzz_∂z = (-∂ᵛz(Pr, I) + ∂ᵛz(τ.zz, I)) / Δ.z
         ∂τxz_∂x = ∂ᶜx(τ.xz, I) / Δ.x
         ∂τyz_∂y = ∂ᶜy(τ.yz, I) / Δ.y
-        r_V.z[I] = ∂σzz_∂z + ∂τxz_∂x + ∂τyz_∂y - ρg.z
+        r_V.z[I] = ∂σzz_∂z + ∂τxz_∂x + ∂τyz_∂y - ρg.z[I]
     end
 end
