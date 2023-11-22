@@ -8,14 +8,31 @@ using KernelAbstractions
 
 export launch!
 
+"""
+    launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args}; <keyword arguments>) where {K,Args}
+
+Launch a KernelAbstraction `kernel` on a `grid` using the backend from `arch`.
+Either `worksize` or `location` must be provided as keyword arguments.
+
+# Keyword Arguments
+- `worksize`: worksize of a kernel, i.e. how many grid points are included in each spatial direction.
+- `location[=nothing]`: compute worksize as a size of the grid at a specified location.
+    If only one location is provided, e.g. `location=Vertex()`, then this location will be used for all spacial directions.
+- `offset[=nothing]`: index offset for all grid indices as a `CartesianIndex`.
+- `expand[=nothing]`: if provided, the worksize is increased by `2*expand`, and offset is set to `-expand`, or combined with user-provided offset. 
+- `hide_boundaries[=nothing]`: instance of `HideBoundaries`, that will be used to overlap boundary processing with computations at inner points of the domain.
+- `outer_width[=nothing]`: if `hide_boundaries` is specified, used to determine the decomposition of the domain into inner and outer regions.
+- `boundary_conditions[=nothing]`: a tuple of boundary condition batches for each side of every spatial direction.
+- `async[=true]`: if set to `false`, will block the host until the kernel is finished executing.
+"""
 function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
-                 location=nothing,
                  worksize=nothing,
+                 location=nothing,
                  offset=nothing,
                  expand=nothing,
+                 boundary_conditions=nothing,
                  hide_boundaries=nothing,
                  outer_width=nothing,
-                 boundary_conditions=nothing,
                  async=true) where {K,Args}
     fun, args = kernel
 
