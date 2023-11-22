@@ -2,6 +2,7 @@ module Fields
 
 export AbstractField
 export Field, interior
+export FunctionField
 export location, data, halo, set!
 
 using Adapt
@@ -132,5 +133,7 @@ end
 Base.@propagate_inbounds ∂(f::AbstractField, I, dim) = ∂(f, I, dim, location(f, dim))
 Base.@propagate_inbounds ∂(f::AbstractField, I, dim, ::Vertex) = ∂ᶜ(f, I, dim)
 Base.@propagate_inbounds ∂(f::AbstractField, I, dim, ::Center) = ∂ᵛ(f, I, dim)
+
+include("function_field.jl")
 
 end
