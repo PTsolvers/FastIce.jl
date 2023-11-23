@@ -14,25 +14,25 @@ const SBC = BoundaryCondition{Slip}
 
 using LinearAlgebra, Printf
 using KernelAbstractions
-using CUDA
+# using CUDA
 
 using CairoMakie
 # using GLMakie
 # Makie.inline!(true)
 
 @views function main()
-    backend = CUDABackend()
+    backend = CPU()
     arch = Architecture(backend, 2)
     set_device!(arch)
 
     # physics
     ebg = 2.0
 
-    b_width = (32, 4, 4) #(128, 32, 4)#
+    b_width = (16, 4, 4) #(128, 32, 4)#
 
     grid = CartesianGrid(; origin=(-0.5, -0.5, 0.0),
                          extent=(1.0, 1.0, 1.0),
-                         size=(256, 256, 256))
+                         size=(62, 62, 62))
 
     psh_x(x, _, _) = -x * ebg
     psh_y(_, y, _) = y * ebg
@@ -43,9 +43,9 @@ using CairoMakie
     free_slip    = SBC(0.0, 0.0, 0.0)
     free_surface = TBC(0.0, 0.0, 0.0)
 
-    boundary_conditions = (x = (VBC(x_bc, y_bc, 0.0), VBC(x_bc, y_bc, 0.0)),
-                           y = (VBC(x_bc, y_bc, 0.0), VBC(x_bc, y_bc, 0.0)),
-                           z = (free_slip, free_surface))
+    boundary_conditions = (x=(VBC(x_bc, y_bc, 0.0), VBC(x_bc, y_bc, 0.0)),
+                           y=(VBC(x_bc, y_bc, 0.0), VBC(x_bc, y_bc, 0.0)),
+                           z=(free_slip, free_surface))
     # TODO: Add ConstantField
     ρg(x, y, z) = 0.0
     gravity = (x=FunctionField(ρg, grid, (Vertex(), Center(), Center())),

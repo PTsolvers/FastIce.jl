@@ -12,11 +12,17 @@ const VBC = BoundaryCondition{Velocity}
 const TBC = BoundaryCondition{Traction}
 const SBC = BoundaryCondition{Slip}
 
+using LinearAlgebra, Printf
 using KernelAbstractions
 # using AMDGPU
 
 using FastIce.Distributed
 using MPI
+
+using CairoMakie
+
+norm_g(A) = (sum2_l = sum(interior(A) .^ 2); sqrt(MPI.Allreduce(sum2_l, MPI.SUM, MPI.COMM_WORLD)))
+max_abs_g(A) = (max_l = maximum(abs.(interior(A))); MPI.Allreduce(max_l, MPI.MAX, MPI.COMM_WORLD))
 
 @views avx(A) = 0.5 .* (A[1:end-1, :, :] .+ A[2:end, :, :])
 @views avy(A) = 0.5 .* (A[:, 1:end-1, :] .+ A[:, 2:end, :])
@@ -26,19 +32,19 @@ using MPI
 @views av_xz(A) = 0.25 .* (A[1:end-1, :, 1:end-1] .+ A[2:end, :, 1:end-1, :] .+ A[2:end, :, 2:end, :] .+ A[1:end-1, :, 2:end])
 @views av_yz(A) = 0.25 .* (A[:, 1:end-1, 1:end-1] .+ A[:, 2:end, 1:end-1] .+ A[:, 2:end, 2:end] .+ A[:, 1:end-1, 2:end])
 
-function main()
+function main(; do_visu=false, do_save=false)
     MPI.Init()
 
     backend = CPU()
     # dims = (4, 2, 2)
-    dims = (1, 1, 1)
+    dims = (2, 1, 1)
     topo = CartesianTopology(dims)
     arch = Architecture(backend, topo)
     set_device!(arch)
 
     comm = cartesian_communicator(topo)
 
-    size_l = (128, 64, 64)
+    size_l = (62, 62, 62)
     size_g = global_grid_size(topo, size_l)
 
     b_width = (16, 8, 4) #(128, 32, 4)#
@@ -58,20 +64,25 @@ function main()
     free_slip    = SBC(0.0, 0.0, 0.0)
     free_surface = TBC(0.0, 0.0, 0.0)
 
-    boundary_conditions = (x = (free_slip, free_slip),
-                           y = (free_slip, free_slip),
-                           z = (no_slip, free_surface))
+    boundary_conditions = (x=(free_slip, free_slip),
+                           y=(free_slip, free_slip),
+                           z=(no_slip, free_surface))
 
-    gravity = (x=-0.25, y=0.0, z=1.0)
+    ρgx(x, y, z) = 0.25
+    ρgy(x, y, z) = 0.0
+    ρgz(x, y, z) = 1.0
+    gravity = (x=FunctionField(ρgx, grid_l, (Vertex(), Center(), Center())),
+               y=FunctionField(ρgy, grid_l, (Center(), Vertex(), Center())),
+               z=FunctionField(ρgz, grid_l, (Center(), Center(), Vertex())))
 
     # numerics
-    niter  = 20maximum(size(grid_g))
-    ncheck = 1maximum(size(grid_g))
+    niter  = 50maximum(size(grid_g))
+    ncheck = 2maximum(size(grid_g))
 
     r       = 0.7
-    re_mech = 5π
+    re_mech = 4π
     lτ_re_m = minimum(extent(grid_g)) / re_mech
-    vdτ     = minimum(spacing(grid_g)) / sqrt(ndims(grid_g) * 10.1)
+    vdτ     = minimum(spacing(grid_g)) / sqrt(ndims(grid_g) * 1.5)
     θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
     dτ_r    = 1.0 / (θ_dτ + 1.0)
     nudτ    = vdτ * lτ_re_m
@@ -141,9 +152,7 @@ function main()
 
     MPI.Barrier(comm)
 
-    if global_rank(topo) == 0
-        println("action")
-    end
+    (global_rank(topo) == 0) && println("action")
 
     ttot_ns = UInt64(0)
     for iter in 1:niter
@@ -152,8 +161,17 @@ function main()
             ttot_ns = time_ns()
         end
         advance_iteration!(model, 0.0, 1.0)
-        if (iter % ncheck == 0) && (global_rank(topo) == 0)
-            println("iter/nx = $(iter/maximum(size(grid_g)))")
+        if (iter % ncheck == 0)
+            compute_residuals!(model)
+            err = (Pr = max_abs_g(model.fields.r_Pr),
+                   Vx = max_abs_g(model.fields.r_V.x),
+                   Vy = max_abs_g(model.fields.r_V.y),
+                   Vz = max_abs_g(model.fields.r_V.z))
+            if (global_rank(topo) == 0)
+                any(.!isfinite.(values(err))) && error("simulation failed, err = $err")
+                iter_nx = iter / maximum(size(grid_g))
+                @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
+            end
         end
     end
     ttot = float(time_ns() - ttot_ns)
@@ -194,7 +212,24 @@ function main()
     gather!(Vy_g, Vy_v, comm)
     gather!(Vz_g, Vz_v, comm)
 
-    if global_rank(topo) == 0
+    if (global_rank(topo) == 0) && do_visu
+        fig = Figure()
+        axs = (Pr = Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
+            Vx = Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
+            Vy = Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
+            Vz = Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
+        plt = (Pr = heatmap!(axs.Pr, xcenters(grid_g), zcenters(grid_g), Pr_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
+               Vx = heatmap!(axs.Vx, xvertices(grid_g), zcenters(grid_g), Vx_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
+               Vy = heatmap!(axs.Vy, xcenters(grid_g), zcenters(grid_g), Vy_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
+               Vz = heatmap!(axs.Vz, xcenters(grid_g), zvertices(grid_g), Vz_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo))
+        Colorbar(fig[1, 1][1, 2], plt.Pr)
+        Colorbar(fig[1, 2][1, 2], plt.Vx)
+        Colorbar(fig[2, 1][1, 2], plt.Vy)
+        Colorbar(fig[2, 2][1, 2], plt.Vz)
+        save("fig.png", fig)
+    end
+
+    if global_rank(topo) == 0 && do_save
         open("data.bin", "w") do io
             write(io, Pr_g)
             write(io, τxx_g)
@@ -214,4 +249,4 @@ function main()
     return
 end
 
-main()
+main(; do_visu=false, do_save=false)
