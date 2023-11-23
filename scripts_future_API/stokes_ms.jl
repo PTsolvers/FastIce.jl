@@ -14,6 +14,7 @@ const VBC = BoundaryCondition{Velocity}
 const TBC = BoundaryCondition{Traction}
 const SBC = BoundaryCondition{Slip}
 
+using LinearAlgebra
 using KernelAbstractions
 
 using CairoMakie
@@ -55,7 +56,7 @@ function main()
     # geometry
     grid = CartesianGrid(; origin=(-1.0, -1.0, -1.0),
                          extent=(2.0, 2.0, 2.0),
-                         size=(32, 32, 32))
+                         size=(64, 64, 64))
 
     free_slip = SBC(0.0, 0.0, 0.0)
     xface = (Vertex(), Center(), Center())
@@ -94,7 +95,7 @@ function main()
                                       iter_params,
                                       other_fields)
 
-    fig = Figure(; resolution=(1200, 900), fontsize=32)
+    fig = Figure(; size=(1200, 900))
     axs = (Pr = Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
            Vx = Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
            Vy = Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
@@ -134,9 +135,9 @@ function main()
     set!(Vy_m, grid, vy)
     set!(Vz_m, grid, vz)
 
-    dVx = abs.(interior(Vx_m) .- interior(model.fields.V.x))
-    dVy = abs.(interior(Vy_m) .- interior(model.fields.V.y))
-    dVz = abs.(interior(Vz_m) .- interior(model.fields.V.z))
+    dVx = interior(Vx_m) .- interior(model.fields.V.x)
+    dVy = interior(Vy_m) .- interior(model.fields.V.y)
+    dVz = interior(Vz_m) .- interior(model.fields.V.z)
 
     plt.Pr[3][] = interior(model.fields.Pr)[:, size(grid, 2)÷2+1, :]
     plt.Vx[3][] = dVx[:, size(grid, 2)÷2+1, :]
@@ -146,9 +147,9 @@ function main()
 
     @show yvertex(grid, size(grid, 2)÷2+1)
 
-    err = (maximum(dVx) / maximum(abs.(interior(Vx_m))),
-           maximum(dVy) / maximum(abs.(interior(Vy_m))),
-           maximum(dVz) / maximum(abs.(interior(Vz_m))))
+    err = (norm(dVx, Inf) / norm(Vx_m, Inf),
+           norm(dVy, Inf) / norm(Vy_m, Inf),
+           norm(dVz, Inf) / norm(Vz_m, Inf))
 
     @printf("err = [Vx: %1.3e, Vy: %1.3e, Vz: %1.3e]\n", err...)
 

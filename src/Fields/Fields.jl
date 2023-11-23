@@ -13,6 +13,8 @@ using FastIce.Grids
 using FastIce.GridOperators
 using FastIce.Architectures
 
+import LinearAlgebra
+
 abstract type AbstractField{T,N,L} <: AbstractArray{T,N} end
 
 Base.@pure location(::AbstractField{T,N,L}) where {T,N,L} = L.instance
@@ -133,6 +135,10 @@ end
 Base.@propagate_inbounds ∂(f::AbstractField, I, dim) = ∂(f, I, dim, location(f, dim))
 Base.@propagate_inbounds ∂(f::AbstractField, I, dim, ::Vertex) = ∂ᶜ(f, I, dim)
 Base.@propagate_inbounds ∂(f::AbstractField, I, dim, ::Center) = ∂ᵛ(f, I, dim)
+
+# field norm
+LinearAlgebra.norm(f::Field) = LinearAlgebra.norm(interior(f))
+LinearAlgebra.norm(f::Field, p::Real) = LinearAlgebra.norm(interior(f), p)
 
 include("function_field.jl")
 

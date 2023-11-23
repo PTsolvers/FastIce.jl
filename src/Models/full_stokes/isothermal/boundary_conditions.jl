@@ -109,19 +109,18 @@ function make_velocity_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::
     end
 end
 
-function make_residuals_vel_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::NamedTuple{names}, bc) where {Kind,N,names}
+function make_residuals_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::NamedTuple{names}, bc) where {Kind,N,names}
     ordering = (:x, :y, :z)
     ntuple(Val(N)) do D
         ntuple(Val(2)) do S
             if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
-                new_bc = NamedTuple{names}(ExchangeInfo(Val(S), Val(D), V) for V in fields)
-                make_batch(new_bc, fields)
+                nothing
             else
-                new_bc = extract_residuals_vel_bc(Val(D), bc[ordering[D]][S])
-                if isempty(new_bc)
-                    nothing
+                if !(bc[ordering[D]][S] isa BoundaryCondition{Traction})
+                    Vn = Symbol(:r_V, ordering[D])
+                    BoundaryConditionsBatch((fields[Vn], ), (DirichletBC{FullCell}(0.0), ))
                 else
-                    make_batch(new_bc, fields)
+                    nothing
                 end
             end
         end
@@ -143,10 +142,10 @@ end
 function make_field_boundary_conditions(arch::Architecture, grid::CartesianGrid, fields, bc)
     stress_fields   = (; Pr=fields.Pr, NamedTuple{Symbol.(:τ, keys(fields.τ))}(values(fields.τ))...)
     velocity_fields = NamedTuple{Symbol.(:V, keys(fields.V))}(values(fields.V))
-    residuals_vel_fields = NamedTuple{Symbol.(:r_V, keys(fields.r_V))}(values(fields.r_V))
+    residual_fields = NamedTuple{Symbol.(:r_V, keys(fields.r_V))}(values(fields.r_V))
 
     return (stress   = make_stress_bc(arch, grid, stress_fields, bc),
             velocity = make_velocity_bc(arch, grid, velocity_fields, bc),
-            residuals_vel = make_residuals_vel_bc(arch, grid, residuals_vel_fields, bc),
-            rheology = make_rheology_bc(arch, grid, fields.η))
+            rheology = make_rheology_bc(arch, grid, fields.η),
+            residual = make_residuals_bc(arch, grid, residual_fields, bc))
 end
