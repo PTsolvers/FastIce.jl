@@ -102,7 +102,7 @@ end
 fields(model::IsothermalFullStokesModel) = model.fields
 grid(model::IsothermalFullStokesModel) = model.grid
 
-function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async=true)
+function advance_iteration!(model::IsothermalFullStokesModel, t, Δt)
     (; Pr, τ, V, η) = model.fields
     (; η_rel, Δτ)   = model.iter_params
     η_rh            = model.physics.rheology
@@ -121,12 +121,10 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async=true
     # rheology
     launch!(model.arch, model.grid, update_η! => (η, η_rh, η_rel, model.grid, model.fields);
             location=Center(), boundary_conditions=model.boundary_conditions.rheology, hide_boundaries, outer_width, async=false)
-
-    async || synchronize(backend(model.arch))
     return
 end
 
-function compute_residuals!(model::IsothermalFullStokesModel; async=true)
+function compute_residuals!(model::IsothermalFullStokesModel)
     (; Pr, τ, V, r_Pr, r_V) = model.fields
     ρg = model.gravity
     boundary_conditions = model.boundary_conditions.residual
@@ -134,7 +132,7 @@ function compute_residuals!(model::IsothermalFullStokesModel; async=true)
     Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
 
     launch!(model.arch, model.grid, compute_residuals! => (r_V, r_Pr, Pr, τ, V, ρg, model.grid, Δ);
-            location=Vertex(), boundary_conditions, async)
+            location=Vertex(), boundary_conditions, async=false)
     return
 end
 

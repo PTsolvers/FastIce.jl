@@ -112,10 +112,9 @@ using CairoMakie
     display(fig)
 
     for iter in 1:niter
-        advance_iteration!(model, 0.0, 1.0; async=false)
-        # error("error")
+        advance_iteration!(model, 0.0, 1.0)
         if (iter % ncheck == 0)
-            compute_residuals!(model; async=false)
+            compute_residuals!(model)
             err = (Pr = norm(model.fields.r_Pr, Inf),
                    Vx = norm(model.fields.r_V.x, Inf),
                    Vy = norm(model.fields.r_V.y, Inf),

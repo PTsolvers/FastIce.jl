@@ -151,7 +151,7 @@ function main()
             MPI.Barrier(comm)
             ttot_ns = time_ns()
         end
-        advance_iteration!(model, 0.0, 1.0; async=false)
+        advance_iteration!(model, 0.0, 1.0)
         if (iter % ncheck == 0) && (global_rank(topo) == 0)
             println("iter/nx = $(iter/maximum(size(grid_g)))")
         end
