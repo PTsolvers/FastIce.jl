@@ -14,27 +14,28 @@ const SBC = BoundaryCondition{Slip}
 
 using LinearAlgebra, Printf
 using KernelAbstractions
+using CUDA
 
-# using CairoMakie
-using GLMakie
+using CairoMakie
+# using GLMakie
 # Makie.inline!(true)
 
-function main()
-    backend = CPU()
-    arch = Architecture(backend)
+@views function main()
+    backend = CUDABackend()
+    arch = Architecture(backend, 2)
     set_device!(arch)
 
     # physics
     ebg = 2.0
 
-    b_width = (16, 8, 4) #(128, 32, 4)#
+    b_width = (32, 4, 4) #(128, 32, 4)#
 
     grid = CartesianGrid(; origin=(-0.5, -0.5, 0.0),
-                           extent=(1.0, 1.0, 1.0),
-                           size=(64, 64, 64))
+                         extent=(1.0, 1.0, 1.0),
+                         size=(256, 256, 256))
 
     psh_x(x, _, _) = -x * ebg
-    psh_y(_, y, _) =  y * ebg
+    psh_y(_, y, _) = y * ebg
 
     x_bc = BoundaryFunction(psh_x; reduce_dims=false)
     y_bc = BoundaryFunction(psh_y; reduce_dims=false)
@@ -52,13 +53,13 @@ function main()
                z=FunctionField(ρg, grid, (Center(), Center(), Vertex())))
 
     # numerics
-    niter   = 20maximum(size(grid))
-    ncheck  = maximum(size(grid))
+    niter  = 20maximum(size(grid))
+    ncheck = maximum(size(grid))
 
     r       = 0.7
     re_mech = 10π
     lτ_re_m = minimum(extent(grid)) / re_mech
-    vdτ     = minimum(spacing(grid)) / sqrt(ndims(grid) * 1.1)
+    vdτ     = minimum(spacing(grid)) / sqrt(ndims(grid) * 1.5)
     θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
     dτ_r    = 1.0 / (θ_dτ + 1.0)
     nudτ    = vdτ * lτ_re_m
@@ -82,15 +83,15 @@ function main()
                                       iter_params,
                                       other_fields)
 
-    fig = Figure(; size=(1000, 800))
+    fig = Figure()
     axs = (Pr = Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
            Vx = Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
            Vy = Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
            Vz = Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
-    plt = (Pr = heatmap!(axs.Pr, xcenters(grid), zcenters(grid), interior(model.fields.Pr)[:, size(grid, 2)÷2+1, :]; colormap=:turbo),
-           Vx = heatmap!(axs.Vx, xvertices(grid), zcenters(grid), interior(model.fields.V.x)[:, size(grid, 2)÷2+1, :]; colormap=:turbo),
-           Vy = heatmap!(axs.Vy, xcenters(grid), zcenters(grid), interior(model.fields.V.y)[:, size(grid, 2)÷2+1, :]; colormap=:turbo),
-           Vz = heatmap!(axs.Vz, xcenters(grid), zvertices(grid), interior(model.fields.V.z)[:, size(grid, 2)÷2+1, :]; colormap=:turbo))
+    plt = (Pr = heatmap!(axs.Pr, xcenters(grid), zcenters(grid), Array(interior(model.fields.Pr)[:, size(grid, 2)÷2+1, :]); colormap=:turbo),
+           Vx = heatmap!(axs.Vx, xvertices(grid), zcenters(grid), Array(interior(model.fields.V.x)[:, size(grid, 2)÷2+1, :]); colormap=:turbo),
+           Vy = heatmap!(axs.Vy, xcenters(grid), zcenters(grid), Array(interior(model.fields.V.y)[:, size(grid, 2)÷2+1, :]); colormap=:turbo),
+           Vz = heatmap!(axs.Vz, xcenters(grid), zvertices(grid), Array(interior(model.fields.V.z)[:, size(grid, 2)÷2+1, :]); colormap=:turbo))
     Colorbar(fig[1, 1][1, 2], plt.Pr)
     Colorbar(fig[1, 2][1, 2], plt.Vx)
     Colorbar(fig[2, 1][1, 2], plt.Vy)
@@ -112,24 +113,24 @@ function main()
 
     for iter in 1:niter
         advance_iteration!(model, 0.0, 1.0; async=false)
+        # error("error")
         if (iter % ncheck == 0)
             compute_residuals!(model; async=false)
-            err = (
-                Pr = norm(model.fields.r_Pr, Inf),
-                Vx = norm(model.fields.r_V.x, Inf),
-                Vy = norm(model.fields.r_V.y, Inf),
-                Vz = norm(model.fields.r_V.z, Inf),
-            )
+            err = (Pr = norm(model.fields.r_Pr, Inf),
+                   Vx = norm(model.fields.r_V.x, Inf),
+                   Vy = norm(model.fields.r_V.y, Inf),
+                   Vz = norm(model.fields.r_V.z, Inf))
             if any(.!isfinite.(values(err)))
                 error("simulation failed, err = $err")
             end
-            iter_nx = iter/maximum(size(grid))
+            iter_nx = iter / maximum(size(grid))
             @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
             plt.Pr[3][] = interior(model.fields.Pr)[:, size(grid, 2)÷2+1, :]
             plt.Vx[3][] = interior(model.fields.V.x)[:, size(grid, 2)÷2+1, :]
             plt.Vy[3][] = interior(model.fields.V.y)[:, size(grid, 2)÷2+1, :]
             plt.Vz[3][] = interior(model.fields.V.z)[:, size(grid, 2)÷2+1, :]
-            yield()
+            # yield()
+            display(fig)
         end
     end
 
