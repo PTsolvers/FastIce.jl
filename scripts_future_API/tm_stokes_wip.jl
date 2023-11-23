@@ -46,7 +46,7 @@ function main()
     boundary_conditions = (x = (VBC(x_bc, y_bc, 0.0), VBC(x_bc, y_bc, 0.0)),
                            y = (VBC(x_bc, y_bc, 0.0), VBC(x_bc, y_bc, 0.0)),
                            z = (free_slip, free_surface))
-
+    # TODO: Add ConstantField
     ρg(x, y, z) = 0.0
     gravity = (x=FunctionField(ρg, grid, (Vertex(), Center(), Center())),
                y=FunctionField(ρg, grid, (Center(), Vertex(), Center())),
@@ -114,6 +114,8 @@ function main()
     for iter in 1:niter
         advance_iteration!(model, 0.0, 1.0; async=false)
         if (iter % ncheck == 0)
+            # TODO: check error eval and BCs
+            # TODO: for some reason `@sprintf` is not displaying anything...
             evaluate_error!(model; async=false)
             println("iter/nx = $(iter/maximum(size(grid)))")
             println("  err = [Pr $(maximum(abs.(model.fields.r_Pr))), V.x $(maximum(abs.(model.fields.r_V.x))), V.y $(maximum(abs.(model.fields.r_V.y))), V.z $(maximum(abs.(model.fields.r_V.z)))]")
