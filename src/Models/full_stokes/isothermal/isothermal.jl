@@ -113,14 +113,14 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async=true
     Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
 
     launch!(model.arch, model.grid, update_σ! => (Pr, τ, V, η, Δτ, Δ);
-            location=Center(), expand=1, boundary_conditions=model.boundary_conditions.stress, hide_boundaries, outer_width)
+            location=Center(), expand=1, boundary_conditions=model.boundary_conditions.stress, hide_boundaries, outer_width, async=false)
 
     launch!(model.arch, model.grid, update_V! => (V, Pr, τ, η, ρg, Δτ, model.grid, Δ);
-            location=Vertex(), boundary_conditions=model.boundary_conditions.velocity, hide_boundaries, outer_width)
+            location=Vertex(), boundary_conditions=model.boundary_conditions.velocity, hide_boundaries, outer_width, async=false)
 
     # rheology
     launch!(model.arch, model.grid, update_η! => (η, η_rh, η_rel, model.grid, model.fields);
-            location=Center(), boundary_conditions=model.boundary_conditions.rheology, hide_boundaries, outer_width)
+            location=Center(), boundary_conditions=model.boundary_conditions.rheology, hide_boundaries, outer_width, async=false)
 
     async || synchronize(backend(model.arch))
     return
