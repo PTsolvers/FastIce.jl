@@ -1,7 +1,7 @@
 module Isothermal
 
 export BoundaryCondition, Traction, Velocity, Slip
-export IsothermalFullStokesModel, advance_iteration!, advance_timestep!
+export IsothermalFullStokesModel, advance_iteration!, advance_timestep!, evaluate_error!
 
 using FastIce.Architectures
 using FastIce.Physics
@@ -64,9 +64,9 @@ function make_fields_mechanics(backend, grid::CartesianGrid{3})
                z=Field(backend, grid, (Center(), Center(), Vertex()); halo=1)),
             # residual
             r_Pr=Field(backend, grid, Center(); halo=0),
-            r_V=(x=Field(backend, grid, (Vertex(), Center(), Center()); halo=0),
-                 y=Field(backend, grid, (Center(), Vertex(), Center()); halo=0),
-                 z=Field(backend, grid, (Center(), Center(), Vertex()); halo=0)))
+            r_V=(x=Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
+                 y=Field(backend, grid, (Center(), Vertex(), Center()); halo=1),
+                 z=Field(backend, grid, (Center(), Center(), Vertex()); halo=1)))
 end
 
 function IsothermalFullStokesModel(;
@@ -126,14 +126,16 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async=true
     return
 end
 
-function evaluate_error(model::IsothermalFullStokesModel; async=true)
+function evaluate_error!(model::IsothermalFullStokesModel; async=true)
     (; Pr, τ, V, r_Pr, r_V) = model.fields
     ρg              = model.gravity
     hide_boundaries = model.hide_boundaries
     outer_width     = model.outer_width
 
+    Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
+
     launch!(model.arch, model.grid, compute_residuals! => (r_V, r_Pr, Pr, τ, V, ρg, model.grid, Δ);
-            location=Vertex(), expand=1, boundary_conditions=model.boundary_conditions.residuals_vel, hide_boundaries, outer_width)
+            location=Vertex(), boundary_conditions=model.boundary_conditions.residuals_vel, hide_boundaries, outer_width)
 
     async || synchronize(backend(model.arch))
     return

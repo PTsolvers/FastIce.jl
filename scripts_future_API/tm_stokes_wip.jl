@@ -47,7 +47,10 @@ function main()
                            y = (VBC(x_bc, y_bc, 0.0), VBC(x_bc, y_bc, 0.0)),
                            z = (free_slip, free_surface))
 
-    gravity = (x=0.0, y=0.0, z=0.0)
+    ρg(x, y, z) = 0.0
+    gravity = (x=FunctionField(ρg, grid, (Vertex(), Center(), Center())),
+               y=FunctionField(ρg, grid, (Center(), Vertex(), Center())),
+               z=FunctionField(ρg, grid, (Center(), Center(), Vertex())))
 
     # numerics
     niter   = 10maximum(size(grid))
@@ -111,8 +114,9 @@ function main()
     for iter in 1:niter
         advance_iteration!(model, 0.0, 1.0; async=false)
         if (iter % ncheck == 0)
+            evaluate_error!(model; async=false)
             println("iter/nx = $(iter/maximum(size(grid)))")
-            evaluate_error(model; async=false)
+            println("  err = [Pr $(maximum(abs.(model.fields.r_Pr))), V.x $(maximum(abs.(model.fields.r_V.x))), V.y $(maximum(abs.(model.fields.r_V.y))), V.z $(maximum(abs.(model.fields.r_V.z)))]")
         end
         # if iter % ncheck == 0
         #     plt.Pr[3][] = interior(model.fields.Pr)[:, size(grid, 2)÷2, :]

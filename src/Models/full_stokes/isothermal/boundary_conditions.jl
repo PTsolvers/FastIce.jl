@@ -44,13 +44,13 @@ for (dim, val) in _COORDINATES
 
     ex_res_vel = ntuple(length(_COORDINATES)) do I
         kind = I == val ? :(FullCell) : :(HalfCell)
-        Expr(:(=), Symbol(:V, _COORDINATES[I][1]), :(DirichletBC{$kind}(0.0)))
+        Expr(:(=), Symbol(:r_V, _COORDINATES[I][1]), :(DirichletBC{$kind}(0.0)))
     end
 
     ex_res_vel = Expr(:tuple, ex_res_vel...)
 
-    ex_res_slip_vel = Expr(:(=), Symbol(:V, dim), :(DirichletBC{FullCell}(0.0)))
-    ex_res_slip_vel = Expr(:tuple, ex_slip_vel)
+    ex_res_slip_vel = Expr(:(=), Symbol(:r_V, dim), :(DirichletBC{FullCell}(0.0)))
+    ex_res_slip_vel = Expr(:tuple, ex_res_slip_vel)
 
     @eval begin
         extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Traction}) = $ex_tr
