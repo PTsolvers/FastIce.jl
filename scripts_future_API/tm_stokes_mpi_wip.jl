@@ -14,7 +14,7 @@ const SBC = BoundaryCondition{Slip}
 
 using LinearAlgebra, Printf
 using KernelAbstractions
-using AMDGPU
+# using AMDGPU
 
 using FastIce.Distributed
 using MPI
@@ -32,13 +32,27 @@ max_abs_g(A) = (max_l = maximum(abs.(interior(A))); MPI.Allreduce(max_l, MPI.MAX
 @views av_xz(A) = 0.25 .* (A[1:end-1, :, 1:end-1] .+ A[2:end, :, 1:end-1, :] .+ A[2:end, :, 2:end, :] .+ A[1:end-1, :, 2:end])
 @views av_yz(A) = 0.25 .* (A[:, 1:end-1, 1:end-1] .+ A[:, 2:end, 1:end-1] .+ A[:, 2:end, 2:end] .+ A[:, 1:end-1, 2:end])
 
+function fastice_intro(; kwargs...)
+    intro = raw"""
+    ┌──────────────────────────────────────────────────────────┐
+    │     ______              __   ____                  _  __ │
+    │    / ____/____ _ _____ / /_ /  _/_____ ___        (_)/ / │
+    │   / /_   / __ `// ___// __/ / / / ___// _ \      / // /  │
+    │  / __/  / /_/ /(__  )/ /_ _/ / / /__ /  __/_    / // /   │
+    │ /_/     \__,_//____/ \__//___/ \___/ \___/(_)__/ //_/    │
+    │                                             /___/        │
+    └──────────────────────────────────────────────────────────┘
+    """
+    printstyled(intro; kwargs...)
+end
+
 function main(; do_visu=false, do_save=false)
     MPI.Init()
 
-    backend = ROCBackend()
-    dims = (4, 2, 2)
+    backend = CPU()
     # dims = (4, 2, 2)
-    # dims = (2, 1, 1)
+    # dims = (4, 2, 2)
+    dims = (1, 1, 1)
     topo = CartesianTopology(dims)
     arch = Architecture(backend, topo)
     set_device!(arch)
@@ -46,10 +60,10 @@ function main(; do_visu=false, do_save=false)
     comm = cartesian_communicator(topo)
     me = global_rank(topo) # rank
 
-    size_l = (254, 254, 254)
+    size_l = (30, 30, 30)
     size_g = global_grid_size(topo, size_l)
 
-    outer_width = (64, 32, 4) #(128, 32, 4)#
+    outer_width = (3, 3, 3) #(128, 32, 4)#
 
     grid_g = CartesianGrid(; origin=(-2.0, -1.0, 0.0),
                            extent=(4.0, 2.0, 2.0),
@@ -58,10 +72,9 @@ function main(; do_visu=false, do_save=false)
     grid_l = local_grid(grid_g, topo)
 
     if me == 0
+        fastice_intro(bold=true, color=:blue)
         printstyled("Running FastIce.jl 🧊 \n"; bold=true, color=:blue)
-        printstyled(" | Global size = $(size_g) \n"; bold=true)
-        printstyled(" | Global dims = $(dimensions(topo)) \n"; bold=true)
-        printstyled(" | Global extend = $(extent(grid_g)) \n"; bold=true)
+        printstyled(grid_g; bold=true)
     end
 
     no_slip      = VBC(0.0, 0.0, 0.0)
@@ -80,7 +93,7 @@ function main(; do_visu=false, do_save=false)
                z=FunctionField(ρgz, grid_l, (Center(), Center(), Vertex())))
 
     # numerics
-    niter  = 50maximum(size(grid_g))
+    niter  = 10maximum(size(grid_g))
     ncheck = 2maximum(size(grid_g))
 
     r       = 0.7
