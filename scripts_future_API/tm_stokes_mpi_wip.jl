@@ -36,7 +36,7 @@ function main(; do_visu=false, do_save=false)
     MPI.Init()
 
     backend = ROCBackend()
-    dims = (1, 1, 1)
+    dims = (2, 1, 1)
     # dims = (4, 2, 2)
     # dims = (2, 1, 1)
     topo = CartesianTopology(dims)
@@ -44,22 +44,25 @@ function main(; do_visu=false, do_save=false)
     set_device!(arch)
 
     comm = cartesian_communicator(topo)
+    me = global_rank(topo) # rank
 
     size_l = (254, 254, 254)
     size_g = global_grid_size(topo, size_l)
 
-    outer_width = (16, 16, 16) #(128, 32, 4)#
-
-    if global_rank(topo) == 0
-        @show dimensions(topo)
-        @show size_g
-    end
+    outer_width = (64, 32, 4) #(128, 32, 4)#
 
     grid_g = CartesianGrid(; origin=(-2.0, -1.0, 0.0),
                            extent=(4.0, 2.0, 2.0),
                            size=size_g)
 
     grid_l = local_grid(grid_g, topo)
+
+    if me == 0
+        printstyled("Running FastIce.jl 🧊 \n"; bold=true, color=:blue)
+        printstyled(" | Global size = $(size_g) \n"; bold=true)
+        printstyled(" | Global dims = $(dimensions(topo)) \n"; bold=true)
+        printstyled(" | Global extend = $(extent(grid_g)) \n"; bold=true)
+    end
 
     no_slip      = VBC(0.0, 0.0, 0.0)
     free_slip    = SBC(0.0, 0.0, 0.0)
@@ -104,41 +107,43 @@ function main(; do_visu=false, do_save=false)
                                       iter_params,
                                       other_fields)
 
-    if global_rank(topo) == 0
-        println("model created")
-        Pr_g  = zeros(size(grid_g))
-        τxx_g = zeros(size(grid_g))
-        τyy_g = zeros(size(grid_g))
-        τzz_g = zeros(size(grid_g))
-        τxy_g = zeros(size(grid_g))
-        τxz_g = zeros(size(grid_g))
-        τyz_g = zeros(size(grid_g))
-        Vx_g  = zeros(size(grid_g))
-        Vy_g  = zeros(size(grid_g))
-        Vz_g  = zeros(size(grid_g))
-    else
-        Pr_g  = nothing
-        τxx_g = nothing
-        τyy_g = nothing
-        τzz_g = nothing
-        τxy_g = nothing
-        τxz_g = nothing
-        τyz_g = nothing
-        Vx_g  = nothing
-        Vy_g  = nothing
-        Vz_g  = nothing
-    end
+    (me == 0) && printstyled("Model created \n"; bold=true, color=:light_blue)
 
-    Pr_v  = zeros(size(grid_l))
-    τxx_v = zeros(size(grid_l))
-    τyy_v = zeros(size(grid_l))
-    τzz_v = zeros(size(grid_l))
-    τxy_v = zeros(size(grid_l))
-    τxz_v = zeros(size(grid_l))
-    τyz_v = zeros(size(grid_l))
-    Vx_v  = zeros(size(grid_l))
-    Vy_v  = zeros(size(grid_l))
-    Vz_v  = zeros(size(grid_l))
+    if do_save || do_visu
+        if me == 0
+            Pr_g  = zeros(size(grid_g))
+            τxx_g = zeros(size(grid_g))
+            τyy_g = zeros(size(grid_g))
+            τzz_g = zeros(size(grid_g))
+            τxy_g = zeros(size(grid_g))
+            τxz_g = zeros(size(grid_g))
+            τyz_g = zeros(size(grid_g))
+            Vx_g  = zeros(size(grid_g))
+            Vy_g  = zeros(size(grid_g))
+            Vz_g  = zeros(size(grid_g))
+        else
+            Pr_g  = nothing
+            τxx_g = nothing
+            τyy_g = nothing
+            τzz_g = nothing
+            τxy_g = nothing
+            τxz_g = nothing
+            τyz_g = nothing
+            Vx_g  = nothing
+            Vy_g  = nothing
+            Vz_g  = nothing
+        end
+        Pr_v  = zeros(size(grid_l))
+        τxx_v = zeros(size(grid_l))
+        τyy_v = zeros(size(grid_l))
+        τzz_v = zeros(size(grid_l))
+        τxy_v = zeros(size(grid_l))
+        τxz_v = zeros(size(grid_l))
+        τyz_v = zeros(size(grid_l))
+        Vx_v  = zeros(size(grid_l))
+        Vy_v  = zeros(size(grid_l))
+        Vz_v  = zeros(size(grid_l))
+    end
 
     fill!(parent(model.fields.Pr), 0.0)
     foreach(x -> fill!(parent(x), 0.0), model.fields.τ)
@@ -153,7 +158,7 @@ function main(; do_visu=false, do_save=false)
 
     MPI.Barrier(comm)
 
-    (global_rank(topo) == 0) && println("action")
+    (me == 0) && printstyled("Action \n"; bold=true, color=:light_blue)
 
     ttot_ns = UInt64(0)
     for iter in 1:niter
@@ -168,7 +173,7 @@ function main(; do_visu=false, do_save=false)
                    Vx = max_abs_g(model.fields.r_V.x),
                    Vy = max_abs_g(model.fields.r_V.y),
                    Vz = max_abs_g(model.fields.r_V.z))
-            if (global_rank(topo) == 0)
+            if (me == 0)
                 any(.!isfinite.(values(err))) && error("simulation failed, err = $err")
                 iter_nx = iter / maximum(size(grid_g))
                 @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
@@ -183,65 +188,67 @@ function main(; do_visu=false, do_save=false)
     ttot_min = MPI.Allreduce(ttot, MPI.MIN, comm)
     ttot_max = MPI.Allreduce(ttot, MPI.MAX, comm)
 
-    if global_rank(topo) == 0
+    if me == 0
         Teff_min = 23 * 8 * prod(size(grid_l)) / ttot_max
         Teff_max = 23 * 8 * prod(size(grid_l)) / ttot_min
-        println("T_eff [min max] = $Teff_min $Teff_max")
+        printstyled("Performance: T_eff [min max] = $(round(Teff_min, sigdigits=4)) $(round(Teff_max, sigdigits=4)) \n"; bold=true, color=:green)
     end
 
-    copyto!(Pr_v, interior(model.fields.Pr))
-    copyto!(τxx_v, interior(model.fields.τ.xx))
-    copyto!(τyy_v, interior(model.fields.τ.yy))
-    copyto!(τzz_v, interior(model.fields.τ.zz))
-    copyto!(τxy_v, av_xy(interior(model.fields.τ.xy)))
-    copyto!(τxz_v, av_xz(interior(model.fields.τ.xz)))
-    copyto!(τyz_v, av_yz(interior(model.fields.τ.yz)))
-    copyto!(Vx_v, avx(interior(model.fields.V.x)))
-    copyto!(Vy_v, avy(interior(model.fields.V.y)))
-    copyto!(Vz_v, avz(interior(model.fields.V.z)))
+    if do_save || do_visu
+        copyto!(Pr_v, interior(model.fields.Pr))
+        copyto!(τxx_v, interior(model.fields.τ.xx))
+        copyto!(τyy_v, interior(model.fields.τ.yy))
+        copyto!(τzz_v, interior(model.fields.τ.zz))
+        copyto!(τxy_v, av_xy(interior(model.fields.τ.xy)))
+        copyto!(τxz_v, av_xz(interior(model.fields.τ.xz)))
+        copyto!(τyz_v, av_yz(interior(model.fields.τ.yz)))
+        copyto!(Vx_v, avx(interior(model.fields.V.x)))
+        copyto!(Vy_v, avy(interior(model.fields.V.y)))
+        copyto!(Vz_v, avz(interior(model.fields.V.z)))
 
-    KernelAbstractions.synchronize(backend)
+        KernelAbstractions.synchronize(backend)
 
-    gather!(Pr_g, Pr_v, comm)
-    gather!(τxx_g, τxx_v, comm)
-    gather!(τyy_g, τyy_v, comm)
-    gather!(τzz_g, τzz_v, comm)
-    gather!(τxy_g, τxy_v, comm)
-    gather!(τxz_g, τxz_v, comm)
-    gather!(τyz_g, τyz_v, comm)
-    gather!(Vx_g, Vx_v, comm)
-    gather!(Vy_g, Vy_v, comm)
-    gather!(Vz_g, Vz_v, comm)
+        gather!(Pr_g, Pr_v, comm)
+        gather!(τxx_g, τxx_v, comm)
+        gather!(τyy_g, τyy_v, comm)
+        gather!(τzz_g, τzz_v, comm)
+        gather!(τxy_g, τxy_v, comm)
+        gather!(τxz_g, τxz_v, comm)
+        gather!(τyz_g, τyz_v, comm)
+        gather!(Vx_g, Vx_v, comm)
+        gather!(Vy_g, Vy_v, comm)
+        gather!(Vz_g, Vz_v, comm)
 
-    if (global_rank(topo) == 0) && do_visu
-        fig = Figure()
-        axs = (Pr=Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
-               Vx=Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
-               Vy=Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
-               Vz=Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
-        plt = (Pr = heatmap!(axs.Pr, xcenters(grid_g), zcenters(grid_g), Pr_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
-               Vx = heatmap!(axs.Vx, xvertices(grid_g), zcenters(grid_g), Vx_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
-               Vy = heatmap!(axs.Vy, xcenters(grid_g), zcenters(grid_g), Vy_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
-               Vz = heatmap!(axs.Vz, xcenters(grid_g), zvertices(grid_g), Vz_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo))
-        Colorbar(fig[1, 1][1, 2], plt.Pr)
-        Colorbar(fig[1, 2][1, 2], plt.Vx)
-        Colorbar(fig[2, 1][1, 2], plt.Vy)
-        Colorbar(fig[2, 2][1, 2], plt.Vz)
-        save("fig.png", fig)
-    end
+        if (me == 0) && do_visu
+            fig = Figure()
+            axs = (Pr=Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
+            Vx=Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
+            Vy=Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
+            Vz=Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
+            plt = (Pr = heatmap!(axs.Pr, xcenters(grid_g), zcenters(grid_g), Pr_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
+                   Vx = heatmap!(axs.Vx, xvertices(grid_g), zcenters(grid_g), Vx_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
+                   Vy = heatmap!(axs.Vy, xcenters(grid_g), zcenters(grid_g), Vy_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
+                   Vz = heatmap!(axs.Vz, xcenters(grid_g), zvertices(grid_g), Vz_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo))
+            Colorbar(fig[1, 1][1, 2], plt.Pr)
+            Colorbar(fig[1, 2][1, 2], plt.Vx)
+            Colorbar(fig[2, 1][1, 2], plt.Vy)
+            Colorbar(fig[2, 2][1, 2], plt.Vz)
+            save("fig.png", fig)
+        end
 
-    if global_rank(topo) == 0 && do_save
-        open("data.bin", "w") do io
-            write(io, Pr_g)
-            write(io, τxx_g)
-            write(io, τyy_g)
-            write(io, τzz_g)
-            write(io, τxy_g)
-            write(io, τxz_g)
-            write(io, τyz_g)
-            write(io, Vx_g)
-            write(io, Vy_g)
-            write(io, Vz_g)
+        if me == 0 && do_save
+            open("data.bin", "w") do io
+                write(io, Pr_g)
+                write(io, τxx_g)
+                write(io, τyy_g)
+                write(io, τzz_g)
+                write(io, τxy_g)
+                write(io, τxz_g)
+                write(io, τyz_g)
+                write(io, Vx_g)
+                write(io, Vy_g)
+                write(io, Vz_g)
+            end
         end
     end
 

@@ -11,6 +11,6 @@ source /users/lurass/scratch/setenv_lumi.sh
 export ROCR_VISIBLE_DEVICES=0,2,4,6
 
 # julia --project benchmark_diffusion_3D.jl
-julia --project tm_stokes_mpi_wip.jl
+julia --project --color=yes tm_stokes_mpi_wip.jl
 
 # ENABLE_JITPROFILING=1 rocprof --hip-trace --hsa-trace -d ./prof_out${SLURM_PROCID} -o ./prof_out${SLURM_PROCID}/results${SLURM_PROCID}.csv julia --project bench3d.jl
