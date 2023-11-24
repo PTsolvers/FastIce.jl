@@ -1,11 +1,31 @@
+"""
+Rectilinear grid with uniform spacing.
+
+# Examples
+
+```jldoctest
+julia> grid = CartesianGrid(origin=(0.0,0.0), extent=(1.0,1.0), size=(4,4))
+2D 4×4 CartesianGrid{Float64}:
+    x ∈ [0.0–1.0]; Δx = 0.25
+    y ∈ [0.0–1.0]; Δy = 0.25
+```
+"""
 struct CartesianGrid{N,T<:AbstractFloat,I<:Integer}
     axes::NTuple{N,DiscreteAxis{T,I}}
 end
 
-CartesianGrid(origin::NTuple{N,T}, extent::NTuple{N,T}, size::NTuple{N,I}) where {N,T,I} = CartesianGrid(DiscreteAxis.(origin, extent, size))
+function CartesianGrid(origin::NTuple{N,T}, extent::NTuple{N,T}, size::NTuple{N,I}) where {N,T,I}
+    CartesianGrid(DiscreteAxis.(origin, extent, size))
+end
 
+"""
+    CartesianGrid(origin::NTuple{N,T}, extent::NTuple{N,T}, size::NTuple{N,I})
+
+Create a Cartesian grid with a specified origin (bottom-south-west corner in 3D), spatial extent, and number of grid cells.
+"""
 CartesianGrid(; origin::NTuple{N,T}, extent::NTuple{N,T}, size::NTuple{N,I}) where {N,T,I} = CartesianGrid(origin, extent, size)
 
+# overload methods from Base
 @pure Base.eltype(::CartesianGrid{N,T}) where {N,T} = T
 @pure Base.ndims(::CartesianGrid{N}) where {N} = N
 
@@ -17,11 +37,49 @@ Base.size(grid::CartesianGrid) = length.(grid.axes)
 Base.size(grid::CartesianGrid{N}, locs::NTuple{N,Location}) where {N} = length.(grid.axes, locs)
 Base.size(grid::CartesianGrid, loc::Location) = ntuple(D -> length(grid.axes[D], loc), Val(ndims(grid)))
 
+# pretty-printing
+function Base.show(io::IO, grid::CartesianGrid{N,T}) where {N,T}
+    print(io, "$(N)D $(join(size(grid), "×")) CartesianGrid{$T}:\n")
+    symbols = (:x, :y, :z)
+    for idim in 1:N
+        l, r = origin(grid, idim), origin(grid, idim) + extent(grid, idim)
+        print(io, "    $(symbols[idim]) ∈ [$(l)–$(r)]; Δ$(symbols[idim]) = $(spacing(grid, idim))\n")
+    end
+end
+
+"""
+    axis(grid::CartesianGrid, dim::Integer)
+
+Return a `DiscreteAxis` corresponding to the spatial dimension `dim`.
+"""
 axis(grid::CartesianGrid, dim::Integer) = grid.axes[dim]
 
+"""
+    origin(grid::CartesianGrid)
+
+Return the origin of a `CartesianGrid`. The origin corresponds to bottom-south-west corner of the grid in 3D.
+"""
 origin(grid::CartesianGrid) = origin.(grid.axes)
+
+"""
+    extent(grid::CartesianGrid)
+
+Return the spatial extent of a `CartesianGrid` as a tuple.
+"""
 extent(grid::CartesianGrid) = extent.(grid.axes)
+
+"""
+    spacing(grid::CartesianGrid)
+
+Return the spacing of a `CartesianGrid` as a tuple.
+"""
 spacing(grid::CartesianGrid) = spacing.(grid.axes)
+
+"""
+    Δ(grid::CartesianGrid)
+
+Return the spacing of a `CartesianGrid` as a tuple. Same as `spacing`.
+"""
 Δ(grid::CartesianGrid) = spacing(grid)
 
 @propagate_inbounds origin(grid::CartesianGrid, dim::Integer) = origin(grid.axes[dim])
@@ -29,8 +87,15 @@ spacing(grid::CartesianGrid) = spacing.(grid.axes)
 @propagate_inbounds spacing(grid::CartesianGrid, dim::Integer) = spacing(grid.axes[dim])
 @propagate_inbounds Δ(grid::CartesianGrid, dim::Integer) = spacing(grid.axes[dim])
 
-@propagate_inbounds coord(grid::CartesianGrid{N}, loc::Location, inds::NTuple{N}) where {N} = coord.(grid.axes, Ref(loc), inds)
 
+"""
+    coord(grid::CartesianGrid{N}, loc::NTuple{N,Location}, inds::NTuple{N})
+
+Return a tuple of spatial coordinates of a grid point at location `loc` and indices `inds`.
+
+For vertex-centered locations, first grid point is at the origin.
+For cell-centered locations, first grid point at half-spacing distance from the origin.
+"""
 @propagate_inbounds function coord(grid::CartesianGrid{N}, loc::NTuple{N,Location}, inds::NTuple{N}) where {N}
     ntuple(Val(N)) do I
         Base.@_inline_meta
@@ -38,12 +103,20 @@ spacing(grid::CartesianGrid) = spacing.(grid.axes)
     end
 end
 
+@propagate_inbounds coord(grid::CartesianGrid{N}, loc::Location, inds::NTuple{N}) where {N} = coord.(grid.axes, Ref(loc), inds)
+
 coord(grid::CartesianGrid{N}, loc, I::CartesianIndex{N}) where {N} = coord(grid, loc, Tuple(I))
 
 @propagate_inbounds coord(grid::CartesianGrid, loc::Location, dim::Integer, i::Integer) = coord(grid.axes[dim], loc, i)
-@propagate_inbounds coord(grid::CartesianGrid{N}, loc::Location, dim::Integer, inds::NTuple{N}) where {N} = coord(grid.axes[dim], loc, inds[dim])
-@propagate_inbounds coord(grid::CartesianGrid{N}, locs::NTuple{N,Location}, dim::Integer, inds::NTuple{N}) where {N} = coord(grid.axes[dim], locs[dim], inds[dim])
-@propagate_inbounds coord(grid::CartesianGrid{N}, locs::NTuple{N,Location}, dim::Integer, i::Integer) where {N} = coord(grid.axes[dim], locs[dim], i)
+@propagate_inbounds function coord(grid::CartesianGrid{N}, loc::Location, dim::Integer, inds::NTuple{N}) where {N}
+    coord(grid.axes[dim], loc, inds[dim])
+end
+@propagate_inbounds function coord(grid::CartesianGrid{N}, locs::NTuple{N,Location}, dim::Integer, inds::NTuple{N}) where {N}
+    coord(grid.axes[dim], locs[dim], inds[dim])
+end
+@propagate_inbounds function coord(grid::CartesianGrid{N}, locs::NTuple{N,Location}, dim::Integer, i::Integer) where {N}
+    coord(grid.axes[dim], locs[dim], i)
+end
 
 @propagate_inbounds coord(grid::CartesianGrid, loc, ::Val{D}, i) where {D} = coord(grid, loc, D, i)
 

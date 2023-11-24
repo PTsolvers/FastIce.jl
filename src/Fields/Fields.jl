@@ -2,13 +2,18 @@ module Fields
 
 export AbstractField
 export Field, interior
+export FunctionField
 export location, data, halo, set!
 
 using Adapt
 using OffsetArrays
 using KernelAbstractions
 
-import FastIce.Grids: Location, CartesianGrid, coord
+using FastIce.Grids
+using FastIce.GridOperators
+using FastIce.Architectures
+
+import LinearAlgebra
 
 abstract type AbstractField{T,N,L} <: AbstractArray{T,N} end
 
@@ -44,6 +49,8 @@ function Field(backend::Backend, grid::CartesianGrid, T::DataType, loc::L, halo:
     return Field{L}(data, halo, indices)
 end
 
+Field(arch::Architecture, args...; kwargs...) = Field(backend(arch), args...; kwargs...)
+
 expand_axis_halo(::Nothing) = (0, 0)
 expand_axis_halo(halo::Integer) = (halo, halo)
 expand_axis_halo(halo::Tuple) = (something(halo[1], 0), something(halo[2], 0))
@@ -53,8 +60,8 @@ expand_halo(::Val{N}, halo::Tuple) where {N} = ntuple(I -> expand_axis_halo(halo
 expand_halo(::Val{N}, halo::Integer) where {N} = ntuple(I -> (halo, halo), Val(N))
 expand_halo(::Val{N}, halo::Nothing) where {N} = ntuple(I -> (0, 0), Val(N))
 
-expand_loc(::Val{N}, loc::NTuple{N, Location}) where N = loc
-expand_loc(::Val{N}, loc::Location) where N = ntuple(_ -> loc, Val(N))
+expand_loc(::Val{N}, loc::NTuple{N,Location}) where {N} = loc
+expand_loc(::Val{N}, loc::Location) where {N} = ntuple(_ -> loc, Val(N))
 
 function Field(backend::Backend, grid::CartesianGrid, loc::L, T::DataType=eltype(grid); halo::H=nothing) where {L,H}
     N = ndims(grid)
@@ -62,10 +69,10 @@ function Field(backend::Backend, grid::CartesianGrid, loc::L, T::DataType=eltype
 end
 
 Base.checkbounds(f::Field, I...) = checkbounds(f.data, I...)
-Base.checkbounds(f::Field, I::Union{CartesianIndex, AbstractArray{<:CartesianIndex}}) = checkbounds(f.data, I)
+Base.checkbounds(f::Field, I::Union{CartesianIndex,AbstractArray{<:CartesianIndex}}) = checkbounds(f.data, I)
 
 Base.checkbounds(::Type{Bool}, f::Field, I...) = checkbounds(Bool, f.data, I...)
-Base.checkbounds(::Type{Bool}, f::Field, I::Union{CartesianIndex, AbstractArray{<:CartesianIndex}}) = checkbounds(Bool, f.data, I)
+Base.checkbounds(::Type{Bool}, f::Field, I::Union{CartesianIndex,AbstractArray{<:CartesianIndex}}) = checkbounds(Bool, f.data, I)
 
 Base.size(f::Field) = length.(f.indices)
 Base.parent(f::Field) = parent(f.data)
@@ -76,8 +83,8 @@ Base.view(f::Field, I...) = view(f.data, I...)
 data(f::Field) = f.data
 
 halo(f::Field) = f.halo
-halo(f::Field, dim) = f.halo[dim]
-halo(f::Field, dim, side) = f.halo[dim][side]
+halo(f::Field, dim::Integer) = f.halo[dim]
+halo(f::Field, dim::Integer, side::Integer) = f.halo[dim][side]
 
 Adapt.adapt_structure(to, f::Field{T,N,L}) where {T,N,L} = Field{L}(Adapt.adapt(to, f.data), f.halo, f.indices)
 
@@ -91,7 +98,7 @@ Base.@propagate_inbounds Base.lastindex(f::Field, dim) = lastindex(f.data, dim)
 
 function interior_indices(f::Field)
     return ntuple(ndims(f)) do I
-        (firstindex(parent(f), I) + f.halo[I][1]):(lastindex(parent(f), I) - f.halo[I][2])
+        (firstindex(parent(f), I)+f.halo[I][1]):(lastindex(parent(f), I)-f.halo[I][2])
     end
 end
 
@@ -103,14 +110,14 @@ set!(f::Field, other::Field) = (copy!(interior(f), interior(other)); nothing)
 set!(f::Field{T}, val::T) where {T<:Number} = (fill!(interior(f), val); nothing)
 set!(f::Field, A::AbstractArray) = (copy!(interior(f), A); nothing)
 
-@kernel function _set_continuous!(dst, grid, loc, fun, args...)
+@kernel function _set_continuous!(dst, grid, loc, fun::F, args...) where {F}
     I = @index(Global, Cartesian)
     dst[I] = fun(coord(grid, loc, I)..., args...)
 end
 
-@kernel function _set_discrete!(dst, grid, loc, fun, args...)
+@kernel function _set_discrete!(dst, grid, loc, fun::F, args...) where {F}
     I = @index(Global, Cartesian)
-    dst[I] = fun(grid, loc, Tuple(I)..., args...)
+    dst[I] = fun(grid, loc, I, args...)
 end
 
 function set!(f::Field{T,N}, grid::CartesianGrid{N}, fun::F; discrete=false, parameters=()) where {T,F,N}
@@ -123,5 +130,16 @@ function set!(f::Field{T,N}, grid::CartesianGrid{N}, fun::F; discrete=false, par
     end
     return
 end
+
+# grid operators
+Base.@propagate_inbounds ∂(f::AbstractField, I, dim) = ∂(f, I, dim, location(f, dim))
+Base.@propagate_inbounds ∂(f::AbstractField, I, dim, ::Vertex) = ∂ᶜ(f, I, dim)
+Base.@propagate_inbounds ∂(f::AbstractField, I, dim, ::Center) = ∂ᵛ(f, I, dim)
+
+# field norm
+LinearAlgebra.norm(f::Field) = LinearAlgebra.norm(interior(f))
+LinearAlgebra.norm(f::Field, p::Real) = LinearAlgebra.norm(interior(f), p)
+
+include("function_field.jl")
 
 end

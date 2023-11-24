@@ -1,60 +1,87 @@
 module Isothermal
 
 export BoundaryCondition, Traction, Velocity, Slip
-export IsothermalFullStokesModel, advance_iteration!, advance_timestep!
+export IsothermalFullStokesModel, advance_iteration!, advance_timestep!, compute_residuals!
 
+using FastIce.Architectures
 using FastIce.Physics
 using FastIce.Grids
 using FastIce.Fields
 using FastIce.BoundaryConditions
 using FastIce.Utils
+using FastIce.KernelLaunch
+using FastIce.Distributed
 
 include("kernels.jl")
 
 include("boundary_conditions.jl")
 
-function default_physics(::Type{T}) where T
-    return (
-        equation_of_state=default(IncompressibleIceEOS{T}),
-        thermal_properties=default(IceThermalProperties{T}),
-        rheology=default(GlensLawRheology{Int64})
-    )
+function default_physics(::Type{T}) where {T}
+    return (equation_of_state=default(IncompressibleIceEOS{T}),
+            thermal_properties=default(IceThermalProperties{T}),
+            rheology=default(GlensLawRheology{Int64}))
 end
 
-struct IsothermalFullStokesModel{Backend,Grid,BC,Physics,IterParams,Fields}
-    backend::Backend
+struct IsothermalFullStokesModel{Arch,Grid,BC,HB,OW,Physics,Gravity,IterParams,Fields}
+    arch::Arch
     grid::Grid
     boundary_conditions::BC
+    hide_boundaries::HB
+    outer_width::OW
     physics::Physics
+    gravity::Gravity
     iter_params::IterParams
     fields::Fields
 end
 
-function make_fields_mechanics(backend, grid)
-    return (
-        Pr = Field(backend, grid, Center(); halo=1),
-        τ  = (
-            xx = Field(backend, grid, Center(); halo=1),
-            yy = Field(backend, grid, Center(); halo=1),
-            zz = Field(backend, grid, Center(); halo=1),
-            xy = Field(backend, grid, (Vertex(), Vertex(), Center()); halo=0),
-            xz = Field(backend, grid, (Vertex(), Center(), Vertex()); halo=0),
-            yz = Field(backend, grid, (Center(), Vertex(), Vertex()); halo=0),
-        ),
-        V = (
-            x = Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
-            y = Field(backend, grid, (Center(), Vertex(), Center()); halo=1),
-            z = Field(backend, grid, (Center(), Center(), Vertex()); halo=1),
-        )
-    )
+function make_fields_mechanics(backend, grid::CartesianGrid{2})
+    return (Pr=Field(backend, grid, Center(); halo=1),
+            # deviatoric stress
+            τ=(xx=Field(backend, grid, Center(); halo=1),
+               yy=Field(backend, grid, Center(); halo=1),
+               xy=Field(backend, grid, (Vertex(), Vertex()))),
+            # velocity
+            V=(x=Field(backend, grid, (Vertex(), Center()); halo=1),
+               y=Field(backend, grid, (Center(), Vertex()); halo=1)),
+            # residual
+            r_Pr=Field(backend, grid, Center()),
+            r_V=(x=Field(backend, grid, (Vertex(), Center())),
+                 y=Field(backend, grid, (Center(), Vertex()))))
 end
 
+function make_fields_mechanics(backend, grid::CartesianGrid{3})
+    return (Pr=Field(backend, grid, Center(); halo=1),
+            # deviatoric stress
+            τ=(xx=Field(backend, grid, Center(); halo=1),
+               yy=Field(backend, grid, Center(); halo=1),
+               zz=Field(backend, grid, Center(); halo=1),
+               xy=Field(backend, grid, (Vertex(), Vertex(), Center())),
+               xz=Field(backend, grid, (Vertex(), Center(), Vertex())),
+               yz=Field(backend, grid, (Center(), Vertex(), Vertex()))),
+            # velocity
+            V=(x=Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
+               y=Field(backend, grid, (Center(), Vertex(), Center()); halo=1),
+               z=Field(backend, grid, (Center(), Center(), Vertex()); halo=1)),
+            # residual
+            r_Pr=Field(backend, grid, Center()),
+            r_V=(x=Field(backend, grid, (Vertex(), Center(), Center())),
+                 y=Field(backend, grid, (Center(), Vertex(), Center())),
+                 z=Field(backend, grid, (Center(), Center(), Vertex()))))
+end
 
-
-function IsothermalFullStokesModel(; backend, grid, boundary_conditions, physics=nothing, iter_params, fields=nothing, other_fields=nothing)
+function IsothermalFullStokesModel(;
+                                   arch,
+                                   grid,
+                                   boundary_conditions,
+                                   iter_params,
+                                   gravity,
+                                   outer_width=(2, 2, 2),
+                                   physics=nothing,
+                                   fields=nothing,
+                                   other_fields=nothing)
     if isnothing(fields)
-        mechanic_fields = make_fields_mechanics(backend, grid)
-        rheology_fields = (η = Field(backend, grid, Center(); halo=1),)
+        mechanic_fields = make_fields_mechanics(backend(arch), grid)
+        rheology_fields = (η=Field(backend(arch), grid, Center(); halo=1),)
         fields = merge(mechanic_fields, rheology_fields)
     end
 
@@ -66,46 +93,52 @@ function IsothermalFullStokesModel(; backend, grid, boundary_conditions, physics
         physics = default_physics(eltype(grid))
     end
 
-    boundary_conditions = make_field_boundary_conditions(boundary_conditions)
+    boundary_conditions = make_field_boundary_conditions(arch, grid, fields, boundary_conditions)
+    hide_boundaries = HideBoundaries{ndims(grid)}(arch)
 
-    return IsothermalFullStokesModel(backend, grid, boundary_conditions, physics, iter_params, fields)
+    return IsothermalFullStokesModel(arch, grid, boundary_conditions, hide_boundaries, outer_width, physics, gravity, iter_params, fields)
 end
 
 fields(model::IsothermalFullStokesModel) = model.fields
 grid(model::IsothermalFullStokesModel) = model.grid
 
-function advance_iteration!(model::IsothermalFullStokesModel, t, Δt; async = true)
+function advance_iteration!(model::IsothermalFullStokesModel, t, Δt)
     (; Pr, τ, V, η) = model.fields
-    (; η_rel, Δτ) = model.iter_params
-    η_rh = model.physics.rheology
+    (; η_rel, Δτ)   = model.iter_params
+    η_rh            = model.physics.rheology
+    ρg              = model.gravity
+    hide_boundaries = model.hide_boundaries
+    outer_width     = model.outer_width
+
     Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
-    nx, ny, nz = size(model.grid)
-    backend = model.backend
 
-    set_bcs!(bcs) = _apply_bcs!(model.backend, model.grid, model.fields, bcs)
+    launch!(model.arch, model.grid, update_σ! => (Pr, τ, V, η, Δτ, Δ);
+            location=Center(), expand=1, boundary_conditions=model.boundary_conditions.stress, hide_boundaries, outer_width, async=false)
 
-    # stress
+    launch!(model.arch, model.grid, update_V! => (V, Pr, τ, η, ρg, Δτ, model.grid, Δ);
+            location=Vertex(), boundary_conditions=model.boundary_conditions.velocity, hide_boundaries, outer_width, async=false)
 
-    # launch!(arch, grid, update_σ!, Pr, τ, V, η, Δτ, Δ)
-
-    update_σ!(backend, 256, (nx+1, ny+1, nz+1))(Pr, τ, V, η, Δτ, Δ)
-    set_bcs!(model.boundary_conditions.stress)
-    # velocity
-
-    # launch!(arch, grid, (update_res_V! => (rV, V, Pr, τ, η, Δτ, Δ), update_V! => (V, rV, dt)); exchangers = exchangers.velocity, boundary_conditions = boundary_conditions.velocity)
-    update_V!(backend, 256, (nx+1, ny+1, nz+1))(V, Pr, τ, η, Δτ, Δ)
-    set_bcs!(model.boundary_conditions.velocity)
     # rheology
-    update_η!(backend, 256, (nx, ny, nz))(η, η_rh, η_rel, model.grid, model.fields)
-    extrapolate!(η)
+    launch!(model.arch, model.grid, update_η! => (η, η_rh, η_rel, model.grid, model.fields);
+            location=Center(), boundary_conditions=model.boundary_conditions.rheology, hide_boundaries, outer_width, async=false)
+    return
+end
 
-    async || synchronize(backend)
+function compute_residuals!(model::IsothermalFullStokesModel)
+    (; Pr, τ, V, r_Pr, r_V) = model.fields
+    ρg = model.gravity
+    boundary_conditions = model.boundary_conditions.residual
+
+    Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
+
+    launch!(model.arch, model.grid, compute_residuals! => (r_V, r_Pr, Pr, τ, V, ρg, model.grid, Δ);
+            location=Vertex(), boundary_conditions, async=false)
     return
 end
 
 function advance_timestep!(model::IsothermalFullStokesModel, t, Δt)
     # TODO
-    
+
     return
 end
 

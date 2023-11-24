@@ -1,3 +1,6 @@
+"""
+Discretised one-dimensional interval. Grid type `CartesianGrid` is defined as a tuple of `DiscreteAxis`'s.
+"""
 struct DiscreteAxis{T<:AbstractFloat,I<:Integer} <: AbstractRange{T}
     origin::T
     extent::T
@@ -5,6 +8,8 @@ struct DiscreteAxis{T<:AbstractFloat,I<:Integer} <: AbstractRange{T}
     len::I
     DiscreteAxis(origin::T, extent::T, len::I) where {T,I} = new{T,I}(origin, extent, extent / len, len)
 end
+
+# overload methods from Base
 
 import Base.@pure
 import Base.@propagate_inbounds

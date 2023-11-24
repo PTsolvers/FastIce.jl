@@ -1,105 +1,140 @@
 using FastIce
+using FastIce.Architectures
 using FastIce.Grids
 using FastIce.Fields
 using FastIce.Utils
 using FastIce.BoundaryConditions
 using FastIce.Models.FullStokes.Isothermal
 using FastIce.Physics
+using FastIce.KernelLaunch
 
+const VBC = BoundaryCondition{Velocity}
+const TBC = BoundaryCondition{Traction}
+const SBC = BoundaryCondition{Slip}
+
+using LinearAlgebra, Printf
 using KernelAbstractions
+# using CUDA
+# using AMDGPU
 
-using GLMakie
+using CairoMakie
+# using GLMakie
+# Makie.inline!(true)
 
-# physics
-ebg = 1.0
+@views function main()
+    backend = CPU()
+    arch = Architecture(backend, 2)
+    set_device!(arch)
 
-grid = CartesianGrid(
-    origin = (-0.5, -0.5, 0.0),
-    extent = ( 1.0,  1.0, 1.0),
-    size   = (  64,   64, 64 ),
-)
+    # physics
+    ebg = 2.0
 
-psh_x(x, _, _) = -x*ebg
-psh_y(_, y, _) =  y*ebg
+    b_width = (16, 4, 4) #(128, 32, 4)#
 
-x_bc = BoundaryFunction(psh_x; reduce_dims=false)
-y_bc = BoundaryFunction(psh_y; reduce_dims=false)
+    grid = CartesianGrid(; origin=(-0.5, -0.5, 0.0),
+                         extent=(1.0, 1.0, 1.0),
+                         size=(62, 62, 62))
 
-boundary_conditions = (
-    west   = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
-    east   = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
-    south  = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
-    north  = BoundaryCondition{Velocity}(x_bc, y_bc, 0.0),
-    bottom = BoundaryCondition{Velocity}(0.0 , 0.0 , 0.0),
-    top    = BoundaryCondition{Velocity}(0.0 , 0.0 , 0.0),
-)
+    psh_x(x, _, _) = -x * ebg
+    psh_y(_, y, _) = y * ebg
 
-r       = 0.7
-re_mech = 10π
-lτ_re_m = minimum(extent(grid)) / re_mech
-vdτ     = minimum(spacing(grid)) / sqrt(10.1)
-θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
-dτ_r    = 1.0 / (θ_dτ + 1.0)
-nudτ    = vdτ * lτ_re_m
+    x_bc = BoundaryFunction(psh_x; reduce_dims=false)
+    y_bc = BoundaryFunction(psh_y; reduce_dims=false)
 
-iter_params = (
-    η_rel = 1e-1,
-    Δτ = ( Pr = r / θ_dτ, τ = (xx = dτ_r, yy = dτ_r, zz = dτ_r, xy = dτ_r, xz = dτ_r, yz = dτ_r), V = (x = nudτ, y = nudτ, z = nudτ)),
-)
+    free_slip    = SBC(0.0, 0.0, 0.0)
+    free_surface = TBC(0.0, 0.0, 0.0)
 
-backend = CPU()
+    boundary_conditions = (x=(VBC(x_bc, y_bc, 0.0), VBC(x_bc, y_bc, 0.0)),
+                           y=(VBC(x_bc, y_bc, 0.0), VBC(x_bc, y_bc, 0.0)),
+                           z=(free_slip, free_surface))
+    # TODO: Add ConstantField
+    ρg(x, y, z) = 0.0
+    gravity = (x=FunctionField(ρg, grid, (Vertex(), Center(), Center())),
+               y=FunctionField(ρg, grid, (Center(), Vertex(), Center())),
+               z=FunctionField(ρg, grid, (Center(), Center(), Vertex())))
 
-physics = (rheology = GlensLawRheology(1), )
-other_fields = (
-    A = Field(backend, grid, Center()),
-)
+    # numerics
+    niter  = 20maximum(size(grid))
+    ncheck = maximum(size(grid))
 
-init_incl(x, y, z, x0, y0, z0, r, Ai, Am) = ifelse((x-x0)^2 + (y-y0)^2 + (z-z0)^2 < r^2, Ai, Am)
-set!(other_fields.A, grid, init_incl; parameters = (x0 = 0.0, y0 = 0.0, z0 = 0.5, r = 0.2, Ai = 1e1, Am = 1.0))
+    r       = 0.7
+    re_mech = 10π
+    lτ_re_m = minimum(extent(grid)) / re_mech
+    vdτ     = minimum(spacing(grid)) / sqrt(ndims(grid) * 1.5)
+    θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
+    dτ_r    = 1.0 / (θ_dτ + 1.0)
+    nudτ    = vdτ * lτ_re_m
 
-model = IsothermalFullStokesModel(;
-    backend,
-    grid,
-    physics,
-    boundary_conditions,
-    iter_params,
-    other_fields
-)
+    iter_params = (η_rel=1e-1,
+                   Δτ=(Pr=r / θ_dτ, τ=(xx=dτ_r, yy=dτ_r, zz=dτ_r, xy=dτ_r, xz=dτ_r, yz=dτ_r), V=(x=nudτ, y=nudτ, z=nudτ)))
 
-fig = Figure(resolution=(1000,1000), fontsize=32)
-axs = (
-    Pr = Axis(fig[1,1][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y", title="Pr"),
-    Vx = Axis(fig[2,1][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y", title="Vx"),
-    Vy = Axis(fig[2,2][1,1]; aspect=DataAspect(), xlabel="x", ylabel="y", title="Vy"),
-)
+    physics = (rheology=GlensLawRheology(1),)
+    other_fields = (A=Field(backend, grid, Center()),)
 
-plt = (
-    Pr = heatmap!(axs.Pr, xcenters(grid), ycenters(grid), interior(model.fields.Pr)[:, :, size(grid,3)÷2]; colormap=:turbo),
-    Vx = heatmap!(axs.Vx, xvertices(grid), ycenters(grid), interior(model.fields.V.x)[:, :, size(grid,3)÷2]; colormap=:turbo),
-    Vy = heatmap!(axs.Vy, xcenters(grid), yvertices(grid), interior(model.fields.V.y)[:, :, size(grid,3)÷2]; colormap=:turbo),
-)
-Colorbar(fig[1,1][1,2], plt.Pr)
-Colorbar(fig[2,1][1,2], plt.Vx)
-Colorbar(fig[2,2][1,2], plt.Vy)
+    init_incl(x, y, z, x0, y0, z0, r, Ai, Am) = ifelse((x - x0)^2 + (y - y0)^2 + (z - z0)^2 < r^2, Ai, Am)
+    set!(other_fields.A, grid, init_incl; parameters=(x0=0.0, y0=0.0, z0=0.5, r=0.1, Ai=1e-1, Am=1.0))
 
-set!(model.fields.Pr, 0.0)
-foreach(x -> set!(x, 0.0), model.fields.τ)
-Isothermal._apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.stress)
+    model = IsothermalFullStokesModel(;
+                                      arch,
+                                      grid,
+                                      physics,
+                                      gravity,
+                                      boundary_conditions,
+                                      outer_width=b_width,
+                                      iter_params,
+                                      other_fields)
 
-set!(model.fields.V.x, grid, psh_x)
-set!(model.fields.V.y, grid, psh_y)
-set!(model.fields.V.z, 0.0)
-Isothermal._apply_bcs!(model.backend, model.grid, model.fields, model.boundary_conditions.velocity)
+    fig = Figure()
+    axs = (Pr = Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
+           Vx = Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
+           Vy = Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
+           Vz = Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
+    plt = (Pr = heatmap!(axs.Pr, xcenters(grid), zcenters(grid), Array(interior(model.fields.Pr)[:, size(grid, 2)÷2+1, :]); colormap=:turbo),
+           Vx = heatmap!(axs.Vx, xvertices(grid), zcenters(grid), Array(interior(model.fields.V.x)[:, size(grid, 2)÷2+1, :]); colormap=:turbo),
+           Vy = heatmap!(axs.Vy, xcenters(grid), zcenters(grid), Array(interior(model.fields.V.y)[:, size(grid, 2)÷2+1, :]); colormap=:turbo),
+           Vz = heatmap!(axs.Vz, xcenters(grid), zvertices(grid), Array(interior(model.fields.V.z)[:, size(grid, 2)÷2+1, :]); colormap=:turbo))
+    Colorbar(fig[1, 1][1, 2], plt.Pr)
+    Colorbar(fig[1, 2][1, 2], plt.Vx)
+    Colorbar(fig[2, 1][1, 2], plt.Vy)
+    Colorbar(fig[2, 2][1, 2], plt.Vz)
 
-set!(model.fields.η, other_fields.A)
-extrapolate!(model.fields.η)
+    fill!(parent(model.fields.Pr), 0.0)
+    foreach(x -> fill!(parent(x), 0.0), model.fields.τ)
 
-for it in 1:100
-    advance_iteration!(model, 0.0, 1.0; async = false)
-    if it % 10 == 0
-        plt.Pr[3][] = interior(model.fields.Pr)[:, :, size(grid,3)÷2]
-        plt.Vx[3][] = interior(model.fields.V.x)[:, :, size(grid,3)÷2]
-        plt.Vy[3][] = interior(model.fields.V.y)[:, :, size(grid,3)÷2]
-        yield()
+    set!(model.fields.V.x, grid, psh_x)
+    set!(model.fields.V.y, grid, psh_y)
+    set!(model.fields.V.z, 0.0)
+    set!(model.fields.η, grid, (grid, loc, I, fields) -> physics.rheology(grid, I, fields); discrete=true, parameters=(model.fields,))
+
+    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.stress)
+    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.velocity)
+    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.rheology)
+
+    display(fig)
+
+    for iter in 1:niter
+        advance_iteration!(model, 0.0, 1.0)
+        if (iter % ncheck == 0)
+            compute_residuals!(model)
+            err = (Pr = norm(model.fields.r_Pr, Inf),
+                   Vx = norm(model.fields.r_V.x, Inf),
+                   Vy = norm(model.fields.r_V.y, Inf),
+                   Vz = norm(model.fields.r_V.z, Inf))
+            if any(.!isfinite.(values(err)))
+                error("simulation failed, err = $err")
+            end
+            iter_nx = iter / maximum(size(grid))
+            @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
+            plt.Pr[3][] = interior(model.fields.Pr)[:, size(grid, 2)÷2+1, :]
+            plt.Vx[3][] = interior(model.fields.V.x)[:, size(grid, 2)÷2+1, :]
+            plt.Vy[3][] = interior(model.fields.V.y)[:, size(grid, 2)÷2+1, :]
+            plt.Vz[3][] = interior(model.fields.V.z)[:, size(grid, 2)÷2+1, :]
+            # yield()
+            display(fig)
+        end
     end
+
+    return
 end
+
+main()
