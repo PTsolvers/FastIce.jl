@@ -12,7 +12,4 @@
 # export ROCR_VISIBLE_DEVICES=0,2,4,6
 # srun --cpu-bind=map_cpu:49,17,1,33 ./run_stokes3D.sh
 
-export MPICH_GPU_SUPPORT_ENABLED=1
-export LD_PRELOAD=${CRAY_MPICH_ROOTDIR}/gtl/lib/libmpi_gtl_hsa.so
-
 srun --cpu-bind=map_cpu:49,57,17,25,1,9,33,41 ./run_stokes3D.sh

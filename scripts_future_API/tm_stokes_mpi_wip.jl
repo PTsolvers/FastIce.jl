@@ -14,7 +14,7 @@ const SBC = BoundaryCondition{Slip}
 
 using LinearAlgebra, Printf
 using KernelAbstractions
-# using AMDGPU
+using AMDGPU
 
 using FastIce.Distributed
 using MPI
@@ -35,19 +35,20 @@ max_abs_g(A) = (max_l = maximum(abs.(interior(A))); MPI.Allreduce(max_l, MPI.MAX
 function main(; do_visu=false, do_save=false)
     MPI.Init()
 
-    backend = CPU()
+    backend = ROCBackend()
+    dims = (1, 1, 1)
     # dims = (4, 2, 2)
-    dims = (2, 1, 1)
+    # dims = (2, 1, 1)
     topo = CartesianTopology(dims)
     arch = Architecture(backend, topo)
     set_device!(arch)
 
     comm = cartesian_communicator(topo)
 
-    size_l = (62, 62, 62)
+    size_l = (254, 254, 254)
     size_g = global_grid_size(topo, size_l)
 
-    b_width = (16, 8, 4) #(128, 32, 4)#
+    outer_width = (16, 16, 16) #(128, 32, 4)#
 
     if global_rank(topo) == 0
         @show dimensions(topo)
@@ -55,8 +56,8 @@ function main(; do_visu=false, do_save=false)
     end
 
     grid_g = CartesianGrid(; origin=(-2.0, -1.0, 0.0),
-                             extent=(4.0, 2.0, 2.0),
-                             size=size_g)
+                           extent=(4.0, 2.0, 2.0),
+                           size=size_g)
 
     grid_l = local_grid(grid_g, topo)
 
@@ -99,7 +100,7 @@ function main(; do_visu=false, do_save=false)
                                       physics,
                                       gravity,
                                       boundary_conditions,
-                                      outer_width=b_width,
+                                      outer_width,
                                       iter_params,
                                       other_fields)
 
@@ -214,10 +215,10 @@ function main(; do_visu=false, do_save=false)
 
     if (global_rank(topo) == 0) && do_visu
         fig = Figure()
-        axs = (Pr = Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
-            Vx = Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
-            Vy = Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
-            Vz = Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
+        axs = (Pr=Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
+               Vx=Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
+               Vy=Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
+               Vz=Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
         plt = (Pr = heatmap!(axs.Pr, xcenters(grid_g), zcenters(grid_g), Pr_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
                Vx = heatmap!(axs.Vx, xvertices(grid_g), zcenters(grid_g), Vx_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
                Vy = heatmap!(axs.Vy, xcenters(grid_g), zcenters(grid_g), Vy_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
