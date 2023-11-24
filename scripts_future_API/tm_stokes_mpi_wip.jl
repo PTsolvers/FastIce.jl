@@ -36,7 +36,7 @@ function main(; do_visu=false, do_save=false)
     MPI.Init()
 
     backend = ROCBackend()
-    dims = (2, 1, 1)
+    dims = (4, 2, 2)
     # dims = (4, 2, 2)
     # dims = (2, 1, 1)
     topo = CartesianTopology(dims)

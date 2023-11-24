@@ -15,6 +15,7 @@ const SBC = BoundaryCondition{Slip}
 using LinearAlgebra, Printf
 using KernelAbstractions
 # using CUDA
+# using AMDGPU
 
 using CairoMakie
 # using GLMakie
