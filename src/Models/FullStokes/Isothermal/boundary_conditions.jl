@@ -56,6 +56,8 @@ end
 instantiate_boundary_conditions(((:x, 1), (:y, 2)))
 instantiate_boundary_conditions(((:x, 1), (:y, 2), (:z, 3)))
 
+make_batch(::Tuple{}, fields) = nothing
+
 function make_batch(bcs::NamedTuple, fields::NamedTuple)
     batch_fields = Tuple(fields[name] for name in eachindex(bcs))
     return BoundaryConditionsBatch(batch_fields, values(bcs))
@@ -72,11 +74,7 @@ function make_stress_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields, bc
             nothing
         else
             new_bc = extract_stress_bc(Val(D), bc[ordering[D]][S])
-            if isempty(new_bc)
-                nothing
-            else
-                make_batch(new_bc, fields)
-            end
+            make_batch(new_bc, fields)
         end
     end
 end
@@ -89,11 +87,7 @@ function make_velocity_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::
             make_batch(new_bc, fields)
         else
             new_bc = extract_velocity_bc(Val(D), bc[ordering[D]][S])
-            if isempty(new_bc)
-                nothing
-            else
-                make_batch(new_bc, fields)
-            end
+            make_batch(new_bc, fields)
         end
     end
 end
