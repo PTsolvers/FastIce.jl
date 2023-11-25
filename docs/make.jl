@@ -3,8 +3,6 @@ using FastIce
 
 push!(LOAD_PATH,"../src/")
 
-DocMeta.setdocmeta!(FastIce, :DocTestSetup, :(using FastIce); recursive=true)
-
 makedocs(
     sitename = "FastIce",
     authors="Ludovic Räss, Ivan Utkin and contributors",

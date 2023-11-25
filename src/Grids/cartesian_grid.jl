@@ -1,9 +1,12 @@
 """
 Rectilinear grid with uniform spacing.
 
-# Examples
+Examples
+========
 
 ```jldoctest
+julia> using FastIce.Grids
+
 julia> grid = CartesianGrid(origin=(0.0,0.0), extent=(1.0,1.0), size=(4,4))
 2D 4×4 CartesianGrid{Float64}:
     x ∈ [0.0–1.0]; Δx = 0.25
