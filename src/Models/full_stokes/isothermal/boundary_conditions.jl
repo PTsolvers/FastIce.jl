@@ -72,19 +72,21 @@ function make_batch(bcs::NamedTuple, fields::NamedTuple)
     return BoundaryConditionsBatch(batch_fields, values(bcs))
 end
 
+@inline function dim_side_ntuple(f::F, ::Val{N}) where {F,N}
+    ntuple(D -> ntuple(S -> f(D, S), Val(2)), Val(N))
+end
+
 function make_stress_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields, bc) where {Kind,N}
     ordering = (:x, :y, :z)
-    ntuple(Val(N)) do D
-        ntuple(Val(2)) do S
-            if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
+    dim_side_ntuple(Val(N)) do D, S
+        if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
+            nothing
+        else
+            new_bc = extract_stress_bc(Val(D), bc[ordering[D]][S])
+            if isempty(new_bc)
                 nothing
             else
-                new_bc = extract_stress_bc(Val(D), bc[ordering[D]][S])
-                if isempty(new_bc)
-                    nothing
-                else
-                    make_batch(new_bc, fields)
-                end
+                make_batch(new_bc, fields)
             end
         end
     end
@@ -92,18 +94,16 @@ end
 
 function make_velocity_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::NamedTuple{names}, bc) where {Kind,N,names}
     ordering = (:x, :y, :z)
-    ntuple(Val(N)) do D
-        ntuple(Val(2)) do S
-            if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
-                new_bc = NamedTuple{names}(ExchangeInfo(Val(S), Val(D), V) for V in fields)
-                make_batch(new_bc, fields)
+    dim_side_ntuple(Val(N)) do D, S
+        if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
+            new_bc = NamedTuple{names}(ExchangeInfo(Val(S), Val(D), V) for V in fields)
+            make_batch(new_bc, fields)
+        else
+            new_bc = extract_velocity_bc(Val(D), bc[ordering[D]][S])
+            if isempty(new_bc)
+                nothing
             else
-                new_bc = extract_velocity_bc(Val(D), bc[ordering[D]][S])
-                if isempty(new_bc)
-                    nothing
-                else
-                    make_batch(new_bc, fields)
-                end
+                make_batch(new_bc, fields)
             end
         end
     end
@@ -111,30 +111,26 @@ end
 
 function make_residuals_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::NamedTuple{names}, bc) where {Kind,N,names}
     ordering = (:x, :y, :z)
-    ntuple(Val(N)) do D
-        ntuple(Val(2)) do S
-            if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
-                nothing
+    dim_side_ntuple(Val(N)) do D, S
+        if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
+            nothing
+        else
+            if !(bc[ordering[D]][S] isa BoundaryCondition{Traction})
+                Vn = Symbol(:r_V, ordering[D])
+                BoundaryConditionsBatch((fields[Vn],), (DirichletBC{FullCell}(0.0),))
             else
-                if !(bc[ordering[D]][S] isa BoundaryCondition{Traction})
-                    Vn = Symbol(:r_V, ordering[D])
-                    BoundaryConditionsBatch((fields[Vn], ), (DirichletBC{FullCell}(0.0), ))
-                else
-                    nothing
-                end
+                nothing
             end
         end
     end
 end
 
 function make_rheology_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, η) where {Kind,N}
-    ntuple(Val(N)) do D
-        ntuple(Val(2)) do S
-            if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
-                BoundaryConditionsBatch((η,), (ExchangeInfo(Val(S), Val(D), η),))
-            else
-                BoundaryConditionsBatch((η,), (ExtrapolateBC(),))
-            end
+    dim_side_ntuple(Val(N)) do D, S
+        if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
+            BoundaryConditionsBatch((η,), (ExchangeInfo(Val(S), Val(D), η),))
+        else
+            BoundaryConditionsBatch((η,), (ExtrapolateBC(),))
         end
     end
 end
