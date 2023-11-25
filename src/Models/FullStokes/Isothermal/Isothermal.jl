@@ -75,7 +75,7 @@ function IsothermalFullStokesModel(;
                                    boundary_conditions,
                                    iter_params,
                                    gravity,
-                                   outer_width=(2, 2, 2),
+                                   outer_width=nothing,
                                    physics=nothing,
                                    fields=nothing,
                                    other_fields=nothing)
@@ -91,6 +91,10 @@ function IsothermalFullStokesModel(;
 
     if isnothing(physics)
         physics = default_physics(eltype(grid))
+    end
+
+    if isnothing(outer_width)
+        outer_width = ntuple(_ -> 2, Val(ndims(grid)))
     end
 
     boundary_conditions = make_field_boundary_conditions(arch, grid, fields, boundary_conditions)
