@@ -12,60 +12,49 @@ end
 
 BoundaryCondition{Kind}(components...) where {Kind} = BoundaryCondition{Kind}(components)
 
-const _COORDINATES = ((:x, 1), (:y, 2), (:z, 3))
-
-for (dim, val) in _COORDINATES
-    td = remove_dim(Val(val), _COORDINATES)
-    TN = ntuple(Val(length(td))) do I
-        dim2, val2 = td[I]
-        val2 < val ? Symbol(:τ, dim2, dim) : Symbol(:τ, dim, dim2)
-    end
-    N  = Symbol(:τ, dim, dim)
-
-    ex1 = Expr(:(=), :Pr, :(DirichletBC{HalfCell}(bc.components[$val])))
-    ex2 = Expr(:(=), N, :(DirichletBC{HalfCell}(convert(eltype(bc.components[$val]), 0))))
-    ex3 = ntuple(Val(length(TN))) do I
-        Expr(:(=), TN[I], :(DirichletBC{FullCell}(bc.components[$(td[I][2])])))
-    end
-
-    ex_tr = Expr(:tuple, ex1, ex2, ex3...)
-
-    ex_vel = ntuple(length(_COORDINATES)) do I
-        kind = I == val ? :(FullCell) : :(HalfCell)
-        Expr(:(=), Symbol(:V, _COORDINATES[I][1]), :(DirichletBC{$kind}(bc.components[$I])))
-    end
-
-    ex_vel = Expr(:tuple, ex_vel...)
-
-    ex_slip_tr = Expr(:tuple, ex3...)
-
-    ex_slip_vel = Expr(:(=), Symbol(:V, dim), :(DirichletBC{FullCell}(bc.components[$val])))
-    ex_slip_vel = Expr(:tuple, ex_slip_vel)
-
-    ex_res_vel = ntuple(length(_COORDINATES)) do I
-        kind = I == val ? :(FullCell) : :(HalfCell)
-        Expr(:(=), Symbol(:r_V, _COORDINATES[I][1]), :(DirichletBC{$kind}(0.0)))
-    end
-
-    ex_res_vel = Expr(:tuple, ex_res_vel...)
-
-    ex_res_slip_vel = Expr(:(=), Symbol(:r_V, dim), :(DirichletBC{FullCell}(0.0)))
-    ex_res_slip_vel = Expr(:tuple, ex_res_slip_vel)
-
-    @eval begin
-        extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Traction}) = $ex_tr
-        extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Velocity}) = ()
-        extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Slip})     = $ex_slip_tr
-
-        extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Traction}) = ()
-        extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Velocity}) = $ex_vel
-        extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Slip})     = $ex_slip_vel
-
-        extract_residuals_vel_bc(::Val{$val}, bc::BoundaryCondition{Traction}) = ()
-        extract_residuals_vel_bc(::Val{$val}, bc::BoundaryCondition{Velocity}) = $ex_res_vel
-        extract_residuals_vel_bc(::Val{$val}, bc::BoundaryCondition{Slip})     = $ex_res_slip_vel
+function instantiate_boundary_conditions(coords::NTuple{ND}) where {ND}
+    for (dim, val) in coords
+        td = remove_dim(Val(val), coords)
+        TN = ntuple(Val(length(td))) do I
+            dim2, val2 = td[I]
+            val2 < val ? Symbol(:τ, dim2, dim) : Symbol(:τ, dim, dim2)
+        end
+        N  = Symbol(:τ, dim, dim)
+    
+        ex1 = Expr(:(=), :Pr, :(DirichletBC{HalfCell}(bc.components[$val])))
+        ex2 = Expr(:(=), N, :(DirichletBC{HalfCell}(convert(eltype(bc.components[$val]), 0))))
+        ex3 = ntuple(Val(length(TN))) do I
+            Expr(:(=), TN[I], :(DirichletBC{FullCell}(bc.components[$(td[I][2])])))
+        end
+    
+        ex_tr = Expr(:tuple, ex1, ex2, ex3...)
+    
+        ex_vel = ntuple(length(coords)) do I
+            kind = I == val ? :(FullCell) : :(HalfCell)
+            Expr(:(=), Symbol(:V, coords[I][1]), :(DirichletBC{$kind}(bc.components[$I])))
+        end
+    
+        ex_vel = Expr(:tuple, ex_vel...)
+    
+        ex_slip_tr = Expr(:tuple, ex3...)
+    
+        ex_slip_vel = Expr(:(=), Symbol(:V, dim), :(DirichletBC{FullCell}(bc.components[$val])))
+        ex_slip_vel = Expr(:tuple, ex_slip_vel)
+    
+        @eval begin
+            extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Traction,$ND}) = $ex_tr
+            extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Velocity,$ND}) = ()
+            extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Slip,$ND})     = $ex_slip_tr
+    
+            extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Traction,$ND}) = ()
+            extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Velocity,$ND}) = $ex_vel
+            extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Slip,$ND})     = $ex_slip_vel
+        end
     end
 end
+
+instantiate_boundary_conditions(((:x, 1), (:y, 2)))
+instantiate_boundary_conditions(((:x, 1), (:y, 2), (:z, 3)))
 
 function make_batch(bcs::NamedTuple, fields::NamedTuple)
     batch_fields = Tuple(fields[name] for name in eachindex(bcs))

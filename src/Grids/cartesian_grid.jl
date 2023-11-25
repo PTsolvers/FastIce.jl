@@ -50,6 +50,10 @@ function Base.show(io::IO, grid::CartesianGrid{N,T}) where {N,T}
     end
 end
 
+_name_coords(tp::NTuple{1}) = NamedTuple{(:x, )}(tp)
+_name_coords(tp::NTuple{2}) = NamedTuple{(:x, :y)}(tp)
+_name_coords(tp::NTuple{3}) = NamedTuple{(:x, :y, :z)}(tp)
+
 """
     axis(grid::CartesianGrid, dim::Integer)
 
@@ -62,21 +66,21 @@ axis(grid::CartesianGrid, dim::Integer) = grid.axes[dim]
 
 Return the origin of a `CartesianGrid`. The origin corresponds to bottom-south-west corner of the grid in 3D.
 """
-origin(grid::CartesianGrid) = origin.(grid.axes)
+origin(grid::CartesianGrid) = _name_coords(origin.(grid.axes))
 
 """
     extent(grid::CartesianGrid)
 
 Return the spatial extent of a `CartesianGrid` as a tuple.
 """
-extent(grid::CartesianGrid) = extent.(grid.axes)
+extent(grid::CartesianGrid) = _name_coords(extent.(grid.axes))
 
 """
     spacing(grid::CartesianGrid)
 
 Return the spacing of a `CartesianGrid` as a tuple.
 """
-spacing(grid::CartesianGrid) = spacing.(grid.axes)
+spacing(grid::CartesianGrid) = _name_coords(spacing.(grid.axes))
 
 """
     Δ(grid::CartesianGrid)
@@ -89,7 +93,6 @@ Return the spacing of a `CartesianGrid` as a tuple. Same as `spacing`.
 @propagate_inbounds extent(grid::CartesianGrid, dim::Integer) = extent(grid.axes[dim])
 @propagate_inbounds spacing(grid::CartesianGrid, dim::Integer) = spacing(grid.axes[dim])
 @propagate_inbounds Δ(grid::CartesianGrid, dim::Integer) = spacing(grid.axes[dim])
-
 
 """
     coord(grid::CartesianGrid{N}, loc::NTuple{N,Location}, inds::NTuple{N})

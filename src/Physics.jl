@@ -4,6 +4,7 @@ export IncompressibleIceEOS, IceThermalProperties
 export IceRheology, GlensLawRheology
 export default
 
+using FastIce.Grids
 using FastIce.GridOperators
 
 struct IncompressibleIceEOS{T}
@@ -28,7 +29,13 @@ end
 
 default(::Type{GlensLawRheology{I}}) where {I} = GlensLawRheology(convert(I, 3))
 
-Base.@propagate_inbounds function (rh::GlensLawRheology{T})(grid, I, fields) where {T}
+Base.@propagate_inbounds function (rh::GlensLawRheology{T})(::CartesianGrid{2}, I, fields) where {T}
+    (; τ, A) = fields
+    τII = sqrt(0.5 * (τ.xx[I]^2 + τ.yy[I]^2) + avᶜxy(τ.xy, I)^2)
+    0.5 / (A[I] * τII^(rh.exponent - 1))
+end
+
+Base.@propagate_inbounds function (rh::GlensLawRheology{T})(::CartesianGrid{3}, I, fields) where {T}
     (; τ, A) = fields
     τII = sqrt(0.5 * (τ.xx[I]^2 + τ.yy[I]^2 + τ.zz[I]^2) + avᶜxy(τ.xy, I)^2 + avᶜxz(τ.xz, I)^2 + avᶜyz(τ.yz, I)^2)
     0.5 / (A[I] * τII^(rh.exponent - 1))

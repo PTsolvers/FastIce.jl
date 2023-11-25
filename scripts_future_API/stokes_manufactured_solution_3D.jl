@@ -43,11 +43,11 @@ vz(x, y, z) = sin(π * z) * f(x, y)
 ρgz(x, y, z, η) = -2 * η * sin(π * z) * (f(x, y) * π^2 - p(x, y))
 
 @views function main()
-    backend = CUDABackend()
+    backend = CPU()
     arch = Architecture(backend, 2)
     set_device!(arch)
 
-    outer_width = (4, 4, 4)
+    # outer_width = (4, 4, 4)
 
     # physics
     η0 = 1.0
@@ -56,7 +56,7 @@ vz(x, y, z) = sin(π * z) * f(x, y)
     # geometry
     grid = CartesianGrid(; origin=(-1.0, -1.0, -1.0),
                          extent=(2.0, 2.0, 2.0),
-                         size=(256, 256, 256))
+                         size=(32, 32, 32))
 
     free_slip = SBC(0.0, 0.0, 0.0)
     xface = (Vertex(), Center(), Center())
@@ -97,7 +97,6 @@ vz(x, y, z) = sin(π * z) * f(x, y)
                                       gravity,
                                       boundary_conditions,
                                       iter_params,
-                                      outer_width,
                                       other_fields)
 
     set!(model.fields.Pr, 0.0)

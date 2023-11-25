@@ -12,7 +12,12 @@ using FastIce.Utils
 using FastIce.KernelLaunch
 using FastIce.Distributed
 
-include("kernels.jl")
+using FastIce.GridOperators
+using KernelAbstractions
+
+include("kernels_common.jl")
+include("kernels_2d.jl")
+include("kernels_3d.jl")
 
 include("boundary_conditions.jl")
 
@@ -111,20 +116,22 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt)
     (; η_rel, Δτ)   = model.iter_params
     η_rh            = model.physics.rheology
     ρg              = model.gravity
+    bc              = model.boundary_conditions
     hide_boundaries = model.hide_boundaries
     outer_width     = model.outer_width
+    grid            = model.grid
 
-    Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
+    Δ = spacing(model.grid)
 
-    launch!(model.arch, model.grid, update_σ! => (Pr, τ, V, η, Δτ, Δ);
-            location=Center(), expand=1, boundary_conditions=model.boundary_conditions.stress, hide_boundaries, outer_width, async=false)
+    launch!(model.arch, grid, update_σ! => (Pr, τ, V, η, Δτ, Δ, grid);
+            location=Center(), expand=1, boundary_conditions=bc.stress, hide_boundaries, outer_width, async=false)
 
-    launch!(model.arch, model.grid, update_V! => (V, Pr, τ, η, ρg, Δτ, model.grid, Δ);
-            location=Vertex(), boundary_conditions=model.boundary_conditions.velocity, hide_boundaries, outer_width, async=false)
+    launch!(model.arch, grid, update_V! => (V, Pr, τ, η, ρg, Δτ, Δ, grid);
+            location=Vertex(), boundary_conditions=bc.velocity, hide_boundaries, outer_width, async=false)
 
     # rheology
-    launch!(model.arch, model.grid, update_η! => (η, η_rh, η_rel, model.grid, model.fields);
-            location=Center(), boundary_conditions=model.boundary_conditions.rheology, hide_boundaries, outer_width, async=false)
+    launch!(model.arch, grid, update_η! => (η, η_rh, η_rel, model.fields, grid);
+            location=Center(), boundary_conditions=bc.rheology, hide_boundaries, outer_width, async=false)
     return
 end
 
@@ -133,9 +140,9 @@ function compute_residuals!(model::IsothermalFullStokesModel)
     ρg = model.gravity
     boundary_conditions = model.boundary_conditions.residual
 
-    Δ = NamedTuple{(:x, :y, :z)}(spacing(model.grid))
+    Δ = spacing(model.grid)
 
-    launch!(model.arch, model.grid, compute_residuals! => (r_V, r_Pr, Pr, τ, V, ρg, model.grid, Δ);
+    launch!(model.arch, model.grid, compute_residuals! => (r_V, r_Pr, Pr, τ, V, ρg, Δ, model.grid);
             location=Vertex(), boundary_conditions, async=false)
     return
 end

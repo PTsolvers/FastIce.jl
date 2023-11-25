@@ -1,26 +1,6 @@
-using KernelAbstractions
-
-using FastIce.GridOperators
-
-Base.@propagate_inbounds @generated function within(grid::CartesianGrid{N}, f::Field{T,N}, I::CartesianIndex{N}) where {T,N}
-    quote
-        Base.Cartesian.@nall $N i->I[i] <= size(grid, location(f, Val(i)), i)
-    end
-end
-
-"Update viscosity using relaxation in log-space. Improves stability of iterative methods"
-@kernel function update_η!(η, η_rh, χ, grid, fields, offset=nothing)
-    I = @index(Global, Cartesian)
-    isnothing(offset) || (I += offset)
-    @inbounds begin
-        ηt = η_rh(grid, I, fields)
-        η[I] = exp(log(η[I]) * (1 - χ) + log(ηt) * χ)
-    end
-end
-
 # pseudo-transient update rules
 
-@kernel function update_σ!(Pr, τ, V, η, Δτ, Δ, offset=nothing)
+@kernel function update_σ!(Pr, τ, V, η, Δτ, Δ, grid::CartesianGrid{3}, offset=nothing)
     I = @index(Global, Cartesian)
     isnothing(offset) || (I += offset)
     @inbounds if checkbounds(Bool, Pr, I)
@@ -49,7 +29,7 @@ end
     end
 end
 
-@kernel function update_V!(V, Pr, τ, η, ρg, Δτ, grid, Δ, offset=nothing)
+@kernel function update_V!(V, Pr, τ, η, ρg, Δτ, Δ, grid::CartesianGrid{3}, offset=nothing)
     I = @index(Global, Cartesian)
     isnothing(offset) || (I += offset)
     @inbounds if within(grid, V.x, I)
@@ -74,7 +54,7 @@ end
 
 # helper kernels
 
-@kernel function compute_τ!(τ, V, η, Δ, offset=nothing)
+@kernel function compute_τ!(τ, V, η, Δ, grid::CartesianGrid{3}, offset=nothing)
     I = @index(Global, Cartesian)
     isnothing(offset) || (I += offset)
     @inbounds if checkbounds(Bool, Pr, I)
@@ -101,7 +81,7 @@ end
     end
 end
 
-@kernel function compute_residuals!(r_V, r_Pr, Pr, τ, V, ρg, grid, Δ, offset=nothing)
+@kernel function compute_residuals!(r_V, r_Pr, Pr, τ, V, ρg, Δ, grid::CartesianGrid{3}, offset=nothing)
     I = @index(Global, Cartesian)
     isnothing(offset) || (I += offset)
     @inbounds if within(grid, r_Pr, I)
