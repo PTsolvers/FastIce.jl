@@ -14,14 +14,16 @@ makedocs(
         ),
     modules = [FastIce],
     doctest = false,
-    pages=[
+    warnonly = [:missing_docs],
+    pages = Any[
         "Home" => "index.md",
-        "Usage" => "usage.md",
-        "Library" => "library.md"
+        "Usage" => Any["usage/runtests.md"],
+        "Library" => Any["lib/modules.md"]
     ]
 )
 
 deploydocs(
     repo = "github.com/PTsolvers/FastIce.jl.git",
-    devbranch = "main"
+    devbranch = "main",
+    push_preview = true
 )
