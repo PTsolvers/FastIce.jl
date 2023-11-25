@@ -125,10 +125,11 @@ vy(x, y) = -cos(π * x) * sin(π * y)
 
     fig = Figure()
     ax  = Axis(fig[1,1][1,1]; aspect=DataAspect())
-    hm  = heatmap!(ax, xvertices(grid), ycenters(grid), dVx; colormap=:turbo)
+    hm  = heatmap!(ax, xvertices(grid), ycenters(grid), interior(model.fields.V.x); colormap=:turbo)
     Colorbar(fig[1,1][1,2], hm)
 
     display(fig)
+    save("ms_2D.png", fig)
 
     return
 end
