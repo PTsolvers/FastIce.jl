@@ -1,7 +1,17 @@
 name: Unit Tests
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/UnitTests.yml'
+      - 'src/**'
+      - 'test/**'
+  pull_request:
+    paths:
+      - '.github/workflows/UnitTests.yml'
+      - 'src/**'
+      - 'test/**'
 env:
   JULIA_NUM_THREADS: 2
 jobs:
