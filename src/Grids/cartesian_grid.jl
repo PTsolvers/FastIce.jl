@@ -22,7 +22,7 @@ function CartesianGrid(origin::NTuple{N,T}, extent::NTuple{N,T}, size::NTuple{N,
 end
 
 """
-    CartesianGrid(origin::NTuple{N,T}, extent::NTuple{N,T}, size::NTuple{N,I})
+    CartesianGrid(; origin::NTuple{N,T}, extent::NTuple{N,T}, size::NTuple{N,I})
 
 Create a Cartesian grid with a specified origin (bottom-south-west corner in 3D), spatial extent, and number of grid cells.
 """
