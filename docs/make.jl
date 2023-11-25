@@ -13,6 +13,7 @@ makedocs(
         ansicolor=true
         ),
     modules = [FastIce],
+    doctest = false,
     pages=[
         "Home" => "index.md",
         "Usage" => "usage.md",
