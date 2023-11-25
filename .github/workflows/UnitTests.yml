@@ -6,11 +6,13 @@ on:
     paths:
       - '.github/workflows/UnitTests.yml'
       - 'src/**'
+      - 'ext/**'
       - 'test/**'
   pull_request:
     paths:
       - '.github/workflows/UnitTests.yml'
       - 'src/**'
+      - 'ext/**'
       - 'test/**'
 env:
   JULIA_NUM_THREADS: 2
