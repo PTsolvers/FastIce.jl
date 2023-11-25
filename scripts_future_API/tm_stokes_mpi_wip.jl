@@ -32,20 +32,6 @@ max_abs_g(A) = (max_l = maximum(abs.(interior(A))); MPI.Allreduce(max_l, MPI.MAX
 @views av_xz(A) = 0.25 .* (A[1:end-1, :, 1:end-1] .+ A[2:end, :, 1:end-1, :] .+ A[2:end, :, 2:end, :] .+ A[1:end-1, :, 2:end])
 @views av_yz(A) = 0.25 .* (A[:, 1:end-1, 1:end-1] .+ A[:, 2:end, 1:end-1] .+ A[:, 2:end, 2:end] .+ A[:, 1:end-1, 2:end])
 
-function fastice_intro(; kwargs...)
-    intro = raw"""
-    ┌──────────────────────────────────────────────────────────┐
-    │     ______              __   ____                  _  __ │
-    │    / ____/____ _ _____ / /_ /  _/_____ ___        (_)/ / │
-    │   / /_   / __ `// ___// __/ / / / ___// _ \      / // /  │
-    │  / __/  / /_/ /(__  )/ /_ _/ / / /__ /  __/_    / // /   │
-    │ /_/     \__,_//____/ \__//___/ \___/ \___/(_)__/ //_/    │
-    │                                             /___/        │
-    └──────────────────────────────────────────────────────────┘
-    """
-    printstyled(intro; kwargs...)
-end
-
 function main(; do_visu=false, do_save=false)
     MPI.Init()
 
@@ -72,7 +58,7 @@ function main(; do_visu=false, do_save=false)
     grid_l = local_grid(grid_g, topo)
 
     if me == 0
-        fastice_intro(bold=true, color=:blue)
+        FastIce.greet(bold=true, color=:blue)
         printstyled("Running FastIce.jl 🧊 \n"; bold=true, color=:blue)
         printstyled(grid_g; bold=true)
     end
