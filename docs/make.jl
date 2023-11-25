@@ -3,13 +3,6 @@ using FastIce
 
 push!(LOAD_PATH,"../src/")
 
-const DOC_SETUP = quote
-    using FastIce
-    using FastIce.Grids
-end
-
-DocMeta.setdocmeta!(FastIce, :DocTestSetup, DOC_SETUP; recursive=true)
-
 makedocs(
     sitename = "FastIce",
     authors="Ludovic Räss, Ivan Utkin and contributors",
