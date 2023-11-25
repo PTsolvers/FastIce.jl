@@ -26,6 +26,6 @@ include("Distributed/Distributed.jl")
 include("Physics.jl")
 
 # ice flow models
-include("Models/models.jl")
+include("Models/Models.jl")
 
 end # module

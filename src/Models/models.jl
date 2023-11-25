@@ -1,9 +1,6 @@
 module Models
 
-export Diffusion
-export FullStokes
-
-include("diffusion/diffusion.jl")
-include("full_stokes/full_stokes.jl")
+include("Diffusion/Diffusion.jl")
+include("FullStokes/FullStokes.jl")
 
 end

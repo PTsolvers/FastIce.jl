@@ -1,5 +1,5 @@
 module Diffusion
 
-include("heat/heat.jl")
+include("Heat/Heat.jl")
 
 end
