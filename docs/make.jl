@@ -11,7 +11,6 @@ makedocs(
         ansicolor=true
         ),
     modules = [FastIce],
-    doctest = false,
     warnonly = [:missing_docs],
     pages = Any[
         "Home" => "index.md",
