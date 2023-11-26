@@ -31,7 +31,12 @@ vy(x, y) = -cos(π * x) * sin(π * y)
 ρgx(x, y, η) = -2 * η * π^2 * sin(π * x) * cos(π * y)
 ρgy(x, y, η) = 2 * η * π^2 * cos(π * x) * sin(π * y)
 
-@views function main()
+# helpers
+@views avx(A) = @. 0.5 * (A[1:end-1, :] + A[2:end, :])
+@views avy(A) = @. 0.5 * (A[:, 1:end-1] + A[:, 2:end])
+@views av4(A) = @. 0.25 * (A[1:end-1, 1:end-1] + A[2:end, 1:end-1] + A[2:end, 2:end] + A[1:end-1, 2:end])
+
+@views function run(dims)
     backend = CPU()
     arch = Architecture(backend, 2)
     set_device!(arch)
@@ -43,7 +48,7 @@ vy(x, y) = -cos(π * x) * sin(π * y)
     # geometry
     grid = CartesianGrid(; origin=(-1.0, -1.0),
                          extent=(2.0, 2.0),
-                         size=(256, 256))
+                         size=dims)
 
     free_slip = SBC(0.0, 0.0)
     xface = (Vertex(), Center())
@@ -109,29 +114,75 @@ vy(x, y) = -cos(π * x) * sin(π * y)
         end
     end
 
-    Vx_m = Field(backend, grid, location(model.fields.V.x))
-    Vy_m = Field(backend, grid, location(model.fields.V.y))
+    V = model.fields.V
+    τ = model.fields.τ
 
-    set!(Vx_m, grid, vx)
-    set!(Vy_m, grid, vy)
+    Vm = (x=FunctionField(vx, grid, location(V.x)),
+          y=FunctionField(vy, grid, location(V.y)))
 
-    dVx = interior(Vx_m) .- interior(model.fields.V.x)
-    dVy = interior(Vy_m) .- interior(model.fields.V.y)
+    τm = (xx=FunctionField(τxx, grid, location(τ.xx); parameters=η0),
+          yy=FunctionField(τyy, grid, location(τ.yy); parameters=η0),
+          xy=FunctionField(τxy, grid, location(τ.xy); parameters=η0))
 
-    err = (norm(dVx, Inf) / norm(Vx_m, Inf),
-           norm(dVy, Inf) / norm(Vy_m, Inf))
+    Vm_mag = sqrt.(avx(Vm.x) .^ 2 .+ avy(Vm.y) .^ 2)
+    V_mag  = sqrt.(avx(interior(V.x)) .^ 2 .+ avy(interior(V.y)) .^ 2)
 
-    @printf("err = [Vx: %1.3e, Vy: %1.3e]\n", err...)
+    τm_mag = sqrt.(0.5 .* (τm.xx .^ 2 .+ τm.yy .^ 2) .+ av4(τm.xy) .^ 2)
+    τ_mag  = sqrt.(0.5 .* (interior(τ.xx) .^ 2 .+ interior(τ.yy) .^ 2) + av4(interior(τ.xy)) .^ 2)
 
-    fig = Figure()
-    ax  = Axis(fig[1,1][1,1]; aspect=DataAspect())
-    hm  = heatmap!(ax, xvertices(grid), ycenters(grid), interior(model.fields.V.x); colormap=:turbo)
-    Colorbar(fig[1,1][1,2], hm)
+    err = (norm(Vm_mag .- V_mag, Inf) / norm(Vm_mag, Inf),
+           norm(τm_mag .- τ_mag, Inf) / norm(τm_mag, Inf),
+           norm(Vm_mag .- V_mag, 1) / norm(Vm_mag, 1),
+           norm(τm_mag .- τ_mag, 1) / norm(τm_mag, 1),
+           norm(Vm_mag .- V_mag, 2) / norm(Vm_mag, 2),
+           norm(τm_mag .- τ_mag, 2) / norm(τm_mag, 2))
 
-    display(fig)
-    save("ms_2D.png", fig)
+    @show err
 
-    return
+    return err
 end
 
-main()
+N = 2 .^ (3:8)
+errs = zeros(6, length(N))
+
+for (iN, nx) in enumerate(N)
+    @show nx
+    errs[:, iN] .= run((nx, nx))
+end
+
+fig = Figure(; fontsize=16)
+
+ax = Axis(fig[1, 1];
+          xscale=log2,
+          yscale=log10,
+          xlabel="N",
+          ylabel="L-norms of error",
+          xticks=LogTicks(3:8),
+          yticks=LogTicks(-5:1:0),
+          title="Convergence for free slip confined flow 2D")
+
+ylims!(ax, 1e-5, nothing)
+
+N2 = N .^ (-2) / N[end]^(-2) * minimum(errs)
+lines!(ax, N, N2; label=L"N^{-2}", color=:gray, linewidth=2)
+
+labels = (L"L_\infty\text{-norm},\,v",
+          L"L_\infty\text{-norm},\,\tau_\mathrm{II}",
+          L"L_1\text{-norm},\,v", L"L_1\text{-norm},\,\tau_\mathrm{II}",
+          L"L_2\text{-norm},\,v", L"L_2\text{-norm},\,\tau_\mathrm{II}")
+colors = (:red, :red, :blue, :blue, :green, :green)
+shapes = (:circle, :diamond, :rect, :star4, :utriangle, :vline)
+
+for ierr in axes(errs, 1)
+    scatter!(ax, N, errs[ierr, :];
+             label       = labels[ierr],
+             marker      = shapes[ierr],
+             markersize  = 15,
+             color       = :transparent,
+             strokewidth = 1,
+             strokecolor = colors[ierr])
+end
+
+axislegend(ax)
+
+save("stokes_manufactured_solution_free_slip_2D.png", fig)
