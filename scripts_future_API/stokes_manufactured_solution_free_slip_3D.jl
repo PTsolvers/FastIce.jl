@@ -16,6 +16,10 @@ const SBC = BoundaryCondition{Slip}
 
 using LinearAlgebra
 using KernelAbstractions
+using CUDA
+CUDA.allowscalar(false)
+
+using CairoMakie
 
 # manufactured solution for the confined Stokes flow with free-slip boundaries
 # helper functions
@@ -51,8 +55,8 @@ vz(x, y, z) = sin(π * z) * f(x, y)
 @views avyz(A) = @. 0.25 * (A[:, 1:end-1, 1:end-1] + A[:, 2:end, 1:end-1] + A[:, 2:end, 2:end] + A[:, 1:end-1, 2:end])
 
 @views function run(dims)
-    backend = CPU()
-    arch = Architecture(backend, 2)
+    backend = CUDABackend()
+    arch = Architecture(backend, 1)
     set_device!(arch)
 
     # outer_width = (4, 4, 4)
@@ -148,10 +152,10 @@ vz(x, y, z) = sin(π * z) * f(x, y)
           xz=FunctionField(τxz, grid, location(τ.xz); parameters=η0),
           yz=FunctionField(τyz, grid, location(τ.yz); parameters=η0))
 
-    Vm_mag = sqrt.(avx(Vm.x) .^ 2 .+ avy(Vm.y) .^ 2 .+ avz(Vm.z) .^ 2)
+    Vm_mag = sqrt.(avx(Vm.x) .^ 2 .+ avy(Vm.y) .^ 2 .+ avz(Vm.z) .^ 2) |> CuArray
     V_mag  = sqrt.(avx(interior(V.x)) .^ 2 .+ avy(interior(V.y)) .^ 2 .+ avz(interior(V.z)) .^ 2)
 
-    τm_mag = sqrt.(0.5 .* (τm.xx .^ 2 .+ τm.yy .^ 2 .+ τm.zz .^ 2) .+ avxy(τm.xy) .^ 2 .+ avxz(τm.xz) .^ 2 .+ avyz(τm.yz) .^ 2)
+    τm_mag = sqrt.(0.5 .* (τm.xx .^ 2 .+ τm.yy .^ 2 .+ τm.zz .^ 2) .+ avxy(τm.xy) .^ 2 .+ avxz(τm.xz) .^ 2 .+ avyz(τm.yz) .^ 2) |> CuArray
     τ_mag  = sqrt.(0.5 .* (interior(τ.xx) .^ 2 .+ interior(τ.yy) .^ 2 .+ interior(τ.zz) .^ 2) .+ avxy(interior(τ.xy)) .^ 2 .+ avxz(interior(τ.xz)) .^ 2 .+ avyz(interior(τ.yz)) .^ 2)
 
     err = (norm(Vm_mag .- V_mag, Inf) / norm(Vm_mag, Inf),
