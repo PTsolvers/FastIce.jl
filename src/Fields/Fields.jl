@@ -4,6 +4,7 @@ export AbstractField
 export Field, interior
 export FunctionField
 export location, data, halo, set!
+export ConstantField, ZeroField, OneField
 
 using Adapt
 using OffsetArrays
@@ -141,5 +142,7 @@ LinearAlgebra.norm(f::Field) = LinearAlgebra.norm(interior(f))
 LinearAlgebra.norm(f::Field, p::Real) = LinearAlgebra.norm(interior(f), p)
 
 include("function_field.jl")
+
+include("constant_field.jl")
 
 end

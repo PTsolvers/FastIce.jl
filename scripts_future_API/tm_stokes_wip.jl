@@ -29,7 +29,7 @@ using CairoMakie
     # physics
     ebg = 2.0
 
-    b_width = (16, 4, 4) #(128, 32, 4)#
+    b_width = (4, 4, 4) #(128, 32, 4)#
 
     grid = CartesianGrid(; origin=(-0.5, -0.5, 0.0),
                          extent=(1.0, 1.0, 1.0),

@@ -78,7 +78,7 @@ vy(x, y) = -cos(0.5π * x) * sin(0.5π * y)
                    Δτ=(Pr=r / θ_dτ, τ=(xx=dτ_r, yy=dτ_r, xy=dτ_r), V=(x=nudτ, y=nudτ)))
 
     physics = (rheology=GlensLawRheology(1),)
-    other_fields = (A=Field(backend, grid, Center()),)
+    other_fields = (A=ConstantField(A0),)
 
     model = IsothermalFullStokesModel(;
                                       arch,
@@ -93,7 +93,6 @@ vy(x, y) = -cos(0.5π * x) * sin(0.5π * y)
     foreach(x -> set!(x, 0.0), model.fields.τ)
     foreach(x -> set!(x, 0.0), model.fields.V)
 
-    set!(other_fields.A, A0)
     set!(model.fields.η, grid, (grid, loc, I, fields) -> physics.rheology(grid, I, fields); discrete=true, parameters=(model.fields,))
 
     KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.stress)
