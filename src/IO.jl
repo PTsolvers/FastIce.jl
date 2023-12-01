@@ -6,6 +6,7 @@ using FastIce.Grids
 using FastIce.Fields
 
 using HDF5
+using LightXML
 
 """
     write_h5(path, fields, grid::CartesianGrid, args...)
@@ -19,7 +20,7 @@ function write_h5(path, fields, grid_g::CartesianGrid, args...)
     h5open(path, "w", args...) do io
         for (name, field) in fields
             dset = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(size(grid_g)))
-            dset[field.indices...] = Array(field)
+            dset[field.indices...] = Array(interior(field))
         end
     end
     return
@@ -67,7 +68,7 @@ function write_xdmf(path, h5_names, fields, grid_l::CartesianGrid, grid_g::Carte
 
         h5_path = h5_names[it]
         for (name, _) in fields
-            create_xdmf_attribute(xgrid, h5_path, name, size(grid_g))
+            create_xdmf_attribute(xgrid, h5_path, name, grid_g)
         end
     end
 
