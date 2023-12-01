@@ -7,6 +7,7 @@ using FastIce.BoundaryConditions
 using FastIce.Models.FullStokes.Isothermal
 using FastIce.Physics
 using FastIce.KernelLaunch
+using FastIce.IO
 
 const VBC = BoundaryCondition{Velocity}
 const TBC = BoundaryCondition{Traction}
@@ -29,11 +30,11 @@ using CairoMakie
     # physics
     ebg = 2.0
 
-    b_width = (16, 4, 4) #(128, 32, 4)#
+    b_width = (4, 4, 4) #(128, 32, 4)#
 
     grid = CartesianGrid(; origin=(-0.5, -0.5, 0.0),
                          extent=(1.0, 1.0, 1.0),
-                         size=(62, 62, 62))
+                         size=(30, 30, 30))
 
     psh_x(x, _, _) = -x * ebg
     psh_y(_, y, _) = y * ebg
@@ -127,12 +128,21 @@ using CairoMakie
             @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
             plt.Pr[3][] = interior(model.fields.Pr)[:, size(grid, 2)÷2+1, :]
             plt.Vx[3][] = interior(model.fields.V.x)[:, size(grid, 2)÷2+1, :]
-            plt.Vy[3][] = interior(model.fields.V.y)[:, size(grid, 2)÷2+1, :]
+            plt.Vy[3][] = interior(model.fields.V.y)[:, size(grid, 2)÷2+0, :]
             plt.Vz[3][] = interior(model.fields.V.z)[:, size(grid, 2)÷2+1, :]
             # yield()
             display(fig)
         end
     end
+    # saving to disk
+    out_h5 = "results.h5"
+    fields = Dict("Pr" => interior(model.fields.Pr), "Vx" => interior(model.fields.V.x), "Vy" => interior(model.fields.V.y), "Vz" => interior(model.fields.V.z))
+
+    @info "saving HDF5 file"
+    write_h5(out_h5, fields, grid)
+
+    @info "saving XDMF file..."
+    write_xdmf("results.xdmf3", out_h5, fields, grid)
 
     return
 end
