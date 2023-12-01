@@ -11,7 +11,17 @@ const GREETING = raw"""
 └──────────────────────────────────────────────────────────┘
 """
 
+const GREETING_FAST = raw"""
+__________             _____________             ______________
+___  ____/_____ _________  /____  _/__________   ______(_)__  /
+__  /_   _  __ `/_  ___/  __/__  / _  ___/  _ \  _____  /__  /
+_  __/   / /_/ /_(__  )/ /_ __/ /  / /__ /  __/______  / _  /
+/_/      \__,_/ /____/ \__/ /___/  \___/ \___/_(_)__  /  /_/
+                                                 /___/
+"""
+
 greet(; kwargs...) = printstyled(GREETING; kwargs...)
+greet_fast(; kwargs...) = printstyled(GREETING_FAST; kwargs...)
 
 # core modules
 include("Grids/Grids.jl")
@@ -24,6 +34,7 @@ include("BoundaryConditions/BoundaryConditions.jl")
 include("KernelLaunch.jl")
 include("Distributed/Distributed.jl")
 include("Physics.jl")
+include("IO.jl")
 
 # ice flow models
 include("Models/models.jl")
