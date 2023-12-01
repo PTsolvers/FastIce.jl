@@ -8,15 +8,6 @@ Together with `HideBoundaries` from the `BoundaryConditions` module enables hidi
 """
 module Distributed
 
-using FastIce.Grids
-using FastIce.Fields
-using FastIce.Architectures
-using FastIce.BoundaryConditions
-import FastIce.BoundaryConditions: apply_boundary_conditions!
-
-using MPI
-using KernelAbstractions
-
 export CartesianTopology
 export global_rank, shared_rank, node_name, cartesian_communicator, shared_communicator, coordinates
 export dimensions, global_size, node_size
@@ -25,6 +16,15 @@ export neighbors, neighbor, has_neighbor
 export gather!
 
 export ExchangeInfo, DistributedBoundaryConditions
+
+using FastIce.Grids
+using FastIce.Fields
+using FastIce.Architectures
+using FastIce.BoundaryConditions
+import FastIce.BoundaryConditions: apply_boundary_conditions!
+
+using MPI
+using KernelAbstractions
 
 "Trait structure used as a type parameter to indicate that the Architecture is a distributed MPI Architecture."
 struct DistributedMPI end

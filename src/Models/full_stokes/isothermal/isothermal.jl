@@ -13,7 +13,6 @@ using FastIce.KernelLaunch
 using FastIce.Distributed
 
 include("kernels.jl")
-
 include("boundary_conditions.jl")
 
 function default_physics(::Type{T}) where {T}
