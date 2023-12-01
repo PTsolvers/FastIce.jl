@@ -7,6 +7,8 @@ using FastIce.BoundaryConditions
 using FastIce.Models.FullStokes.Isothermal
 using FastIce.Physics
 using FastIce.KernelLaunch
+using FastIce.IO
+using FastIce.Logging
 
 const VBC = BoundaryCondition{Velocity}
 const TBC = BoundaryCondition{Traction}
@@ -32,13 +34,13 @@ max_abs_g(A) = (max_l = maximum(abs.(interior(A))); MPI.Allreduce(max_l, MPI.MAX
 @views av_xz(A) = 0.25 .* (A[1:end-1, :, 1:end-1] .+ A[2:end, :, 1:end-1, :] .+ A[2:end, :, 2:end, :] .+ A[1:end-1, :, 2:end])
 @views av_yz(A) = 0.25 .* (A[:, 1:end-1, 1:end-1] .+ A[:, 2:end, 1:end-1] .+ A[:, 2:end, 2:end] .+ A[:, 1:end-1, 2:end])
 
-function main(; do_visu=false, do_save=false)
+function main(; do_visu=false, do_save=false, do_h5_save=false)
     MPI.Init()
 
     backend = CPU()
     # dims = (4, 2, 2)
     # dims = (4, 2, 2)
-    dims = (1, 1, 1)
+    dims = (0, 0, 0)
     topo = CartesianTopology(dims)
     arch = Architecture(backend, topo)
     set_device!(arch)
@@ -46,10 +48,10 @@ function main(; do_visu=false, do_save=false)
     comm = cartesian_communicator(topo)
     me = global_rank(topo) # rank
 
-    size_l = (30, 30, 30)
+    size_l = (14, 14, 14)
     size_g = global_grid_size(topo, size_l)
 
-    outer_width = (3, 3, 3) #(128, 32, 4)#
+    outer_width = (4, 4, 4) #(128, 32, 4)#
 
     grid_g = CartesianGrid(; origin=(-2.0, -1.0, 0.0),
                            extent=(4.0, 2.0, 2.0),
@@ -57,9 +59,10 @@ function main(; do_visu=false, do_save=false)
 
     grid_l = local_grid(grid_g, topo)
 
+    global_logger(FastIce.Logging.MPILogger(0, comm, global_logger()))
+
     if me == 0
-        FastIce.greet(bold=true, color=:blue)
-        printstyled("Running FastIce.jl 🧊 \n"; bold=true, color=:blue)
+        FastIce.greet_fast(bold=true, color=:blue)
         printstyled(grid_g; bold=true)
     end
 
@@ -79,8 +82,8 @@ function main(; do_visu=false, do_save=false)
                z=FunctionField(ρgz, grid_l, (Center(), Center(), Vertex())))
 
     # numerics
-    niter  = 10maximum(size(grid_g))
-    ncheck = 2maximum(size(grid_g))
+    niter  = 20maximum(size(grid_g))
+    ncheck = 4maximum(size(grid_g))
 
     r       = 0.7
     re_mech = 4π
@@ -155,42 +158,61 @@ function main(; do_visu=false, do_save=false)
     KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.velocity)
     KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.rheology)
 
+    if do_h5_save
+        h5names = String[]
+        ts = Float64[]
+        isave = 0
+        fields = Dict("Pr" => model.fields.Pr, "A" => model.fields.A)
+        outdir = "out_visu_mpi"
+        (me == 0) && mkpath(outdir)
+    end
+
     MPI.Barrier(comm)
 
     (me == 0) && printstyled("Action \n"; bold=true, color=:light_blue)
 
-    ttot_ns = UInt64(0)
-    for iter in 1:niter
-        if iter == 10
-            MPI.Barrier(comm)
-            ttot_ns = time_ns()
-        end
-        advance_iteration!(model, 0.0, 1.0)
-        if (iter % ncheck == 0)
-            compute_residuals!(model)
-            err = (Pr = max_abs_g(model.fields.r_Pr),
-                   Vx = max_abs_g(model.fields.r_V.x),
-                   Vy = max_abs_g(model.fields.r_V.y),
-                   Vz = max_abs_g(model.fields.r_V.z))
-            if (me == 0)
-                any(.!isfinite.(values(err))) && error("simulation failed, err = $err")
-                iter_nx = iter / maximum(size(grid_g))
-                @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
-            end
-        end
-    end
-    ttot = float(time_ns() - ttot_ns)
-    ttot /= (niter - 10)
+    # ttot_ns = UInt64(0)
+    # for iter in 1:niter
+    #     if iter == 10
+    #         MPI.Barrier(comm)
+    #         ttot_ns = time_ns()
+    #     end
+    #     advance_iteration!(model, 0.0, 1.0)
+    #     if (iter % ncheck == 0)
+    #         compute_residuals!(model)
+    #         err = (Pr = max_abs_g(model.fields.r_Pr),
+    #                Vx = max_abs_g(model.fields.r_V.x),
+    #                Vy = max_abs_g(model.fields.r_V.y),
+    #                Vz = max_abs_g(model.fields.r_V.z))
+    #         if (me == 0)
+    #             any(.!isfinite.(values(err))) && error("simulation failed, err = $err")
+    #             iter_nx = iter / maximum(size(grid_g))
+    #             @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
+    #         end
+    #     end
+    # end
+    # ttot = float(time_ns() - ttot_ns)
+    # ttot /= (niter - 10)
 
-    MPI.Barrier(comm)
+    # MPI.Barrier(comm)
 
-    ttot_min = MPI.Allreduce(ttot, MPI.MIN, comm)
-    ttot_max = MPI.Allreduce(ttot, MPI.MAX, comm)
+    # ttot_min = MPI.Allreduce(ttot, MPI.MIN, comm)
+    # ttot_max = MPI.Allreduce(ttot, MPI.MAX, comm)
 
-    if me == 0
-        Teff_min = 23 * 8 * prod(size(grid_l)) / ttot_max
-        Teff_max = 23 * 8 * prod(size(grid_l)) / ttot_min
-        printstyled("Performance: T_eff [min max] = $(round(Teff_min, sigdigits=4)) $(round(Teff_max, sigdigits=4)) \n"; bold=true, color=:green)
+    # if me == 0
+    #     Teff_min = 23 * 8 * prod(size(grid_l)) / ttot_max
+    #     Teff_max = 23 * 8 * prod(size(grid_l)) / ttot_min
+    #     printstyled("Performance: T_eff [min max] = $(round(Teff_min, sigdigits=4)) $(round(Teff_max, sigdigits=4)) \n"; bold=true, color=:green)
+    # end
+
+    if do_h5_save
+        out_h5 = "results.h5"
+        @info "saving HDF5 file"
+        write_h5(joinpath(outdir, out_h5), fields, grid_g, comm, MPI.Info())
+        push!(h5names, out_h5)
+
+        @info "saving XDMF file"
+        (me == 0) && write_xdmf(joinpath(outdir, "results.xdmf3"), h5names, fields, grid_l, grid_g)
     end
 
     if do_save || do_visu
@@ -256,4 +278,4 @@ function main(; do_visu=false, do_save=false)
     return
 end
 
-main(; do_visu=false, do_save=false)
+main(; do_visu=false, do_save=false, do_h5_save=true)
