@@ -13,14 +13,14 @@ using LightXML
 
 Write `fields` in HDF5 format in a file at `path`.
 """
-function write_h5(path, fields, grid_g::CartesianGrid, args...)
+function write_h5(path, fields, grid_g::CartesianGrid, I::CartesianIndices, args...)
     if !HDF5.has_parallel() && (length(args) > 0)
         @warn("HDF5 has no parallel support.")
     end
     h5open(path, "w", args...) do io
         for (name, field) in fields
             dset = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(size(grid_g)))
-            dset[field.indices...] = Array(interior(field))
+            dset[I.indices...] = Array(interior(field))
         end
     end
     return

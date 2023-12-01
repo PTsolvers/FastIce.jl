@@ -20,6 +20,7 @@ using KernelAbstractions
 
 using FastIce.Distributed
 using MPI
+using Logging
 
 using CairoMakie
 
@@ -59,7 +60,7 @@ function main(; do_visu=false, do_save=false, do_h5_save=false)
 
     grid_l = local_grid(grid_g, topo)
 
-    global_logger(FastIce.Logging.MPILogger(0, comm, global_logger()))
+    # global_logger(FastIce.Logging.MPILogger(0, comm, global_logger()))
 
     if me == 0
         FastIce.greet_fast(bold=true, color=:blue)
@@ -171,47 +172,50 @@ function main(; do_visu=false, do_save=false, do_h5_save=false)
 
     (me == 0) && printstyled("Action \n"; bold=true, color=:light_blue)
 
-    # ttot_ns = UInt64(0)
-    # for iter in 1:niter
-    #     if iter == 10
-    #         MPI.Barrier(comm)
-    #         ttot_ns = time_ns()
-    #     end
-    #     advance_iteration!(model, 0.0, 1.0)
-    #     if (iter % ncheck == 0)
-    #         compute_residuals!(model)
-    #         err = (Pr = max_abs_g(model.fields.r_Pr),
-    #                Vx = max_abs_g(model.fields.r_V.x),
-    #                Vy = max_abs_g(model.fields.r_V.y),
-    #                Vz = max_abs_g(model.fields.r_V.z))
-    #         if (me == 0)
-    #             any(.!isfinite.(values(err))) && error("simulation failed, err = $err")
-    #             iter_nx = iter / maximum(size(grid_g))
-    #             @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
-    #         end
-    #     end
-    # end
-    # ttot = float(time_ns() - ttot_ns)
-    # ttot /= (niter - 10)
+    ttot_ns = UInt64(0)
+    for iter in 1:niter
+        if iter == 10
+            MPI.Barrier(comm)
+            ttot_ns = time_ns()
+        end
+        advance_iteration!(model, 0.0, 1.0)
+        if (iter % ncheck == 0)
+            compute_residuals!(model)
+            err = (Pr = max_abs_g(model.fields.r_Pr),
+                   Vx = max_abs_g(model.fields.r_V.x),
+                   Vy = max_abs_g(model.fields.r_V.y),
+                   Vz = max_abs_g(model.fields.r_V.z))
+            if (me == 0)
+                any(.!isfinite.(values(err))) && error("simulation failed, err = $err")
+                iter_nx = iter / maximum(size(grid_g))
+                @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
+            end
+        end
+    end
+    ttot = float(time_ns() - ttot_ns)
+    ttot /= (niter - 10)
 
-    # MPI.Barrier(comm)
+    MPI.Barrier(comm)
 
-    # ttot_min = MPI.Allreduce(ttot, MPI.MIN, comm)
-    # ttot_max = MPI.Allreduce(ttot, MPI.MAX, comm)
+    ttot_min = MPI.Allreduce(ttot, MPI.MIN, comm)
+    ttot_max = MPI.Allreduce(ttot, MPI.MAX, comm)
 
-    # if me == 0
-    #     Teff_min = 23 * 8 * prod(size(grid_l)) / ttot_max
-    #     Teff_max = 23 * 8 * prod(size(grid_l)) / ttot_min
-    #     printstyled("Performance: T_eff [min max] = $(round(Teff_min, sigdigits=4)) $(round(Teff_max, sigdigits=4)) \n"; bold=true, color=:green)
-    # end
+    if me == 0
+        Teff_min = 23 * 8 * prod(size(grid_l)) / ttot_max
+        Teff_max = 23 * 8 * prod(size(grid_l)) / ttot_min
+        printstyled("Performance: T_eff [min max] = $(round(Teff_min, sigdigits=4)) $(round(Teff_max, sigdigits=4)) \n"; bold=true, color=:green)
+    end
 
     if do_h5_save
         out_h5 = "results.h5"
-        @info "saving HDF5 file"
-        write_h5(joinpath(outdir, out_h5), fields, grid_g, comm, MPI.Info())
+        ndrange = CartesianIndices(((coordinates(topo)[1]*size(grid_l)[1]+1):(coordinates(topo)[1]+1)*size(grid_l)[1],
+                                    (coordinates(topo)[2]*size(grid_l)[2]+1):(coordinates(topo)[2]+1)*size(grid_l)[2],
+                                    (coordinates(topo)[3]*size(grid_l)[3]+1):(coordinates(topo)[3]+1)*size(grid_l)[3]))
+        (me == 0) && @info "saving HDF5 file"
+        write_h5(joinpath(outdir, out_h5), fields, grid_g, ndrange, comm, MPI.Info())
         push!(h5names, out_h5)
 
-        @info "saving XDMF file"
+        (me == 0) && @info "saving XDMF file"
         (me == 0) && write_xdmf(joinpath(outdir, "results.xdmf3"), h5names, fields, grid_l, grid_g)
     end
 

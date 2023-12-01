@@ -122,6 +122,9 @@ using CairoMakie
         fields = Dict("Pr" => model.fields.Pr, "A" => model.fields.A)
         outdir = "out_visu"
         mkpath(outdir)
+        ndrange = CartesianIndices((1:size(grid_l)[1],
+                                    1:size(grid_l)[2],
+                                    1:size(grid_l)[3]))
     end
 
     for iter in 1:niter
