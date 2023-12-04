@@ -1,4 +1,4 @@
-module IO
+module Writers
 
 export write_h5, write_xdmf
 
@@ -9,14 +9,15 @@ using HDF5
 using LightXML
 
 """
-    write_h5(path, fields, grid::CartesianGrid, args...)
+write_h5(path, fields, grid_l::CartesianGrid, grid_g::CartesianGrid, args...)
 
-Write `fields` in HDF5 format in a file at `path`.
+Write `fields` in HDF5 format to a file in `path` using local grid `grid_l` and global grid `grid_g` information.
 """
-function write_h5(path, fields, grid_g::CartesianGrid, I::CartesianIndices, args...)
+function write_h5(path, fields, grid_l::CartesianGrid, grid_g::CartesianGrid, args...)
     if !HDF5.has_parallel() && (length(args) > 0)
         @warn("HDF5 has no parallel support.")
     end
+    I = size(grid_l) == size(grid_g) ? CartesianIndices(size(grid_l)) : CartesianIndex( Int.(((origin(grid_l) .- origin(grid_g)) .÷ spacing(grid_l))) ) .+ CartesianIndices(size(grid_l))
     h5open(path, "w", args...) do io
         for (name, field) in fields
             dset = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(size(grid_g)))
@@ -25,6 +26,13 @@ function write_h5(path, fields, grid_g::CartesianGrid, I::CartesianIndices, args
     end
     return
 end
+
+"""
+write_h5(path, fields, grid::CartesianGrid, args...)
+
+Write `fields` in HDF5 format to a file in `path` using grid `grid` information.
+"""
+write_h5(path, fields, grid::CartesianGrid, args...) = write_h5(path, fields, grid, grid, args...)
 
 """
     write_xdmf(path, h5_names, fields, grid_l::CartesianGrid, grid_g::CartesianGrid, timesteps=Float64(0.0))

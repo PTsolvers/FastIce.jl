@@ -7,7 +7,7 @@ using FastIce.BoundaryConditions
 using FastIce.Models.FullStokes.Isothermal
 using FastIce.Physics
 using FastIce.KernelLaunch
-using FastIce.IO
+using FastIce.Writers
 
 const VBC = BoundaryCondition{Velocity}
 const TBC = BoundaryCondition{Traction}
@@ -122,9 +122,6 @@ using CairoMakie
         fields = Dict("Pr" => model.fields.Pr, "A" => model.fields.A)
         outdir = "out_visu"
         mkpath(outdir)
-        ndrange = CartesianIndices((1:size(grid_l)[1],
-                                    1:size(grid_l)[2],
-                                    1:size(grid_l)[3]))
     end
 
     for iter in 1:niter
@@ -174,4 +171,4 @@ using CairoMakie
     return
 end
 
-main(; do_visu=true, do_save=true, transient=false)
+main(; do_visu=false, do_save=true, transient=false)

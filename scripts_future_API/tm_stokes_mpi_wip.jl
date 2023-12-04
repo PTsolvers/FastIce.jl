@@ -7,7 +7,7 @@ using FastIce.BoundaryConditions
 using FastIce.Models.FullStokes.Isothermal
 using FastIce.Physics
 using FastIce.KernelLaunch
-using FastIce.IO
+using FastIce.Writers
 using FastIce.Logging
 
 const VBC = BoundaryCondition{Velocity}
@@ -208,11 +208,8 @@ function main(; do_visu=false, do_save=false, do_h5_save=false)
 
     if do_h5_save
         out_h5 = "results.h5"
-        ndrange = CartesianIndices(((coordinates(topo)[1]*size(grid_l)[1]+1):(coordinates(topo)[1]+1)*size(grid_l)[1],
-                                    (coordinates(topo)[2]*size(grid_l)[2]+1):(coordinates(topo)[2]+1)*size(grid_l)[2],
-                                    (coordinates(topo)[3]*size(grid_l)[3]+1):(coordinates(topo)[3]+1)*size(grid_l)[3]))
         (me == 0) && @info "saving HDF5 file"
-        write_h5(joinpath(outdir, out_h5), fields, grid_g, ndrange, comm, MPI.Info())
+        write_h5(joinpath(outdir, out_h5), fields, grid_l, grid_g, comm, MPI.Info())
         push!(h5names, out_h5)
 
         (me == 0) && @info "saving XDMF file"
