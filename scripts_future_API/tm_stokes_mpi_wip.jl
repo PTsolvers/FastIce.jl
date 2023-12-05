@@ -161,8 +161,6 @@ function main(; do_visu=false, do_save=false, do_h5_save=false)
 
     if do_h5_save
         h5names = String[]
-        ts = Float64[]
-        isave = 0
         fields = Dict("Pr" => model.fields.Pr, "A" => model.fields.A)
         outdir = "out_visu_mpi"
         (me == 0) && mkpath(outdir)

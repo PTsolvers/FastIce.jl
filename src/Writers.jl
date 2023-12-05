@@ -11,13 +11,18 @@ using LightXML
 """
 write_h5(path, fields, grid_l::CartesianGrid, grid_g::CartesianGrid, args...)
 
-Write `fields` in HDF5 format to a file in `path` using local grid `grid_l` and global grid `grid_g` information.
+Write output `fields` in HDF5 format to a file on `path` using local grid `grid_l` and global grid `grid_g` information.
+
+# Reading and writing data in parallel
+
+A parallel HDF5 file may be opened by passing a `MPI.Comm` (and optionally a `MPI.Info`) object as extra `args`.
 """
 function write_h5(path, fields, grid_l::CartesianGrid, grid_g::CartesianGrid, args...)
     if !HDF5.has_parallel() && (length(args) > 0)
         @warn("HDF5 has no parallel support.")
     end
-    I = size(grid_l) == size(grid_g) ? CartesianIndices(size(grid_l)) : CartesianIndex( Int.(((origin(grid_l) .- origin(grid_g)) .÷ spacing(grid_l))) ) .+ CartesianIndices(size(grid_l))
+    I = size(grid_l) == size(grid_g) ? CartesianIndices(size(grid_l)) :
+        CartesianIndex(Int.(((origin(grid_l) .- origin(grid_g)) .÷ spacing(grid_l)))) .+ CartesianIndices(size(grid_l))
     h5open(path, "w", args...) do io
         for (name, field) in fields
             dset = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(size(grid_g)))
