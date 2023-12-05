@@ -149,7 +149,7 @@ using CairoMakie
                 isave+=1
                 out_h5 = @sprintf("step_%04d.h5", isave)
                 @info "saving HDF5 file"
-                write_h5(joinpath(outdir, out_h5), fields, grid)
+                write_h5(arch, grid, joinpath(outdir, out_h5), fields)
                 push!(ts, isave)
                 push!(h5names, out_h5)
             end
@@ -158,15 +158,15 @@ using CairoMakie
 
     if do_save && transient # saving to disk
         @info "saving XDMF file"
-        write_xdmf(joinpath(outdir, "results.xdmf3"), h5names, fields, grid, ts)
+        write_xdmf(arch, grid, joinpath(outdir, "results.xdmf3"), fields, h5names, ts)
     elseif do_save && !transient # saving to disk
         out_h5 = "results.h5"
         @info "saving HDF5 file"
-        write_h5(joinpath(outdir, out_h5), fields, grid)
+        write_h5(arch, grid, joinpath(outdir, out_h5), fields)
         push!(h5names, out_h5)
 
         @info "saving XDMF file"
-        write_xdmf(joinpath(outdir, "results.xdmf3"), h5names, fields, grid)
+        write_xdmf(arch, grid, joinpath(outdir, "results.xdmf3"), fields, h5names)
     end
     return
 end

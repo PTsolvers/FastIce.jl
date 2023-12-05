@@ -16,6 +16,7 @@ export neighbors, neighbor, has_neighbor
 export gather!
 
 export ExchangeInfo, DistributedBoundaryConditions
+export DistributedMPI
 
 using FastIce.Grids
 using FastIce.Fields

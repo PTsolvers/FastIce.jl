@@ -2,49 +2,90 @@ module Writers
 
 export write_h5, write_xdmf
 
+using FastIce.Architectures
+using FastIce.Distributed
 using FastIce.Grids
 using FastIce.Fields
 
 using HDF5
 using LightXML
+using MPI
 
 """
-write_h5(path, fields, grid_l::CartesianGrid, grid_g::CartesianGrid, args...)
+    write_h5(arch::Architecture{DistributedMPI}, grid::CartesianGrid, path, fields)
 
-Write output `fields` in HDF5 format to a file on `path` using local grid `grid_l` and global grid `grid_g` information.
-
-# Reading and writing data in parallel
-
-A parallel HDF5 file may be opened by passing a `MPI.Comm` (and optionally a `MPI.Info`) object as extra `args`.
+Write output `fields` in HDF5 format to a file on `path` for global `grid` and distributed `arch`.
 """
-function write_h5(path, fields, grid_l::CartesianGrid, grid_g::CartesianGrid, args...)
-    if !HDF5.has_parallel() && (length(args) > 0)
-        @warn("HDF5 has no parallel support.")
-    end
-    I = size(grid_l) == size(grid_g) ? CartesianIndices(size(grid_l)) :
-        CartesianIndex(Int.(((origin(grid_l) .- origin(grid_g)) .÷ spacing(grid_l)))) .+ CartesianIndices(size(grid_l))
-    h5open(path, "w", args...) do io
-        for (name, field) in fields
-            dset = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(size(grid_g)))
-            dset[I.indices...] = Array(interior(field))
-        end
+function write_h5(arch::Architecture{DistributedMPI}, grid::CartesianGrid, path, fields)
+    HDF5.has_parallel() || @warn("HDF5 has no parallel support.")
+    topo = details(arch)
+    comm = cartesian_communicator(topo)
+    coords = coordinates(topo)
+    sz = size(local_grid(grid, topo))
+    c1 = coords .* sz .+ 1 |> CartesianIndex
+    c2 = (coords .+ 1) .* sz |> CartesianIndex
+    I = c1:c2
+    h5open(path, "w", comm, MPI.Info()) do io
+        write_dset(io, fields, size(grid), I.indices)
     end
     return
 end
 
 """
-write_h5(path, fields, grid::CartesianGrid, args...)
+    write_h5(arch::Architecture, grid::CartesianGrid, path, fields)
 
-Write `fields` in HDF5 format to a file in `path` using grid `grid` information.
+Write output `fields` in HDF5 format to a file on `path`.
 """
-write_h5(path, fields, grid::CartesianGrid, args...) = write_h5(path, fields, grid, grid, args...)
+function write_h5(arch::Architecture, grid::CartesianGrid, path, fields)
+    I = CartesianIndices(size(grid))
+    h5open(path, "w") do io
+        write_dset(io, fields, size(grid), I.indices)
+    end
+    return
+end
+
+function write_dset(io, fields, grid_size, inds)
+    for (name, field) in fields
+        dset = create_dataset(io, "/$name", datatype(eltype(field)), dataspace(grid_size))
+        dset[inds...] = Array(interior(field))
+    end
+    return
+end
 
 """
-    write_xdmf(path, h5_names, fields, grid_l::CartesianGrid, grid_g::CartesianGrid, timesteps=Float64(0.0))
+    write_xdmf(arch::Architecture{DistributedMPI}, grid::CartesianGrid, path, fields, h5_names, timesteps=Float64(0.0))
 
-Write metadata in Xdmf format.
+Write Xdmf metadata to `path` for corresponding `h5_names` and `fields` for global `grid` and distributed `arch`.
 """
-function write_xdmf(path, h5_names, fields, grid_l::CartesianGrid, grid_g::CartesianGrid, timesteps=Float64(0.0))
+function write_xdmf(arch::Architecture{DistributedMPI}, grid::CartesianGrid, path, fields, h5_names, timesteps=Float64(0.0))
+    topo = details(arch)
+    grid_size = size(grid)
+    grid_spacing = spacing(grid)
+    grid_origin = origin(local_grid(grid, topo))
+
+    xdoc = generate_xdmf(grid_size, grid_spacing, grid_origin, fields, h5_names, timesteps)
+
+    save_file(xdoc, path)
+    return
+end
+
+"""
+    write_xdmf(arch::Architecture, grid::CartesianGrid, path, fields, h5_names, timesteps=Float64(0.0))
+
+    Write Xdmf metadata to `path` for corresponding `h5_names` and `fields`.
+"""
+function write_xdmf(arch::Architecture, grid::CartesianGrid, path, fields, h5_names, timesteps=Float64(0.0))
+    grid_size = size(grid)
+    grid_spacing = spacing(grid)
+    grid_origin = origin(grid)
+
+    xdoc = generate_xdmf(grid_size, grid_spacing, grid_origin, fields, h5_names, timesteps)
+
+    save_file(xdoc, path)
+    return
+end
+
+function generate_xdmf(grid_size, grid_spacing, grid_origin, fields, h5_names, timesteps)
     xdoc = XMLDocument()
     xroot = create_root(xdoc, "Xdmf")
     set_attribute(xroot, "Version", "3.0")
@@ -59,7 +100,7 @@ function write_xdmf(path, h5_names, fields, grid_l::CartesianGrid, grid_g::Carte
         set_attribute(xgrid, "GridType", "Uniform")
         xtopo = new_child(xgrid, "Topology")
         set_attribute(xtopo, "TopologyType", "3DCoRectMesh")
-        set_attribute(xtopo, "Dimensions", join(reverse(size(grid_g)) .+ 1, ' '))
+        set_attribute(xtopo, "Dimensions", join(reverse(grid_size) .+ 1, ' '))
 
         xtime = new_child(xgrid, "Time")
         set_attribute(xtime, "Value", "$tt")
@@ -70,28 +111,24 @@ function write_xdmf(path, h5_names, fields, grid_l::CartesianGrid, grid_g::Carte
         xorig = new_child(xgeom, "DataItem")
         set_attribute(xorig, "Format", "XML")
         set_attribute(xorig, "NumberType", "Float")
-        set_attribute(xorig, "Dimensions", "$(length(size(grid_g))) ")
-        add_text(xorig, join(reverse(origin(grid_l)), ' '))
+        set_attribute(xorig, "Dimensions", "$(length(grid_size)) ")
+        add_text(xorig, join(reverse(grid_origin), ' '))
 
         xdr = new_child(xgeom, "DataItem")
         set_attribute(xdr, "Format", "XML")
         set_attribute(xdr, "NumberType", "Float")
-        set_attribute(xdr, "Dimensions", "$(length(size(grid_g)))")
-        add_text(xdr, join(reverse(spacing(grid_g)), ' '))
+        set_attribute(xdr, "Dimensions", "$(length(grid_size))")
+        add_text(xdr, join(reverse(grid_spacing), ' '))
 
         h5_path = h5_names[it]
         for (name, _) in fields
-            create_xdmf_attribute(xgrid, h5_path, name, grid_g)
+            create_xdmf_attribute(xgrid, h5_path, name, grid_size)
         end
     end
-
-    save_file(xdoc, path)
-    return
+    return xdoc
 end
-write_xdmf(path, h5_names, fields, grid::CartesianGrid) = write_xdmf(path, h5_names, fields, grid, grid)
-write_xdmf(path, h5_names, fields, grid::CartesianGrid, timesteps) = write_xdmf(path, h5_names, fields, grid, grid, timesteps)
 
-function create_xdmf_attribute(xgrid, h5_path, name, grid_g::CartesianGrid)
+function create_xdmf_attribute(xgrid, h5_path, name, grid_size)
     # TODO: solve type and precision
     xattr = new_child(xgrid, "Attribute")
     set_attribute(xattr, "Name", name)
@@ -100,7 +137,7 @@ function create_xdmf_attribute(xgrid, h5_path, name, grid_g::CartesianGrid)
     set_attribute(xdata, "Format", "HDF")
     set_attribute(xdata, "NumberType", "Float")
     set_attribute(xdata, "Precision", "8")
-    set_attribute(xdata, "Dimensions", join(reverse(size(grid_g)), ' '))
+    set_attribute(xdata, "Dimensions", join(reverse(grid_size), ' '))
     add_text(xdata, "$(h5_path):/$name")
     return xattr
 end

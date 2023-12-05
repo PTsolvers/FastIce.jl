@@ -8,6 +8,7 @@ const GREETING = raw"""
     /_/    \__,_/____/\__/___/\___/\___(_)_/ /_/
                                         /___/
 https://github.com/PTsolvers/FastIce.jl
+
 """
 
 const GREETING_FAST = raw"""
@@ -18,6 +19,7 @@ const GREETING_FAST = raw"""
     /_/      \__,_/ /____/ \__/ /___/  \___/ \___/_(_)__  /  /_/
                                                      /___/
 https://github.com/PTsolvers/FastIce.jl
+
 """
 
 greet(; kwargs...) = printstyled(GREETING; kwargs...)

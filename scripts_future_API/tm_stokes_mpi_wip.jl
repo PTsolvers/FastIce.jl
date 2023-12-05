@@ -207,11 +207,11 @@ function main(; do_visu=false, do_save=false, do_h5_save=false)
     if do_h5_save
         out_h5 = "results.h5"
         (me == 0) && @info "saving HDF5 file"
-        write_h5(joinpath(outdir, out_h5), fields, grid_l, grid_g, comm, MPI.Info())
+        write_h5(arch, grid_g, joinpath(outdir, out_h5), fields)
         push!(h5names, out_h5)
 
         (me == 0) && @info "saving XDMF file"
-        (me == 0) && write_xdmf(joinpath(outdir, "results.xdmf3"), h5names, fields, grid_l, grid_g)
+        (me == 0) && write_xdmf(arch, grid_g, joinpath(outdir, "results.xdmf3"), fields, h5names)
     end
 
     if do_save || do_visu
