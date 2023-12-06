@@ -1,27 +1,12 @@
 include("common.jl")
 
-using FastIce.Writers
 using FastIce.Architectures
-using FastIce.Grids
 using FastIce.Fields
+using FastIce.Grids
+using FastIce.Writers
 
 using HDF5
-using KernelAbstractions
 using LightXML
-
-backend = CPU()
-arch = Architecture(backend, 2)
-grid = CartesianGrid(; origin=(-0.4, -0.5, 0.0),
-                 extent=(1.0, 1.1, 1.2),
-                 size=(4, 5, 6))
-
-Fa = Field(backend, grid, Center())
-Fb = Field(backend, grid, Center())
-
-fill!(parent(Fa), 1.0)
-fill!(parent(Fb), 2.0)
-
-fields = Dict("Fa" => Fa, "Fb" => Fb)
 
 XML_ref = """
 <?xml version="1.0" encoding="utf-8"?>
@@ -47,31 +32,49 @@ XML_ref = """
 </Xdmf>
 """
 
-@testset "writers" begin
-    @testset "write_dset" begin
-        fname = "test.h5"
-        isfile(fname) && run(`rm $fname`)
-        I = CartesianIndices(size(grid))
-        h5open(fname, "w") do io
-            FastIce.Writers.write_dset(io, fields, size(grid), I.indices)
+grid = CartesianGrid(; origin=(-0.4, -0.5, 0.0),
+                     extent=(1.0, 1.1, 1.2),
+                     size=(4, 5, 6))
+
+for backend in backends
+    @testset "$(basename(@__FILE__)) (backend: $backend)" begin
+        arch = Architecture(backend)
+
+        Fa = Field(backend, grid, Center())
+        Fb = Field(backend, grid, Center())
+
+        fill!(parent(Fa), 1.0)
+        fill!(parent(Fb), 2.0)
+
+        fields = Dict("Fa" => Fa, "Fb" => Fb)
+
+        @testset "writers" begin
+            @testset "write_dset" begin
+                fname = "test.h5"
+                isfile(fname) && run(`rm $fname`)
+                I = CartesianIndices(size(grid))
+                h5open(fname, "w") do io
+                    FastIce.Writers.write_dset(io, fields, size(grid), I.indices)
+                end
+                @test Array(Fa) == h5read(fname, "Fa")
+                @test Array(Fb) == h5read(fname, "Fb")
+                isfile(fname) && run(`rm $fname`)
+            end
+            @testset "write_h5" begin
+                fname = "test2.h5"
+                isfile(fname) && run(`rm $fname`)
+                write_h5(arch, grid, fname, fields)
+                @test Array(Fa) == h5read(fname, "Fa")
+                @test Array(Fb) == h5read(fname, "Fb")
+                isfile(fname) && run(`rm $fname`)
+            end
+            @testset "write_xdmf3" begin
+                fname = "test.xdmf3"
+                isfile(fname) && run(`rm $fname`)
+                write_xdmf(arch, grid, fname, fields, "test.h5")
+                @test XML_ref == string(parse_file(fname))
+                isfile(fname) && run(`rm $fname`)
+            end
         end
-        @test Fa == h5read(fname, "Fa")
-        @test Fb == h5read(fname, "Fb")
-        isfile(fname) && run(`rm $fname`)
-    end
-    @testset "write_h5" begin
-        fname = "test2.h5"
-        isfile(fname) && run(`rm $fname`)
-        write_h5(arch, grid, fname, fields)
-        @test Fa == h5read(fname, "Fa")
-        @test Fb == h5read(fname, "Fb")
-        isfile(fname) && run(`rm $fname`)
-    end
-    @testset "write_xdmf3" begin
-        fname = "test.xdmf3"
-        isfile(fname) && run(`rm $fname`)
-        write_xdmf(arch, grid, fname, fields, "test.h5")
-        @test XML_ref == string(parse_file(fname))
-        isfile(fname) && run(`rm $fname`)
     end
 end
