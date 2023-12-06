@@ -14,7 +14,7 @@ using MPI
 """
     write_h5(arch::Architecture{DistributedMPI}, grid::CartesianGrid, path, fields)
 
-Write output `fields` in HDF5 format to a file on `path` for global `grid` and distributed `arch`.
+Write output `fields` in HDF5 format to a file on `path` for global `grid` on distributed `arch`.
 """
 function write_h5(arch::Architecture{DistributedMPI}, grid::CartesianGrid, path, fields)
     HDF5.has_parallel() || @warn("HDF5 has no parallel support.")
@@ -55,7 +55,8 @@ end
 """
     write_xdmf(arch::Architecture{DistributedMPI}, grid::CartesianGrid, path, fields, h5_names, timesteps=Float64(0.0))
 
-Write Xdmf metadata to `path` for corresponding `h5_names` and `fields` for global `grid` and distributed `arch`.
+Write Xdmf metadata to `path` for corresponding `h5_names` and `fields` for global `grid` on distributed `arch`.
+Saving time-dependant data can be achieved upon passing a vector to `h5_names` and `timesteps`.
 """
 function write_xdmf(arch::Architecture{DistributedMPI}, grid::CartesianGrid, path, fields, h5_names, timesteps=Float64(0.0))
     topo = details(arch)
@@ -72,7 +73,8 @@ end
 """
     write_xdmf(arch::Architecture, grid::CartesianGrid, path, fields, h5_names, timesteps=Float64(0.0))
 
-    Write Xdmf metadata to `path` for corresponding `h5_names` and `fields`.
+Write Xdmf metadata to `path` for corresponding `h5_names` and `fields`.
+Saving time-dependant data can be achieved upon passing a vector to `h5_names` and `timesteps`.
 """
 function write_xdmf(arch::Architecture, grid::CartesianGrid, path, fields, h5_names, timesteps=Float64(0.0))
     grid_size = size(grid)
