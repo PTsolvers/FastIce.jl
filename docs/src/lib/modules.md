@@ -20,3 +20,10 @@ Order   = [:type, :function]
 Modules = [FastIce.KernelLaunch]
 Order   = [:type, :function]
 ```
+
+## Writers
+
+```@autodocs
+Modules = [FastIce.Writers]
+Order   = [:type, :function]
+```
