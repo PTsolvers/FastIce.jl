@@ -40,7 +40,7 @@ for backend in backends
     @testset "$(basename(@__FILE__)) (backend: $backend)" begin
         arch = Architecture(backend)
 
-        Fa = Field(backend, grid, Center())
+        Fa = Field(backend, grid, Center() )
         Fb = Field(backend, grid, Center())
 
         fill!(parent(Fa), 1.0)
