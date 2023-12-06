@@ -12,6 +12,8 @@ using LightXML
 
 MPI.Init()
 
+backends = [CPU()] # until we have testing environment setup for GPU-aware MPI, run only on CPU
+
 dims = (0, 0, 0)
 topo = CartesianTopology(dims)
 mpi_dims = dimensions(topo)
