@@ -24,7 +24,7 @@ using CairoMakie
 
 @views function main(; do_visu=false, do_save=false, transient=false)
     backend = CPU()
-    arch = Architecture(backend, 2)
+    arch = Architecture(backend)
     set_device!(arch)
 
     # physics
