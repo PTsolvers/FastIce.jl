@@ -56,16 +56,16 @@ for backend in backends
                 h5open(fname, "w") do io
                     FastIce.Writers.write_dset(io, fields, size(grid), I.indices)
                 end
-                @test Array(Fa) == h5read(fname, "Fa")
-                @test Array(Fb) == h5read(fname, "Fb")
+                @test all(Array(interior(Fa)) .== h5read(fname, "Fa"))
+                @test all(Array(interior(Fb)) .== h5read(fname, "Fb"))
                 isfile(fname) && run(`rm $fname`)
             end
             @testset "write_h5" begin
                 fname = "test2.h5"
                 isfile(fname) && run(`rm $fname`)
                 write_h5(arch, grid, fname, fields)
-                @test Array(Fa) == h5read(fname, "Fa")
-                @test Array(Fb) == h5read(fname, "Fb")
+                @test all(Array(interior(Fa)) .== h5read(fname, "Fa"))
+                @test all(Array(interior(Fb)) .== h5read(fname, "Fb"))
                 isfile(fname) && run(`rm $fname`)
             end
             @testset "write_xdmf3" begin

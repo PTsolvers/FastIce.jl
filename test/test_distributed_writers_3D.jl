@@ -59,7 +59,7 @@ grid_l = local_grid(grid_g, topo)
 for backend in backends
     @testset "$(basename(@__FILE__)) (backend: $backend)" begin
 
-        HDF5.has_parallel() || (@warn("HDF5 has no parallel support. Skipping $(basename(@__FILE__)) (backend: $backend) tests."); return)
+        HDF5.has_parallel() || (@warn("HDF5 has no parallel support. Skipping $(basename(@__FILE__)) (backend: $backend)."); return)
 
         arch = Architecture(backend, topo)
         set_device!(arch)
@@ -85,8 +85,8 @@ for backend in backends
                 gather!(Fa_g, Fa_v, comm)
                 gather!(Fb_g, Fb_v, comm)
                 if me == 0
-                    @test Fa_g == h5read(fname, "Fa")
-                    @test Fb_g == h5read(fname, "Fb")
+                    @test all(Fa_g .== h5read(fname, "Fa"))
+                    @test all(Fb_g .== h5read(fname, "Fb"))
                     isfile(fname) && run(`rm $fname`)
                 end
             end
