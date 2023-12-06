@@ -1,44 +1,49 @@
 module Physics
 
-export IncompressibleIceEOS, IceThermalProperties
-export IceRheology, GlensLawRheology
-export default
-
-using FastIce.Grids
-using FastIce.GridOperators
-
-struct IncompressibleIceEOS{T}
-    density::T
-    heat_capacity::T
-end
-
-default(::Type{IncompressibleIceEOS{T}}) where {T} = IncompressibleIceEOS(convert(T, 920), convert(T, 2100))
-
-struct IceThermalProperties{T}
-    thermal_conductivity::T
-    melting_temperature::T
-end
-
-default(::Type{IceThermalProperties{T}}) where {T} = IceThermalProperties(convert(T, 1), convert(T, 273.15))
+export IceRheology, PowerLawRheology, Relaxation, ViscoplasticRegularisation
 
 abstract type IceRheology end
 
-struct GlensLawRheology{I}
-    exponent::I
+struct LinearViscousRheology{V} <: IceRheology
+    η::V
 end
 
-default(::Type{GlensLawRheology{I}}) where {I} = GlensLawRheology(convert(I, 3))
+@inline (l::LinearViscousRheology)(τII, I) = l.η[I]
 
-Base.@propagate_inbounds function (rh::GlensLawRheology{T})(::CartesianGrid{2}, I, fields) where {T}
-    (; τ, A) = fields
-    τII = sqrt(0.5 * (τ.xx[I]^2 + τ.yy[I]^2) + avᶜxy(τ.xy, I)^2)
-    0.5 / (A[I] * τII^(rh.exponent - 1))
+struct PowerLawRheology{F,P<:Real} <: IceRheology
+    A::F
+    n::P
 end
 
-Base.@propagate_inbounds function (rh::GlensLawRheology{T})(::CartesianGrid{3}, I, fields) where {T}
-    (; τ, A) = fields
-    τII = sqrt(0.5 * (τ.xx[I]^2 + τ.yy[I]^2 + τ.zz[I]^2) + avᶜxy(τ.xy, I)^2 + avᶜxz(τ.xz, I)^2 + avᶜyz(τ.yz, I)^2)
-    0.5 / (A[I] * τII^(rh.exponent - 1))
+Base.@propagate_inbounds (r::PowerLawRheology)(τII, I) = 0.5 / (r.A[I] * τII^(r.n - 1))
+
+struct ViscoplasticRegularisation{V,E} <: IceRheology
+    viscosity::V
+    inv_η_reg::E
+    ViscoplasticRegularisation(viscosity::V, η_reg::E) where {V,E} = new{V,E}(viscosity, one(η_reg) / η_reg)
 end
+
+Base.@propagate_inbounds (r::ViscoplasticRegularisation)(τII, I) = 1.0 / (1.0 / r.viscosity(τII, I) + r.inv_η_reg)
+
+struct Relaxation{R,T,F,S,IS} <: IceRheology
+    field::F
+    target::T
+    rate::R
+    scale::S
+    inv_scale::IS
+end
+
+function Relaxation(field, target, rate; scale=nothing)
+    inv_scale = isnothing(scale) ? nothing :
+                scale == log     ? exp     :
+                scale == log10   ? exp10   :
+                throw(ArgumentError("only `nothing`, `log` and `log10` are supported for the relaxation scale"))
+    return Relaxation(field, target, rate, scale, inv_scale)
+end
+
+const LinSpaceRelaxation{R,T,F} = Relaxation{R,T,F,Nothing,Nothing}
+
+Base.@propagate_inbounds (r::LinSpaceRelaxation)(τII, I) = r.field[I] * (1 - r.rate) + r.target(τII, I) * r.rate
+Base.@propagate_inbounds (r::Relaxation)(τII, I) = r.inv_scale(r.scale(r.field[I]) * (1 - r.rate) + r.scale(r.target(τII, I)) * r.rate)
 
 end

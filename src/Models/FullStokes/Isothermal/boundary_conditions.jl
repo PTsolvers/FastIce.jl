@@ -67,7 +67,7 @@ end
     ntuple(D -> ntuple(S -> f(D, S), Val(2)), Val(N))
 end
 
-function make_stress_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields, bc) where {Kind,N}
+function StressBoundaryConditions(arch::Architecture{Kind}, ::CartesianGrid{N}, fields, bc) where {Kind,N}
     ordering = (:x, :y, :z)
     dim_side_ntuple(Val(N)) do D, S
         if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
@@ -79,7 +79,7 @@ function make_stress_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields, bc
     end
 end
 
-function make_velocity_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::NamedTuple{names}, bc) where {Kind,N,names}
+function VelocityBoundaryConditions(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::NamedTuple{names}, bc) where {Kind,N,names}
     ordering = (:x, :y, :z)
     dim_side_ntuple(Val(N)) do D, S
         if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
@@ -92,7 +92,7 @@ function make_velocity_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::
     end
 end
 
-function make_residuals_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::NamedTuple{names}, bc) where {Kind,N,names}
+function ResidualBoundaryConditions(arch::Architecture{Kind}, ::CartesianGrid{N}, fields::NamedTuple, bc) where {Kind,N}
     ordering = (:x, :y, :z)
     dim_side_ntuple(Val(N)) do D, S
         if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
@@ -108,7 +108,7 @@ function make_residuals_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, fields:
     end
 end
 
-function make_rheology_bc(arch::Architecture{Kind}, ::CartesianGrid{N}, η) where {Kind,N}
+function ViscosityBoundaryConditions(arch::Architecture{Kind}, ::CartesianGrid{N}, η) where {Kind,N}
     dim_side_ntuple(Val(N)) do D, S
         if (Kind == Distributed.DistributedMPI) && has_neighbor(details(arch), D, S)
             BoundaryConditionsBatch((η,), (ExchangeInfo(Val(S), Val(D), η),))
@@ -123,8 +123,8 @@ function make_field_boundary_conditions(arch::Architecture, grid::CartesianGrid,
     velocity_fields = NamedTuple{Symbol.(:V, keys(fields.V))}(values(fields.V))
     residual_fields = NamedTuple{Symbol.(:r_V, keys(fields.r_V))}(values(fields.r_V))
 
-    return (stress   = make_stress_bc(arch, grid, stress_fields, bc),
-            velocity = make_velocity_bc(arch, grid, velocity_fields, bc),
-            rheology = make_rheology_bc(arch, grid, fields.η),
-            residual = make_residuals_bc(arch, grid, residual_fields, bc))
+    return (stress    = StressBoundaryConditions(arch, grid, stress_fields, bc),
+            velocity  = VelocityBoundaryConditions(arch, grid, velocity_fields, bc),
+            viscosity = ViscosityBoundaryConditions(arch, grid, fields.η),
+            residual  = ResidualBoundaryConditions(arch, grid, residual_fields, bc))
 end
