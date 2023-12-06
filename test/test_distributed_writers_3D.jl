@@ -58,6 +58,9 @@ grid_l = local_grid(grid_g, topo)
 
 for backend in backends
     @testset "$(basename(@__FILE__)) (backend: $backend)" begin
+
+        HDF5.has_parallel() || (@warn("HDF5 has no parallel support. Skipping $(basename(@__FILE__)) (backend: $backend) tests."); return)
+
         arch = Architecture(backend, topo)
         set_device!(arch)
 
