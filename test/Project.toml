@@ -1,5 +1,7 @@
 [deps]
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+LightXML = "9c8b4983-aa76-5018-a973-4c85ecc9e179"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
