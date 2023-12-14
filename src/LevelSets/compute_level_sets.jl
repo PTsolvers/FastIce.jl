@@ -12,11 +12,8 @@ using KernelAbstractions
 end
 
 "Compute level sets from dem."
-function compute_level_set_from_dem!(Ψ, dem, dem_grid, Ψ_grid)
-    dx, dy, dz = spacing(Ψ_grid)
-    cutoff = 4max(dx, dy, dz)
-    R = LinearAlgebra.I
-    nx, ny, nz = size(Ψ)
-    _init_level_set!(Ψ, dem, dem_grid, Ψ_grid, cutoff, R)
+function compute_level_set_from_dem!(arch, Ψ, dem, dem_grid, Ψ_grid, R=LinearAlgebra.I)
+    cutoff = 4maximum(spacing(Ψ_grid))
+    _init_level_set!(backend(arch), 256, size(Ψ))(Ψ, dem, dem_grid, Ψ_grid, cutoff, R)
     return
 end
