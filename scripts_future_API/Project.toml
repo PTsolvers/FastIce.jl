@@ -1,5 +1,6 @@
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+Cthulhu = "f68482b8-f384-11e8-15f7-abe071a5a75f"
 FastIce = "e0de9f13-a007-490e-b696-b07d031015ca"
 FastIceTools = "14532042-4700-46e0-8dec-55d517bc1ae0"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"

@@ -1,4 +1,4 @@
-using LinearAlgebra, GeometryBasics
+export sd_dem
 
 @inline S(x) = x == zero(x) ? oneunit(x) : sign(x)
 @inline sign_triangle(p, a, b, c) = S(dot(p - a, cross(b - a, c - a)))
