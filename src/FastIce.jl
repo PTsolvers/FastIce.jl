@@ -37,6 +37,7 @@ include("KernelLaunch.jl")
 include("Distributed/Distributed.jl")
 include("Physics.jl")
 include("Writers.jl")
+include("LevelSets/LevelSets.jl")
 
 # ice flow models
 include("Models/models.jl")
