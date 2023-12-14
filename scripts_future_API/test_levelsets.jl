@@ -30,3 +30,7 @@ function load_dem_on_GPU(path::String)
 end
 
 @time compute_level_set_from_dem!(load_dem_on_GPU(vavilov_path)...)
+
+# TODO: visualization 
+# paraview: save ad hdf5 with metadata of XDMF file 
+# glmakie:  original dem as surface + contour of level set (on top of eachother)
