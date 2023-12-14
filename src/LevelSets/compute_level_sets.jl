@@ -4,11 +4,11 @@ using KernelAbstractions
 
 "Initialize level sets."
 @kernel function _init_level_set!(Ψ, dem, dem_grid, Ψ_grid, cutoff, R)
-    ix, iy, iz = @index(Global, NTuple)
-    x, y, z = Ψ_grid[1][ix], Ψ_grid[2][iy], Ψ_grid[3][iz]
+    I = @index(Global, Cartesian)
+    x, y, z = coord(Ψ_grid, location(Ψ), I)
     P = R * Point3(x, y, z)
     ud, sgn = sd_dem(P, cutoff, dem, dem_grid)
-    Ψ[ix, iy, iz] = ud * sgn
+    Ψ[I] = ud * sgn
 end
 
 "Compute level sets from dem."
