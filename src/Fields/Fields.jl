@@ -125,7 +125,7 @@ function set!(f::Field{T,N}, grid::CartesianGrid{N}, fun::F; discrete=false, par
     dst = interior(f)
     if discrete
         _set_discrete!(get_backend(dst), 256, size(dst))(dst, grid, loc, fun, parameters...)
-    else
+    elseCartesianGrid
         _set_continuous!(get_backend(dst), 256, size(dst))(dst, grid, loc, fun, parameters...)
     end
     return
@@ -139,6 +139,14 @@ Base.@propagate_inbounds ∂(f::AbstractField, I, dim, ::Center) = ∂ᵛ(f, I, 
 # field norm
 LinearAlgebra.norm(f::Field) = LinearAlgebra.norm(interior(f))
 LinearAlgebra.norm(f::Field, p::Real) = LinearAlgebra.norm(interior(f), p)
+
+function Base.show(io::IO, ::MIME"text/plain", field::Field{T,N,L}) where {T,N,L}
+    print(io, "$(N)D $(join(size(field), "×")) Field{$T}\n")
+end
+
+function Base.show(io::IO, field::Field{T,N,L}) where {T,N,L}
+    print(io, "$(N)D $(join(size(field), "×")) Field{$T}")
+end
 
 include("function_field.jl")
 
