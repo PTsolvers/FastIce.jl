@@ -25,20 +25,21 @@ export sd_dem
         dot(nor, pa) * dot(nor, pa) / dot2(nor))
 end
 
-@inline function closest_vertex_index(P, rc)
-    lims = map(x -> x[1:end-1], axes.(rc, 1))
-    Δ = step.(rc)
-    O = first.(rc)
-    I = @. clamp(Int(fld(P - O, Δ)) + 1, lims)
-    return CartesianIndex(I...)
+@inline function closest_vertex_index(P, grid)
+    Δ = spacing(grid)
+    O = Grids.origin(grid)
+    I = @. Int(fld(P - O, Δ)) + 1
+    I1 = 1
+    I2 = size(grid, Vertex())
+    return clamp.(I, I1, I2) |> CartesianIndex
 end
 
 @inline inc(I, dim) = Base.setindex(I, I[dim] + 1, dim)
 @inline inc(I) = I + oneunit(I)
 
-@inline function triangle_pair(Iv, dem, rc)
+@inline function triangle_pair(Iv, dem, grid)
     @inline function sample_dem(I)
-        @inbounds x, y = rc[1][I[1]], rc[2][I[2]]
+        @inbounds x, y = coord(grid, location(dem), I)
         @inbounds Point3(x, y, dem[I])
     end
     T_BL = Triangle(sample_dem(Iv), sample_dem(inc(Iv, 1)), sample_dem(inc(Iv, 2)))
@@ -46,24 +47,25 @@ end
     return T_BL, T_TR
 end
 
-@inline function distance_to_triangle_pair(P, Iv, dem, rc)
-    T_BL, T_TR = triangle_pair(Iv, dem, rc)
+@inline function distance_to_triangle_pair(P, Iv, dem, grid)
+    T_BL, T_TR = triangle_pair(Iv, dem, grid)
     ud = min(ud_triangle(P, T_BL...), ud_triangle(P, T_TR...))
     return ud, sign_triangle(P, T_BL...)
 end
 
-function sd_dem(P, cutoff, dem, rc)
-    @inbounds Pp = clamp.(Point(P[1], P[2]), first.(rc), last.(rc))
-    @inbounds P = Point(Pp[1], Pp[2], P[3])
-    BL = closest_vertex_index(Pp .- cutoff, rc)
-    TR = closest_vertex_index(Pp .+ cutoff, rc)
-    Ic = closest_vertex_index(Pp, rc)
-    ud, sgn = distance_to_triangle_pair(P, Ic, dem, rc)
+Base.clamp(p::NTuple{N}, grid::CartesianGrid{N}) where {N} = clamp.(p, Grids.origin(grid), Grids.origin(grid) .+ extent(grid))
+
+function sd_dem(P, cutoff, dem, grid)
+    @inbounds Pp = clamp((P[1], P[2]), grid)
+    BL = closest_vertex_index(Pp .- cutoff, grid)
+    TR = closest_vertex_index(Pp .+ cutoff, grid)
+    Ic = closest_vertex_index(Pp, grid)
+    ud, sgn = distance_to_triangle_pair(P, Ic, dem, grid)
     for Iv in BL:TR
         if Iv == Ic
             continue
         end
-        ud_pair, _ = distance_to_triangle_pair(P, Iv, dem, rc)
+        ud_pair, _ = distance_to_triangle_pair(P, Iv, dem, grid)
         ud = min(ud, ud_pair)
     end
     return ud, sgn
