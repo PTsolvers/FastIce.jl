@@ -9,3 +9,5 @@ steps:
             - "ext/**"
             - "test/**"
           target: .buildkite/run_tests.yml
+    agents:
+      queue: "juliagpu"
