@@ -1,14 +1,11 @@
 # see: https://github.com/staticfloat/forerunner-buildkite-plugin
 steps:
-  - label: "CUDA Julia {{matrix.version}}"
-    matrix:
-      setup:
-        version:
-          - "1.9"
+  - label: ":runner: Dynamically launch Pipelines"
     plugins:
       - staticfloat/forerunner:
           watch:
             - ".buildkite/**"
+            - '*.toml'
             - "src/**"
             - "ext/**"
             - "test/**"
