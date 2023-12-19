@@ -1,23 +1,26 @@
+using CUDA
+using KernelAbstractions
+
 using FastIceTools
+using JLD2
 using FileIO
-using JLD
 using FastIce.Grids
 using FastIce.Fields
 using FastIce.LevelSets
 using FastIce.Architectures
 
-using KernelAbstractions
-using CUDA
+vavilov_path = "../data/vavilov.jld2"
 
-CUDA.allowscalar(false)
-
-vavilov_path = "../data/vavilov.jld"
-
-# backend = CPU()
+# Select backend (CPU(), CUDABackend())
 backend = CUDABackend()
 arch = Architecture(backend)
-set_device!(arch)
 
+"""
+    load_dem_on_GPU(path::String, arch::Architecture)
+
+Load digital elevation map of surface and bedrock from (jld2) file, set dimensions of simulation, 
+initiate grids, copy data on gpu.
+"""
 function load_dem_on_GPU(path::String, arch::Architecture)
     data     = load(path)
     x        = data["DataElevation"].x
