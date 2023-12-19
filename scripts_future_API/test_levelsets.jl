@@ -43,7 +43,3 @@ end
 Ψ, dem_surf, dem_grid, Ψ_grid = load_dem_on_GPU(vavilov_path, arch);
 
 compute_level_set_from_dem!(arch, Ψ, dem_surf, dem_grid, Ψ_grid)
-
-# TODO: visualization 
-# paraview: save ad hdf5 with metadata of XDMF file 
-# glmakie:  original dem as surface + contour of level set (on top of eachother)
