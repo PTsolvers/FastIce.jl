@@ -1,15 +1,15 @@
 using CUDA
-using KernelAbstractions
-
+using FileIO
 using FastIceTools
 using JLD2
-using FileIO
+using KernelAbstractions
+
 using FastIce.Grids
 using FastIce.Fields
 using FastIce.LevelSets
 using FastIce.Architectures
 
-vavilov_path = "../data/vavilov.jld2"
+vavilov_path = "../data/Vavilov/vavilov.jld2"
 
 # Select backend (CPU(), CUDABackend())
 backend = CUDABackend()
