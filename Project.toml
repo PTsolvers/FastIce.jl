@@ -26,7 +26,7 @@ FastIceAMDGPUExt = "AMDGPU"
 FastIceCUDAExt = "CUDA"
 
 [compat]
-AMDGPU = "0.7"
+AMDGPU = "0.7, 0.8"
 Adapt = "3, 4"
 CUDA = "5"
 ElasticArrays = "1"
