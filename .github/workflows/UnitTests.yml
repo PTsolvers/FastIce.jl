@@ -28,7 +28,6 @@ jobs:
         version:
           - '1'   # Latest stable 1.x release of Julia
           - '~1.10.0-0'
-          # - 'nightly'
         os:
           - ubuntu-latest
           - macOS-latest
