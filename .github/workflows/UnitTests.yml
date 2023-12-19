@@ -5,14 +5,14 @@ on:
       - main
     paths:
       - '.github/workflows/UnitTests.yml'
-      - '*.toml'
+      - '**/*.toml'
       - 'src/**'
       - 'ext/**'
       - 'test/**'
   pull_request:
     paths:
       - '.github/workflows/UnitTests.yml'
-      - '*.toml'
+      - '**/*.toml'
       - 'src/**'
       - 'ext/**'
       - 'test/**'
