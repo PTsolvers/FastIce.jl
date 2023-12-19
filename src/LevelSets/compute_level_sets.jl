@@ -12,7 +12,7 @@ Initialize level sets.
 end
 
 """
-    arch::Architecturecompute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid::CartesianGrid, Ψ_grid::CartesianGrid, R=LinearAlgebra.I)
+    compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid::CartesianGrid, Ψ_grid::CartesianGrid, R=LinearAlgebra.I)
 
 Compute level sets from dem.
 """
