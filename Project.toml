@@ -17,9 +17,17 @@ OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 Preferences = "21216c6a-2e73-6563-6e65-726566657250"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
+[weakdeps]
+AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+
+[extensions]
+FastIceAMDGPUExt = "AMDGPU"
+FastIceCUDAExt = "CUDA"
+
 [compat]
-Adapt = "3"
-AMDGPU = "0.7"
+AMDGPU = "0.7, 0.8"
+Adapt = "3, 4"
 CUDA = "5"
 ElasticArrays = "1"
 GeometryBasics = "0.4"
@@ -29,11 +37,3 @@ LightXML = "0.9"
 MPI = "0.20"
 OffsetArrays = "1"
 Preferences = "1"
-
-[weakdeps]
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-
-[extensions]
-FastIceCUDAExt = "CUDA"
-FastIceAMDGPUExt = "AMDGPU"
