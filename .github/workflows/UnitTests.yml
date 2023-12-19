@@ -5,14 +5,14 @@ on:
       - main
     paths:
       - '.github/workflows/UnitTests.yml'
-      - '*.toml'
+      - '**/*.toml'
       - 'src/**'
       - 'ext/**'
       - 'test/**'
   pull_request:
     paths:
       - '.github/workflows/UnitTests.yml'
-      - '*.toml'
+      - '**/*.toml'
       - 'src/**'
       - 'ext/**'
       - 'test/**'
@@ -27,13 +27,17 @@ jobs:
       matrix:
         version:
           - '1'   # Latest stable 1.x release of Julia
-          # - 'nightly'
         os:
           - ubuntu-latest
           - macOS-latest
           - windows-latest
         arch:
           - x64
+        include:
+          - version: '~1.10.0-0' # 'nightly'
+            os: ubuntu-latest
+            arch: x64
+            allow_failure: true
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v1
