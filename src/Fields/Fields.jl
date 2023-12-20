@@ -125,7 +125,7 @@ function set!(f::Field{T,N}, grid::CartesianGrid{N}, fun::F; discrete=false, par
     dst = interior(f)
     if discrete
         _set_discrete!(get_backend(dst), 256, size(dst))(dst, grid, loc, fun, parameters...)
-    elseCartesianGrid
+    else
         _set_continuous!(get_backend(dst), 256, size(dst))(dst, grid, loc, fun, parameters...)
     end
     return
