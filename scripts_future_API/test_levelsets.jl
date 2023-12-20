@@ -3,13 +3,16 @@ using FileIO
 using FastIceTools
 using JLD2
 using KernelAbstractions
+using HDF5
 
 using FastIce.Grids
 using FastIce.Fields
 using FastIce.LevelSets
 using FastIce.Architectures
+using FastIce.Writers
 
-vavilov_path = "../data/Vavilov/vavilov.jld2"
+# vavilov_path = "../data/Vavilov/vavilov.jld2"
+synthetic_data = "../data/synthetic.jld2"
 
 # Select backend (CPU(), CUDABackend())
 backend = CUDABackend()
@@ -31,7 +34,7 @@ function load_dem_on_GPU(path::String, arch::Architecture)
     domain   = data["DataElevation"].domain
     nx       = length(x) - 1
     ny       = length(y) - 1
-    nz       = 100
+    nz       = 1
     z        = LinRange(domain.zmin, domain.zmax, nz)
     Ψ_grid   = CartesianGrid(origin=(0.0,0.0,0.0), extent=(1.0,1.0,1.0), size=(nx, ny, nz))
     Ψ        = Field(arch, Ψ_grid, Vertex())
@@ -43,6 +46,31 @@ function load_dem_on_GPU(path::String, arch::Architecture)
     return Ψ, dem_surf, dem_grid, Ψ_grid
 end
 
-Ψ, dem_surf, dem_grid, Ψ_grid = load_dem_on_GPU(vavilov_path, arch);
+
+function load_synth_dem_on_GPU(path::String, arch::Architecture)
+    data     = load(path)
+    z_surf   = data["z_surf"]
+    z_bed    = data["z_bed"]
+    nx       = size(z_bed)[1] - 1
+    ny       = size(z_surf)[2] - 1
+    nz       = 10
+    z        = LinRange(minimum(z_bed), maximum(z_surf), nz)
+    Ψ_grid   = CartesianGrid(origin=(0.0,0.0,0.0), extent=(1.0,1.0,1.0), size=(nx, ny, nz))
+    Ψ        = Field(arch, Ψ_grid, Vertex())
+    dem_grid = CartesianGrid(origin=(0.0,0.0), extent=(1.0,1.0), size=(nx, ny))
+    dem_bed  = Field(arch, dem_grid, Vertex())
+    dem_surf = Field(arch, dem_grid, Vertex())
+    set!(dem_bed, z_bed)
+    set!(dem_surf, z_surf)
+    return Ψ, dem_surf, dem_grid, Ψ_grid
+end
+
+
+# Ψ, dem_surf, dem_grid, Ψ_grid = load_dem_on_GPU(vavilov_path, arch);
+Ψ, dem_surf, dem_grid, Ψ_grid = load_synth_dem_on_GPU(synthetic_data, arch);
 
 compute_level_set_from_dem!(arch, Ψ, dem_surf, dem_grid, Ψ_grid)
+
+jldopen(synthetic_data, "a+") do file
+    file["level_sets"] = Array(Ψ)
+end
