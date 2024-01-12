@@ -4,11 +4,12 @@ steps:
     plugins:
       - staticfloat/forerunner:
           watch:
-            - ".buildkite/**/*.yml"
+            - ".buildkite/run_tests.yml"
+            - ".buildkite/pipeline.yml"
             - "**/*.toml"
-            - "src/**/*.jl"
-            - "ext/**/*.jl"
-            - "test/**/*.jl"
-          target: .buildkite/run_tests.yml
+            - "src/**"
+            - "ext/**"
+            - "test/**"
+          target: ".buildkite/run_tests.yml"
     agents:
       queue: "juliagpu"
