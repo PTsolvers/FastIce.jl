@@ -34,10 +34,10 @@ jobs:
           - windows-latest
         arch:
           - x64
-        include:
+        # include:
           - version: '1.9, 1' # test on M series
-          - os: macOS-latest
-          - arch: arm64
+            os: macOS-latest
+            arch: arm64
         #   - version: 'nightly'
         #     os: ubuntu-latest
         #     arch: x64
