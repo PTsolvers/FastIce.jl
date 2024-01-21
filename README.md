@@ -8,4 +8,8 @@ Parallel multi-xPU iterative **FastIce** flow solvers
 
 FastIce is currently under active development in order to run at scale on the LUMI AMD-powered GPU supercomputer within the EuroHPC [**STREAM** project](https://ptsolvers.github.io/GPU4GEO/stream/).
 
+## Documentation
 Checkout the [documentation](https://PTsolvers.github.io/FastIce.jl/dev) for API reference and usage.
+
+## Funding
+The development of this package is supported by the [GPU4GEO](https://ptsolvers.github.io/GPU4GEO/) [PASC](https://www.pasc-ch.org) project.
