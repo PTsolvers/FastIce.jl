@@ -1,6 +1,6 @@
 name = "FastIce"
 uuid = "e0de9f13-a007-490e-b696-b07d031015ca"
-authors = ["Ludovic Raess <ludovic.rass@gmail.com>, Ivan Utkin <utkin@hey.com> and contributors"]
+authors = ["Ludovic Raess <ludovic.rass@gmail.com>, Ivan Utkin <utkin@hey.com>, Samuel Omlin <samuel.omlin@cscs.ch> and contributors"]
 version = "0.2.0"
 
 [deps]
