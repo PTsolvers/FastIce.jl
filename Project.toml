@@ -1,6 +1,6 @@
 name = "FastIce"
 uuid = "e0de9f13-a007-490e-b696-b07d031015ca"
-authors = ["Ludovic Raess <ludovic.rass@gmail.com>, Ivan Utkin <utkin@hey.com> and contributors"]
+authors = ["Ludovic Raess <ludovic.rass@gmail.com>, Ivan Utkin <utkin@hey.com>, Samuel Omlin <samuel.omlin@cscs.ch> and contributors"]
 version = "0.2.0"
 
 [deps]
@@ -8,6 +8,7 @@ Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
 GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+ImplicitGlobalGrid = "4d7a3746-15be-11ea-1130-334b0c4f5fa0"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 LightXML = "9c8b4983-aa76-5018-a973-4c85ecc9e179"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -32,6 +33,7 @@ CUDA = "5"
 ElasticArrays = "1"
 GeometryBasics = "0.4"
 HDF5 = "0.17"
+ImplicitGlobalGrid = "0.15"
 KernelAbstractions = "0.9"
 LightXML = "0.9"
 MPI = "0.20"
