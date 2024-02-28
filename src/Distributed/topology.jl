@@ -54,14 +54,12 @@ Local id of a process within a single node. Can be used to set the GPU device.
 """
 shared_rank(t::CartesianTopology) = t.shared_rank
 
-
 """
     node_name(t::CartesianTopology)
 
 Name of a node according to `MPI.Get_processor_name()`.
 """
 node_name(t::CartesianTopology) = t.node_name
-
 
 """
     cartesian_communicator(t::CartesianTopology)
@@ -76,7 +74,6 @@ cartesian_communicator(t::CartesianTopology) = t.cart_comm
 MPI communicator for the processes sharing the same node.
 """
 shared_communicator(t::CartesianTopology) = t.shared_comm
-
 
 """
     dimensions(t::CartesianTopology)
@@ -108,7 +105,6 @@ Returns id of a neighbor process in spatial direction `dim` on the side `side`, 
 """
 neighbor(t::CartesianTopology, dim, side) = t.neighbors[dim][side]
 
-
 """
     has_neighbor(t::CartesianTopology, dim, side)
 
@@ -137,16 +133,15 @@ Return the global size for a structured grid.
 """
 global_grid_size(t::CartesianTopology, local_size) = t.dims .* local_size
 
-
 """
     local_grid(g::CartesianGrid, t::CartesianTopology)
 
 Return a `CartesianGrid` covering the subdomain which corresponds to the current process.
 """
 function local_grid(g::CartesianGrid, t::CartesianTopology)
-    local_extent = extent(g) ./ t.dims
+    local_extent = Tuple(extent(g)) ./ t.dims
     local_size = size(g) .÷ t.dims
-    local_origin = origin(g) .+ local_extent .* t.cart_coords
+    local_origin = Tuple(origin(g)) .+ local_extent .* t.cart_coords
 
     return CartesianGrid(local_origin, local_extent, local_size)
 end
@@ -157,6 +152,6 @@ end
 Create a distributed Architecture using `backend` and `topology`. For GPU backends, device will be selected automatically based on a process id within a node.
 """
 function Architectures.Architecture(backend::Backend, topology::CartesianTopology)
-    device = get_device(backend, shared_rank(topology)+1)
+    device = get_device(backend, shared_rank(topology) + 1)
     return Architecture{DistributedMPI,typeof(backend),typeof(device),typeof(topology)}(backend, device, topology)
 end
