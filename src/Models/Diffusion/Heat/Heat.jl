@@ -9,7 +9,6 @@ using FastIce.BoundaryConditions
 using FastIce.Utils
 
 include("kernels.jl")
-
 include("boundary_conditions.jl")
 
 struct HeatDiffusionModel{Backend,Grid,BC,Physics,IterParams,Fields}

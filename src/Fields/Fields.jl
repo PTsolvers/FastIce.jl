@@ -6,13 +6,13 @@ export FunctionField
 export location, data, halo, set!
 export ConstantField, ZeroField, OneField
 
-using Adapt
-using OffsetArrays
-using KernelAbstractions
-
 using FastIce.Grids
 using FastIce.GridOperators
 using FastIce.Architectures
+
+using Adapt
+using OffsetArrays
+using KernelAbstractions
 
 import LinearAlgebra
 

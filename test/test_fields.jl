@@ -6,8 +6,8 @@ using FastIce.Grids
 const HALOS = ((1, 1, 2), nothing, (1, nothing, 1), (nothing, nothing, nothing), (nothing, (1, nothing), (1, 2)))
 const HALO_SIZES = ((2, 2, 4), (0, 0, 0), (2, 0, 2), (0, 0, 0), (0, 1, 3))
 
-@testset "backend $backend" for backend in backends
-    @testset "fields" begin
+for backend in backends
+    @testset "$(basename(@__FILE__)) (backend: $backend)" begin
         grid = CartesianGrid(; origin=(0.0, 0.0, 0.0), extent=(1.0, 1.0, 1.0), size=(2, 2, 2))
         loc = (Center(), Vertex(), Center())
         @testset "location" begin

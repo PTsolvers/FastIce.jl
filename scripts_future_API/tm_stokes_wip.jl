@@ -7,6 +7,7 @@ using FastIce.BoundaryConditions
 using FastIce.Models.FullStokes.Isothermal
 using FastIce.Physics
 using FastIce.KernelLaunch
+using FastIce.Writers
 
 const VBC = BoundaryCondition{Velocity}
 const TBC = BoundaryCondition{Traction}
@@ -21,9 +22,9 @@ using CairoMakie
 # using GLMakie
 # Makie.inline!(true)
 
-@views function main()
+@views function main(; do_visu=false, do_save=false, transient=false)
     backend = CPU()
-    arch = Architecture(backend, 2)
+    arch = Architecture(backend)
     set_device!(arch)
 
     # physics
@@ -34,6 +35,8 @@ using CairoMakie
     grid = CartesianGrid(; origin=(-0.5, -0.5, 0.0),
                          extent=(1.0, 1.0, 1.0),
                          size=(62, 62, 62))
+
+    FastIce.greet_fast(bold=true, color=:blue)
 
     psh_x(x, _, _) = -x * ebg
     psh_y(_, y, _) = y * ebg
@@ -55,7 +58,7 @@ using CairoMakie
 
     # numerics
     niter  = 20maximum(size(grid))
-    ncheck = maximum(size(grid))
+    ncheck = 2maximum(size(grid))
 
     r       = 0.7
     re_mech = 10π
@@ -106,10 +109,16 @@ using CairoMakie
 
     KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.stress)
     KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.velocity)
-    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.viscosity.η)
-    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.viscosity.η_next)
+    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.rheology)
 
-    display(fig)
+    if do_save
+        h5names = String[]
+        ts = Float64[]
+        isave = 0
+        fields = Dict("Pr" => model.fields.Pr, "A" => model.fields.A)
+        outdir = "out_visu"
+        mkpath(outdir)
+    end
 
     for iter in 1:niter
         advance_iteration!(model, 0.0, 1.0)
@@ -124,16 +133,38 @@ using CairoMakie
             end
             iter_nx = iter / maximum(size(grid))
             @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
-            plt.Pr[3][] = interior(model.stress.Pr)[:, size(grid, 2)÷2+1, :]
-            plt.Vx[3][] = interior(model.velocity.x)[:, size(grid, 2)÷2+1, :]
-            plt.Vy[3][] = interior(model.velocity.y)[:, size(grid, 2)÷2+1, :]
-            plt.Vz[3][] = interior(model.velocity.z)[:, size(grid, 2)÷2+1, :]
-            # yield()
-            display(fig)
+            if do_visu
+                plt.Pr[3][] = interior(model.stress.Pr)[:, size(grid, 2)÷2+1, :]
+                plt.Vx[3][] = interior(model.velocity.x)[:, size(grid, 2)÷2+1, :]
+                plt.Vy[3][] = interior(model.velocity.y)[:, size(grid, 2)÷2+0, :]
+                plt.Vz[3][] = interior(model.velocity.z)[:, size(grid, 2)÷2+1, :]
+                # yield()
+                display(fig)
+            end
+            if do_save && transient # saving to disk
+                isave+=1
+                out_h5 = @sprintf("step_%04d.h5", isave)
+                @info "saving HDF5 file"
+                write_h5(arch, grid, joinpath(outdir, out_h5), fields)
+                push!(ts, isave)
+                push!(h5names, out_h5)
+            end
         end
     end
 
+    if do_save && transient # saving to disk
+        @info "saving XDMF file"
+        write_xdmf(arch, grid, joinpath(outdir, "results.xdmf3"), fields, h5names, ts)
+    elseif do_save && !transient # saving to disk
+        out_h5 = "results.h5"
+        @info "saving HDF5 file"
+        write_h5(arch, grid, joinpath(outdir, out_h5), fields)
+        push!(h5names, out_h5)
+
+        @info "saving XDMF file"
+        write_xdmf(arch, grid, joinpath(outdir, "results.xdmf3"), fields, h5names)
+    end
     return
 end
 
-main()
+main(; do_visu=false, do_save=true, transient=false)
