@@ -35,52 +35,52 @@ mutable struct IsothermalFullStokesModel{Arch,Grid,Stress,Velocity,Viscosity,Rhe
     solver_params::SolverParams
 end
 
-function StressFields(backend, grid::CartesianGrid{2})
-    (Pr=Field(backend, grid, Center(); halo=1),
+function StressFields(arch, grid::CartesianGrid{2})
+    (Pr=Field(arch, grid, Center(); halo=1),
      # deviatoric stress
-     τ=(xx=Field(backend, grid, Center(); halo=1),
-        yy=Field(backend, grid, Center(); halo=1),
-        xy=Field(backend, grid, (Vertex(), Vertex()))))
+     τ=(xx=Field(arch, grid, Center(); halo=1),
+        yy=Field(arch, grid, Center(); halo=1),
+        xy=Field(arch, grid, (Vertex(), Vertex()))))
 end
 
-function VelocityFields(backend, grid::CartesianGrid{2})
-    (x=Field(backend, grid, (Vertex(), Center()); halo=1),
-     y=Field(backend, grid, (Center(), Vertex()); halo=1))
+function VelocityFields(arch, grid::CartesianGrid{2})
+    (x=Field(arch, grid, (Vertex(), Center()); halo=1),
+     y=Field(arch, grid, (Center(), Vertex()); halo=1))
 end
 
-function ResidualFields(backend, grid::CartesianGrid{2})
-    (r_Pr=Field(backend, grid, Center()),
-     r_V=(x=Field(backend, grid, (Vertex(), Center())),
-          y=Field(backend, grid, (Center(), Vertex()))))
+function ResidualFields(arch, grid::CartesianGrid{2})
+    (r_Pr=Field(arch, grid, Center()),
+     r_V=(x=Field(arch, grid, (Vertex(), Center())),
+          y=Field(arch, grid, (Center(), Vertex()))))
 end
 
-function StressFields(backend, grid::CartesianGrid{3})
-    (Pr=Field(backend, grid, Center(); halo=1),
+function StressFields(arch, grid::CartesianGrid{3})
+    (Pr=Field(arch, grid, Center(); halo=1),
      # deviatoric stress
-     τ=(xx=Field(backend, grid, Center(); halo=1),
-        yy=Field(backend, grid, Center(); halo=1),
-        zz=Field(backend, grid, Center(); halo=1),
-        xy=Field(backend, grid, (Vertex(), Vertex(), Center())),
-        xz=Field(backend, grid, (Vertex(), Center(), Vertex())),
-        yz=Field(backend, grid, (Center(), Vertex(), Vertex()))))
+     τ=(xx=Field(arch, grid, Center(); halo=1),
+        yy=Field(arch, grid, Center(); halo=1),
+        zz=Field(arch, grid, Center(); halo=1),
+        xy=Field(arch, grid, (Vertex(), Vertex(), Center())),
+        xz=Field(arch, grid, (Vertex(), Center(), Vertex())),
+        yz=Field(arch, grid, (Center(), Vertex(), Vertex()))))
 end
 
-function VelocityFields(backend, grid::CartesianGrid{3})
-    (x=Field(backend, grid, (Vertex(), Center(), Center()); halo=1),
-     y=Field(backend, grid, (Center(), Vertex(), Center()); halo=1),
-     z=Field(backend, grid, (Center(), Center(), Vertex()); halo=1))
+function VelocityFields(arch, grid::CartesianGrid{3})
+    (x=Field(arch, grid, (Vertex(), Center(), Center()); halo=1),
+     y=Field(arch, grid, (Center(), Vertex(), Center()); halo=1),
+     z=Field(arch, grid, (Center(), Center(), Vertex()); halo=1))
 end
 
-function ResidualFields(backend, grid::CartesianGrid{3})
-    (r_Pr=Field(backend, grid, Center()),
-     r_V=(x=Field(backend, grid, (Vertex(), Center(), Center())),
-          y=Field(backend, grid, (Center(), Vertex(), Center())),
-          z=Field(backend, grid, (Center(), Center(), Vertex()))))
+function ResidualFields(arch, grid::CartesianGrid{3})
+    (r_Pr=Field(arch, grid, Center()),
+     r_V=(x=Field(arch, grid, (Vertex(), Center(), Center())),
+          y=Field(arch, grid, (Center(), Vertex(), Center())),
+          z=Field(arch, grid, (Center(), Center(), Vertex()))))
 end
 
-function ViscosityFields(backend, grid::CartesianGrid)
-    (η      = Field(backend, grid, Center(); halo=1),
-     η_next = Field(backend, grid, Center(); halo=1))
+function ViscosityFields(arch, grid::CartesianGrid)
+    (η      = Field(arch, grid, Center(); halo=1),
+     η_next = Field(arch, grid, Center(); halo=1))
 end
 
 function IsothermalFullStokesModel(; arch,
@@ -90,14 +90,12 @@ function IsothermalFullStokesModel(; arch,
                                    rheology,
                                    solver_params=(),
                                    outer_width=nothing)
-    backend = backend(arch)
+    stress    = StressFields(arch, grid)
+    velocity  = VelocityFields(arch, grid)
+    viscosity = ViscosityFields(arch, grid)
+    residual  = ResidualFields(arch, grid)
 
-    stress    = StressFields(backend, grid)
-    velocity  = VelocityFields(backend, grid)
-    residual  = ResidualFields(backend, grid)
-    viscosity = ViscosityFields(backend, grid)
-
-    boundary_conditions = make_field_boundary_conditions(arch, grid, fields, boundary_conditions)
+    boundary_conditions = IsothermalFullStokesBoundaryConditions(arch, grid, stress, velocity, viscosity, residual, boundary_conditions)
 
     if isnothing(outer_width)
         outer_width = ntuple(_ -> 2, Val(ndims(grid)))
@@ -122,8 +120,8 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt)
     (; Pr, τ)       = model.stress
     V               = model.velocity
     (; η, η_next)   = model.viscosity
-    (; η_rel, Δτ)   = model.iter_params
-    η_rh            = model.physics.rheology
+    (; Δτ)          = model.solver_params
+    rheology        = model.rheology
     ρg              = model.gravity
     bc              = model.boundary_conditions
     hide_boundaries = model.hide_boundaries
@@ -134,17 +132,24 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt)
     launch!(model.arch, grid, update_σ! => (Pr, τ, V, η, Δτ, Δ, grid);
             location=Center(), expand=1, boundary_conditions=bc.stress, hide_boundaries)
 
-    launch!(model.arch, grid, update_V! => (V, Pr, τ, η, η_next, ρg, Δτ, Δ, grid);
-            location=Vertex(), boundary_conditions=bc.velocity, hide_boundaries)
+    # merge boundary conditions because viscosity is double-buffered
+    velocity_bc = dim_side_ntuple(Val(ndims(grid))) do D, S
+        merge_boundary_conditions(bc.velocity[D][S], bc.viscosity.η_next[D][S])
+    end
 
-    # rheology
-    launch!(model.arch, grid, update_η! => (η, η_rh, η_rel, model.fields, grid);
-            location=Center(), boundary_conditions=bc.rheology, hide_boundaries)
+    launch!(model.arch, grid, update_V! => (V, Pr, τ, η, η_next, rheology, ρg, Δτ, Δ, grid);
+            location=Vertex(), boundary_conditions=velocity_bc, hide_boundaries)
+
+    # swap double buffers for viscosity
+    model.viscosity = NamedTuple{keys(model.viscosity)}(reverse(values(model.viscosity)))
+    bc.viscosity    = NamedTuple{keys(bc.viscosity)}(reverse(values(bc.viscosity)))
     return
 end
 
 function compute_residuals!(model::IsothermalFullStokesModel)
-    (; Pr, τ, V, r_Pr, r_V) = model.fields
+    (; Pr, τ) = model.stress
+    V = model.velocity
+    (; r_Pr, r_V) = model.residual
     ρg = model.gravity
     boundary_conditions = model.boundary_conditions.residual
 

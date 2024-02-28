@@ -5,6 +5,9 @@ export ∂ᶜ, ∂ᵛ
 export ∂ᵛx, ∂ᵛy, ∂ᵛz, avᵛx, avᵛy, avᵛz, avᵛxy, avᵛxz, avᵛyz, maxlᵛx, maxlᵛy, maxlᵛz
 export ∂ᶜx, ∂ᶜy, ∂ᶜz, avᶜx, avᶜy, avᶜz, avᶜxy, avᶜxz, avᶜyz, maxlᶜx, maxlᶜy, maxlᶜz
 
+export maxlᵛxy, maxlᵛxz, maxlᵛyz
+export maxlᵛyx, maxlᵛzx, maxlᵛzy
+
 import Base.@propagate_inbounds
 
 Base.@assume_effects :foldable function δ(op, I::CartesianIndex{N}, ::Val{D}) where {N,D}
@@ -29,6 +32,9 @@ end
 
 @propagate_inbounds maxlᶜ(fv, I, D) = max(fv[δ(+, I, D)], fv[I])
 @propagate_inbounds maxlᵛ(fc, I, D) = max(fc[I], fc[δ(-, I, D)])
+
+@propagate_inbounds maxlᵛ(fc, I, D1, D2) = max(fc[δ(-, I, D2)], fc[I], fc[δ(+, I, D2)],
+                                               fc[δ(-, I, D1, D2)], fc[δ(-, I, D1)], fc[δ(+, δ(-, I, D1), D2)])
 
 for (dim, val) in ((:x, 1), (:y, 2), (:z, 3))
     for loc in (:ᶜ, :ᵛ)
@@ -56,6 +62,15 @@ for (dim, val1, val2) in ((:xy, 1, 2), (:xz, 1, 3), (:yz, 2, 3))
         @eval begin
             @propagate_inbounds $av(f, I) = $avl(f, I, Val($val1), Val($val2))
         end
+    end
+end
+
+for (dim, val1, val2) in ((:xy, 1, 2), (:xz, 1, 3), (:yz, 2, 3), (:yx, 2, 1), (:zx, 3, 1), (:zy, 3, 2))
+    for loc in (:ᶜ, :ᵛ)
+        maxll = Symbol(:maxl, loc)
+        maxl = Symbol(maxll, dim)
+
+        @eval @propagate_inbounds $maxl(f, I) = $maxll(f, I, Val($val1), Val($val2))
     end
 end
 

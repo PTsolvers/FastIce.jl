@@ -27,7 +27,7 @@
     end
 end
 
-@kernel inbounds = true function update_V!(V, Pr, τ, η, η_next, viscosity, ρg, Δτ, Δ, grid::CartesianGrid{3}, offset=nothing)
+@kernel inbounds = true function update_V!(V, Pr, τ, η, η_next, rheology, ρg, Δτ, Δ, grid::CartesianGrid{3}, offset=nothing)
     I = @index(Global, Cartesian)
     isnothing(offset) || (I += offset)
     if within(grid, V.x, I)
@@ -52,7 +52,7 @@ end
     if within(grid, η_next, I)
         τII = sqrt(0.5 * (τ.xx[I]^2 + τ.yy[I]^2 + τ.zz[I]^2) +
                    avᶜxy(τ.xy, I)^2 + avᶜxz(τ.xz, I)^2 + avᶜyz(τ.yz, I)^2)
-        η_next[I] = viscosity(τII, I)
+        η_next[I] = rheology(τII, I)
     end
 end
 

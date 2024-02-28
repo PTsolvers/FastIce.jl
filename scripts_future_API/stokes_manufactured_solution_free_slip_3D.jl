@@ -96,49 +96,48 @@ vz(x, y, z) = sin(π * z) * f(x, y)
     dτ_r    = 1.0 / (θ_dτ + 1.0)
     nudτ    = vdτ * lτ_re_m
 
-    iter_params = (η_rel=1e-1,
-                   Δτ=(Pr=r / θ_dτ, τ=(xx=dτ_r, yy=dτ_r, zz=dτ_r, xy=dτ_r, xz=dτ_r, yz=dτ_r), V=(x=nudτ, y=nudτ, z=nudτ)))
+    solver_params = (η_rel=1e-1,
+                     Δτ=(Pr=r / θ_dτ, τ=(xx=dτ_r, yy=dτ_r, zz=dτ_r, xy=dτ_r, xz=dτ_r, yz=dτ_r), V=(x=nudτ, y=nudτ, z=nudτ)))
 
-    physics = (rheology=GlensLawRheology(1),)
-    other_fields = (A=ConstantField(A0),)
+    rheology = LinearViscousRheology(ConstantField(1.0))
 
     model = IsothermalFullStokesModel(;
                                       arch,
                                       grid,
-                                      physics,
-                                      gravity,
                                       boundary_conditions,
-                                      iter_params,
-                                      other_fields)
+                                      gravity,
+                                      rheology,
+                                      solver_params)
 
-    set!(model.fields.Pr, 0.0)
-    foreach(x -> set!(x, 0.0), model.fields.τ)
-    foreach(x -> set!(x, 0.0), model.fields.V)
+    set!(model.stress.Pr, 0.0)
+    foreach(x -> set!(x, 0.0), model.stress.τ)
+    foreach(x -> set!(x, 0.0), model.velocity)
 
-    set!(model.fields.η, grid, (grid, loc, I, fields) -> physics.rheology(grid, I, fields); discrete=true, parameters=(model.fields,))
+    set!(model.viscosity.η, 1.0)
+    set!(model.viscosity.η_next, 1.0)
 
     KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.stress)
     KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.velocity)
-    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.rheology)
+    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.viscosity.η)
+    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.viscosity.η_next)
 
     for iter in 1:niter
         advance_iteration!(model, 0.0, 1.0)
         if iter % ncheck == 0
             compute_residuals!(model)
-            err = (Pr = norm(model.fields.r_Pr, Inf),
-                   Vx = norm(model.fields.r_V.x, Inf),
-                   Vy = norm(model.fields.r_V.y, Inf),
-                   Vz = norm(model.fields.r_V.z, Inf))
+            err = (Pr = norm(model.residual.r_Pr, Inf),
+                   Vx = norm(model.residual.r_V.x, Inf),
+                   Vy = norm(model.residual.r_V.y, Inf))
             if any(.!isfinite.(values(err)))
                 error("simulation failed, err = $err")
             end
             iter_nx = iter / maximum(size(grid))
-            @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
+            @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e]\n", iter_nx, err...)
         end
     end
 
-    V = model.fields.V
-    τ = model.fields.τ
+    V = model.velocity
+    τ = model.stress.τ
 
     Vm = (x=FunctionField(vx, grid, location(V.x)),
           y=FunctionField(vy, grid, location(V.y)),

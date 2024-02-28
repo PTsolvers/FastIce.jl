@@ -20,32 +20,32 @@ function instantiate_boundary_conditions(coords::NTuple{ND}) where {ND}
             val2 < val ? Symbol(:τ, dim2, dim) : Symbol(:τ, dim, dim2)
         end
         N  = Symbol(:τ, dim, dim)
-    
+
         ex1 = Expr(:(=), :Pr, :(DirichletBC{HalfCell}(bc.components[$val])))
         ex2 = Expr(:(=), N, :(DirichletBC{HalfCell}(convert(eltype(bc.components[$val]), 0))))
         ex3 = ntuple(Val(length(TN))) do I
             Expr(:(=), TN[I], :(DirichletBC{FullCell}(bc.components[$(td[I][2])])))
         end
-    
+
         ex_tr = Expr(:tuple, ex1, ex2, ex3...)
-    
+
         ex_vel = ntuple(length(coords)) do I
             kind = I == val ? :(FullCell) : :(HalfCell)
             Expr(:(=), Symbol(:V, coords[I][1]), :(DirichletBC{$kind}(bc.components[$I])))
         end
-    
+
         ex_vel = Expr(:tuple, ex_vel...)
-    
+
         ex_slip_tr = Expr(:tuple, ex3...)
-    
+
         ex_slip_vel = Expr(:(=), Symbol(:V, dim), :(DirichletBC{FullCell}(bc.components[$val])))
         ex_slip_vel = Expr(:tuple, ex_slip_vel)
-    
+
         @eval begin
             extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Traction,$ND}) = $ex_tr
             extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Velocity,$ND}) = ()
             extract_stress_bc(::Val{$val}, bc::BoundaryCondition{Slip,$ND})     = $ex_slip_tr
-    
+
             extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Traction,$ND}) = ()
             extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Velocity,$ND}) = $ex_vel
             extract_velocity_bc(::Val{$val}, bc::BoundaryCondition{Slip,$ND})     = $ex_slip_vel
@@ -118,13 +118,21 @@ function ViscosityBoundaryConditions(arch::Architecture{Kind}, ::CartesianGrid{N
     end
 end
 
-function make_field_boundary_conditions(arch::Architecture, grid::CartesianGrid, fields, bc)
-    stress_fields   = (; Pr=fields.Pr, NamedTuple{Symbol.(:τ, keys(fields.τ))}(values(fields.τ))...)
-    velocity_fields = NamedTuple{Symbol.(:V, keys(fields.V))}(values(fields.V))
-    residual_fields = NamedTuple{Symbol.(:r_V, keys(fields.r_V))}(values(fields.r_V))
+mutable struct IsothermalFullStokesBoundaryConditions{Stress,Velocity,Viscosity,Residual}
+    stress::Stress
+    velocity::Velocity
+    viscosity::Viscosity
+    residual::Residual
+end
 
-    return (stress    = StressBoundaryConditions(arch, grid, stress_fields, bc),
-            velocity  = VelocityBoundaryConditions(arch, grid, velocity_fields, bc),
-            viscosity = ViscosityBoundaryConditions(arch, grid, fields.η),
-            residual  = ResidualBoundaryConditions(arch, grid, residual_fields, bc))
+function IsothermalFullStokesBoundaryConditions(arch::Architecture, grid::CartesianGrid, stress, velocity, viscosity, residual, bc)
+    stress_fields   = (; Pr=stress.Pr, NamedTuple{Symbol.(:τ, keys(stress.τ))}(values(stress.τ))...)
+    velocity_fields = NamedTuple{Symbol.(:V, keys(velocity))}(values(velocity))
+    residual_fields = NamedTuple{Symbol.(:r_V, keys(residual.r_V))}(values(residual.r_V))
+
+    return IsothermalFullStokesBoundaryConditions(StressBoundaryConditions(arch, grid, stress_fields, bc),
+                                                  VelocityBoundaryConditions(arch, grid, velocity_fields, bc),
+                                                  (η      = ViscosityBoundaryConditions(arch, grid, viscosity.η),
+                                                   η_next = ViscosityBoundaryConditions(arch, grid, viscosity.η_next)),
+                                                  ResidualBoundaryConditions(arch, grid, residual_fields, bc))
 end

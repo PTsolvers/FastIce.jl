@@ -32,7 +32,6 @@ function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
                  expand=nothing,
                  boundary_conditions=nothing,
                  hide_boundaries=nothing,
-                 outer_width=nothing,
                  async=false) where {K,Args}
     fun, args = kernel
 
@@ -63,7 +62,7 @@ function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
         fun(backend(arch), groupsize, worksize)(args..., offset)
         isnothing(boundary_conditions) || apply_all_boundary_conditions!(arch, grid, boundary_conditions)
     else
-        hide(hide_boundaries, arch, grid, boundary_conditions, worksize; outer_width) do indices
+        hide(hide_boundaries, arch, grid, boundary_conditions, worksize) do indices
             sub_offset, ndrange = first(indices) - oneunit(first(indices)), size(indices)
             if !isnothing(offset)
                 sub_offset += offset

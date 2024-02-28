@@ -1,6 +1,6 @@
 module Physics
 
-export IceRheology, PowerLawRheology, Relaxation, ViscoplasticRegularisation
+export IceRheology, LinearViscousRheology, PowerLawRheology, Relaxation, ViscoplasticRegularisation
 
 abstract type IceRheology end
 
