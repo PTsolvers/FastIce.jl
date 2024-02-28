@@ -58,7 +58,7 @@ function main(; do_visu=false, do_save=false)
     grid_l = local_grid(grid_g, topo)
 
     if me == 0
-        FastIce.greet(bold=true, color=:blue)
+        FastIce.greet(; bold=true, color=:blue)
         printstyled("Running FastIce.jl 🧊 \n"; bold=true, color=:blue)
         printstyled(grid_g; bold=true)
     end
@@ -90,21 +90,22 @@ function main(; do_visu=false, do_save=false)
     dτ_r    = 1.0 / (θ_dτ + 1.0)
     nudτ    = vdτ * lτ_re_m
 
-    iter_params = (η_rel=1e-1,
-                   Δτ=(Pr=r / θ_dτ, τ=(xx=dτ_r, yy=dτ_r, zz=dτ_r, xy=dτ_r, xz=dτ_r, yz=dτ_r), V=(x=nudτ, y=nudτ, z=nudτ)))
+    solver_params = (η_rel=1e-1,
+                     Δτ=(Pr=r / θ_dτ, τ=(xx=dτ_r, yy=dτ_r, zz=dτ_r, xy=dτ_r, xz=dτ_r, yz=dτ_r), V=(x=nudτ, y=nudτ, z=nudτ)))
 
-    physics = (rheology=GlensLawRheology(1),)
-    other_fields = (A=Field(backend, grid_l, Center()),)
+    init_incl(x, y, z, x0, y0, z0, r, ηi, ηm) = ifelse((x - x0)^2 + (y - y0)^2 + (z - z0)^2 < r^2, ηi, ηm)
+
+    η        = FunctionField(init_incl, grid, Center(); parameters=(x0=0.0, y0=0.0, z0=0.5, r=0.1, ηi=1e-1, ηm=1.0))
+    rheology = LinearViscousRheology(η)
 
     model = IsothermalFullStokesModel(;
                                       arch,
                                       grid=grid_l,
-                                      physics,
-                                      gravity,
                                       boundary_conditions,
-                                      outer_width,
-                                      iter_params,
-                                      other_fields)
+                                      gravity,
+                                      rheology,
+                                      solver_params,
+                                      outer_width)
 
     (me == 0) && printstyled("Model created \n"; bold=true, color=:light_blue)
 
@@ -144,16 +145,19 @@ function main(; do_visu=false, do_save=false)
         Vz_v  = zeros(size(grid_l))
     end
 
-    fill!(parent(model.fields.Pr), 0.0)
-    foreach(x -> fill!(parent(x), 0.0), model.fields.τ)
-    foreach(x -> fill!(parent(x), 0.0), model.fields.V)
-    fill!(parent(other_fields.A), 1.0)
+    fill!(parent(model.stress.Pr), 0.0)
+    foreach(x -> fill!(parent(x), 0.0), model.stress.τ)
 
-    set!(model.fields.η, grid_l, (grid, loc, I, fields) -> physics.rheology(grid, I, fields); discrete=true, parameters=(model.fields,))
+    set!(model.velocity.x, grid, psh_x)
+    set!(model.velocity.y, grid, psh_y)
+    set!(model.velocity.z, 0.0)
+    set!(model.viscosity.η, η)
+    set!(model.viscosity.η_next, η)
 
-    KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.stress)
-    KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.velocity)
-    KernelLaunch.apply_all_boundary_conditions!(arch, grid_l, model.boundary_conditions.rheology)
+    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.stress)
+    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.velocity)
+    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.viscosity.η)
+    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.viscosity.η_next)
 
     MPI.Barrier(comm)
 
@@ -168,10 +172,10 @@ function main(; do_visu=false, do_save=false)
         advance_iteration!(model, 0.0, 1.0)
         if (iter % ncheck == 0)
             compute_residuals!(model)
-            err = (Pr = max_abs_g(model.fields.r_Pr),
-                   Vx = max_abs_g(model.fields.r_V.x),
-                   Vy = max_abs_g(model.fields.r_V.y),
-                   Vz = max_abs_g(model.fields.r_V.z))
+            err = (Pr = max_abs_g(model.residual.r_Pr),
+                   Vx = max_abs_g(model.residual.r_V.x),
+                   Vy = max_abs_g(model.residual.r_V.y),
+                   Vz = max_abs_g(model.residual.r_V.z))
             if (me == 0)
                 any(.!isfinite.(values(err))) && error("simulation failed, err = $err")
                 iter_nx = iter / maximum(size(grid_g))
@@ -190,20 +194,21 @@ function main(; do_visu=false, do_save=false)
     if me == 0
         Teff_min = 23 * 8 * prod(size(grid_l)) / ttot_max
         Teff_max = 23 * 8 * prod(size(grid_l)) / ttot_min
-        printstyled("Performance: T_eff [min max] = $(round(Teff_min, sigdigits=4)) $(round(Teff_max, sigdigits=4)) \n"; bold=true, color=:green)
+        printstyled("Performance: T_eff [min max] = $(round(Teff_min, sigdigits=4)) $(round(Teff_max, sigdigits=4)) \n"; bold=true,
+                    color=:green)
     end
 
     if do_save || do_visu
-        copyto!(Pr_v, interior(model.fields.Pr))
-        copyto!(τxx_v, interior(model.fields.τ.xx))
-        copyto!(τyy_v, interior(model.fields.τ.yy))
-        copyto!(τzz_v, interior(model.fields.τ.zz))
-        copyto!(τxy_v, av_xy(interior(model.fields.τ.xy)))
-        copyto!(τxz_v, av_xz(interior(model.fields.τ.xz)))
-        copyto!(τyz_v, av_yz(interior(model.fields.τ.yz)))
-        copyto!(Vx_v, avx(interior(model.fields.V.x)))
-        copyto!(Vy_v, avy(interior(model.fields.V.y)))
-        copyto!(Vz_v, avz(interior(model.fields.V.z)))
+        copyto!(Pr_v, interior(model.stress.Pr))
+        copyto!(τxx_v, interior(model.stress.τ.xx))
+        copyto!(τyy_v, interior(model.stress.τ.yy))
+        copyto!(τzz_v, interior(model.stress.τ.zz))
+        copyto!(τxy_v, av_xy(interior(model.stress.τ.xy)))
+        copyto!(τxz_v, av_xz(interior(model.stress.τ.xz)))
+        copyto!(τyz_v, av_yz(interior(model.stress.τ.yz)))
+        copyto!(Vx_v, avx(interior(model.velocity.x)))
+        copyto!(Vy_v, avy(interior(model.velocity.y)))
+        copyto!(Vz_v, avz(interior(model.velocity.z)))
 
         KernelAbstractions.synchronize(backend)
 
@@ -221,9 +226,9 @@ function main(; do_visu=false, do_save=false)
         if (me == 0) && do_visu
             fig = Figure()
             axs = (Pr=Axis(fig[1, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Pr"),
-            Vx=Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
-            Vy=Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
-            Vz=Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
+                   Vx=Axis(fig[1, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vx"),
+                   Vy=Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vy"),
+                   Vz=Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x", ylabel="z", title="Vz"))
             plt = (Pr = heatmap!(axs.Pr, xcenters(grid_g), zcenters(grid_g), Pr_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
                    Vx = heatmap!(axs.Vx, xvertices(grid_g), zcenters(grid_g), Vx_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
                    Vy = heatmap!(axs.Vy, xcenters(grid_g), zcenters(grid_g), Vy_g[:, size(grid_g, 2)÷2+1, :]; colormap=:turbo),
