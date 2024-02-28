@@ -77,6 +77,7 @@ for backend in backends
                 fname = "test_d.h5"
                 (me == 0) && (isfile(fname) && run(`rm $fname`))
                 write_h5(arch, grid_g, fname, fields)
+                MPI.Barrier(comm)
                 Fa_v = zeros(size(grid_l))
                 Fb_v = zeros(size(grid_l))
                 copyto!(Fa_v, interior(Fa_l))
