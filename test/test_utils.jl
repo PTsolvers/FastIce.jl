@@ -3,39 +3,39 @@ include("common.jl")
 using FastIce.Utils
 
 @testset "$(basename(@__FILE__)) (backend: CPU)" begin
-    @testset "pipelines" begin
-        @testset "pre" begin
+    @testset "workers" begin
+        @testset "setup" begin
             a = 0
-            pipe = Pipeline(; pre=() -> a += 1)
-            put!(() -> nothing, pipe)
-            wait(pipe)
+            worker = Worker(; setup=() -> a += 1)
+            put!(() -> nothing, worker)
+            wait(worker)
             @test a == 1
-            close(pipe)
+            close(worker)
         end
-        @testset "post" begin
+        @testset "teardown" begin
             a = 0
-            pipe = Pipeline(; post=() -> a += 2)
-            put!(pipe) do
+            worker = Worker(; teardown=() -> a += 2)
+            put!(worker) do
                 a -= 1
             end
-            wait(pipe)
-            close(pipe)
+            wait(worker)
+            close(worker)
             @test a == 1
         end
         @testset "do work" begin
             a = 0
-            pipe = Pipeline()
-            put!(pipe) do
+            worker = Worker()
+            put!(worker) do
                 a += 1
             end
-            wait(pipe)
-            close(pipe)
+            wait(worker)
+            close(worker)
             @test a == 1
         end
         @testset "not running" begin
-            pipe = Pipeline()
-            close(pipe)
-            @test_throws ErrorException wait(pipe)
+            worker = Worker()
+            close(worker)
+            @test_throws ErrorException wait(worker)
         end
     end
 end
