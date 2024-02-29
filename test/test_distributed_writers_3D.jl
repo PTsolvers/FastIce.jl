@@ -73,22 +73,22 @@ for backend in backends
         fields = Dict("Fa" => Fa_l, "Fb" => Fb_l)
 
         @testset "Distributed writers 3D" begin
-            @testset "write h5" begin
+            @testset "write/read h5" begin
                 fname = "test_d.h5"
                 (me == 0) && (isfile(fname) && run(`rm $fname`))
                 write_h5(arch, grid_g, fname, fields)
-            end
-            MPI.Barrier(comm)
-            @testset "read h5" begin
-                fname = "test_d.h5"
+                MPI.Barrier(comm)
+
                 Fa_v = zeros(size(grid_l))
                 Fb_v = zeros(size(grid_l))
                 copyto!(Fa_v, interior(Fa_l))
                 copyto!(Fb_v, interior(Fb_l))
                 KernelAbstractions.synchronize(backend)
+
                 gather!(Fa_g, Fa_v, comm)
                 gather!(Fb_g, Fb_v, comm)
                 MPI.Barrier(comm)
+
                 if me == 0
                     @test all(Fa_g .== h5read(fname, "Fa"))
                     @test all(Fb_g .== h5read(fname, "Fb"))
@@ -96,16 +96,12 @@ for backend in backends
                 end
             end
             MPI.Barrier(comm)
-            @testset "write xdmf3" begin
+            @testset "write/read xdmf3" begin
                 if me == 0
                     fname = "test_d.xdmf3"
                     isfile(fname) && run(`rm $fname`)
                     write_xdmf(arch, grid_g, fname, fields, "test_d.h5")
-                end
-            end
-            @testset "read xdmf3" begin
-                if me == 0
-                    fname = "test_d.xdmf3"
+
                     @test XML_ref == string(parse_file(fname))
                     isfile(fname) && run(`rm $fname`)
                 end
