@@ -141,6 +141,14 @@ Base.@propagate_inbounds ∂(f::AbstractField, I, dim, ::Center) = ∂ᵛ(f, I, 
 LinearAlgebra.norm(f::Field) = LinearAlgebra.norm(interior(f))
 LinearAlgebra.norm(f::Field, p::Real) = LinearAlgebra.norm(interior(f), p)
 
+function Base.show(io::IO, ::MIME"text/plain", field::Field{T,N,L}) where {T,N,L}
+    print(io, "$(N)D $(join(size(field), "×")) Field{$T}\n")
+end
+
+function Base.show(io::IO, field::Field{T,N,L}) where {T,N,L}
+    print(io, "$(N)D $(join(size(field), "×")) Field{$T}")
+end
+
 include("function_field.jl")
 
 include("constant_field.jl")
