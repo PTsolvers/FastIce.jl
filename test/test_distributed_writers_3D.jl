@@ -73,11 +73,12 @@ for backend in backends
         fields = Dict("Fa" => Fa_l, "Fb" => Fb_l)
 
         @testset "Distributed writers 3D" begin
-            @testset "write_h5" begin
+            @testset "write h5" begin
                 fname = "test_d.h5"
                 (me == 0) && (isfile(fname) && run(`rm $fname`))
                 write_h5(arch, grid_g, fname, fields)
-                MPI.Barrier(comm)
+            end
+            @testset "read h5" begin
                 Fa_v = zeros(size(grid_l))
                 Fb_v = zeros(size(grid_l))
                 copyto!(Fa_v, interior(Fa_l))
@@ -91,11 +92,13 @@ for backend in backends
                     isfile(fname) && run(`rm $fname`)
                 end
             end
-            @testset "write_xdmf3" begin
+            @testset "write xdmf3" begin
                 if me == 0
                     fname = "test_d.xdmf3"
                     isfile(fname) && run(`rm $fname`)
                     write_xdmf(arch, grid_g, fname, fields, "test_d.h5")
+                end
+                @testset "read xdmf3" begin
                     @test XML_ref == string(parse_file(fname))
                     isfile(fname) && run(`rm $fname`)
                 end
