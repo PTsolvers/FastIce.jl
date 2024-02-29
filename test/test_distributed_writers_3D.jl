@@ -77,6 +77,7 @@ for backend in backends
                 fname = "test_d.h5"
                 (me == 0) && (isfile(fname) && run(`rm $fname`))
                 write_h5(arch, grid_g, fname, fields)
+                @info "here 1 me=$me"
             end
             @testset "read h5" begin
                 fname = "test_d.h5"
@@ -85,19 +86,24 @@ for backend in backends
                 copyto!(Fa_v, interior(Fa_l))
                 copyto!(Fb_v, interior(Fb_l))
                 KernelAbstractions.synchronize(backend)
+                @info "here 2 me=$me"
                 gather!(Fa_g, Fa_v, comm)
                 gather!(Fb_g, Fb_v, comm)
+                @info "here 3 me=$me"
                 if me == 0
                     @test all(Fa_g .== h5read(fname, "Fa"))
                     @test all(Fb_g .== h5read(fname, "Fb"))
                     isfile(fname) && run(`rm $fname`)
+                    @info "here 4 me=$me"
                 end
             end
+            @info "here 5 me=$me"
             @testset "write xdmf3" begin
                 if me == 0
                     fname = "test_d.xdmf3"
                     isfile(fname) && run(`rm $fname`)
                     write_xdmf(arch, grid_g, fname, fields, "test_d.h5")
+                    @info "here 6 me=$me"
                 end
             end
             @testset "read xdmf3" begin
@@ -105,6 +111,7 @@ for backend in backends
                     fname = "test_d.xdmf3"
                     @test XML_ref == string(parse_file(fname))
                     isfile(fname) && run(`rm $fname`)
+                    @info "here 7 me=$me"
                 end
             end
         end
