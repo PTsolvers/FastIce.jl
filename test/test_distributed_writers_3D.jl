@@ -79,6 +79,7 @@ for backend in backends
                 write_h5(arch, grid_g, fname, fields)
             end
             @testset "read h5" begin
+                fname = "test_d.h5"
                 Fa_v = zeros(size(grid_l))
                 Fb_v = zeros(size(grid_l))
                 copyto!(Fa_v, interior(Fa_l))
@@ -98,7 +99,10 @@ for backend in backends
                     isfile(fname) && run(`rm $fname`)
                     write_xdmf(arch, grid_g, fname, fields, "test_d.h5")
                 end
-                @testset "read xdmf3" begin
+            end
+            @testset "read xdmf3" begin
+                if me == 0
+                    fname = "test_d.xdmf3"
                     @test XML_ref == string(parse_file(fname))
                     isfile(fname) && run(`rm $fname`)
                 end
