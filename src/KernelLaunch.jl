@@ -23,7 +23,7 @@ Either `worksize` or `location` must be provided as keyword arguments.
 - `hide_boundaries[=nothing]`: instance of `HideBoundaries`, that will be used to overlap boundary processing with computations at inner points of the domain.
 - `outer_width[=nothing]`: if `hide_boundaries` is specified, used to determine the decomposition of the domain into inner and outer regions.
 - `boundary_conditions[=nothing]`: a tuple of boundary condition batches for each side of every spatial direction.
-- `async[=true]`: if set to `false`, will block the host until the kernel is finished executing.
+- `async[=false]`: if set to `true`, will return immediately, without waiting on the kernel execution to finish.
 """
 function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
                  worksize=nothing,
@@ -32,8 +32,7 @@ function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
                  expand=nothing,
                  boundary_conditions=nothing,
                  hide_boundaries=nothing,
-                 outer_width=nothing,
-                 async=true) where {K,Args}
+                 async=false) where {K,Args}
     fun, args = kernel
 
     if isnothing(location) && isnothing(worksize)
@@ -63,7 +62,7 @@ function launch!(arch::Architecture, grid::CartesianGrid, kernel::Pair{K,Args};
         fun(backend(arch), groupsize, worksize)(args..., offset)
         isnothing(boundary_conditions) || apply_all_boundary_conditions!(arch, grid, boundary_conditions)
     else
-        hide(hide_boundaries, arch, grid, boundary_conditions, worksize; outer_width) do indices
+        hide(hide_boundaries, arch, grid, boundary_conditions, worksize) do indices
             sub_offset, ndrange = first(indices) - oneunit(first(indices)), size(indices)
             if !isnothing(offset)
                 sub_offset += offset

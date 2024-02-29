@@ -26,6 +26,7 @@ import FastIce.BoundaryConditions: apply_boundary_conditions!
 
 using MPI
 using KernelAbstractions
+import ImplicitGlobalGrid
 
 "Trait structure used as a type parameter to indicate that the Architecture is a distributed MPI Architecture."
 struct DistributedMPI end

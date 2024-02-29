@@ -10,4 +10,4 @@
 # CPU_BIND="map_cpu:49,57,17,25,1,9,33,41"
 CPU_BIND="map_cpu:49,17,1,33"
 
-srun --cpu-bind=${CPU_BIND} ./profileme.sh
+srun --cpu-bind=${CPU_BIND} ./runme.sh

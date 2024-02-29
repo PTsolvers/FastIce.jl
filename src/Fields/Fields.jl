@@ -4,6 +4,7 @@ export AbstractField
 export Field, interior
 export FunctionField
 export location, data, halo, set!
+export ConstantField, ZeroField, OneField
 
 using FastIce.Grids
 using FastIce.GridOperators
@@ -149,5 +150,7 @@ function Base.show(io::IO, field::Field{T,N,L}) where {T,N,L}
 end
 
 include("function_field.jl")
+
+include("constant_field.jl")
 
 end

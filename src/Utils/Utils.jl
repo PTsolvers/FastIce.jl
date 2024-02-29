@@ -2,13 +2,13 @@ module Utils
 
 export remove_dim, insert_dim
 export split_ndrange
-export Pipeline
+export Worker
 
 using FastIce.Fields
 using FastIce.Architectures
 using KernelAbstractions
 
-include("pipelines.jl")
+include("workers.jl")
 include("split_ndrange.jl")
 
 # Returns a copy of the tuple `A` with element in position `D` removed
