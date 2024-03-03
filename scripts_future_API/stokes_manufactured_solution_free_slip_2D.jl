@@ -61,14 +61,14 @@ vy(x, y) = -cos(π * x) * sin(π * y)
                y=FunctionField(ρgy, grid, yface; parameters=η0))
 
     # numerics
-    niter  = 10maximum(size(grid))
-    ncheck = maximum(size(grid))
+    niter  = 10maximum(size(grid, Center()))
+    ncheck = maximum(size(grid, Center()))
 
     # PT params
     r       = 0.7
     re_mech = 8π
-    lτ_re_m = minimum(extent(grid)) / re_mech
-    vdτ     = minimum(spacing(grid)) / sqrt(ndims(grid) * 1.1)
+    lτ_re_m = minimum(extent(grid, Vertex())) / re_mech
+    vdτ     = minimum(spacing(grid, Center(), 1, 1)) / sqrt(ndims(grid) * 1.1)
     θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
     dτ_r    = 1.0 / (θ_dτ + 1.0)
     nudτ    = vdτ * lτ_re_m
