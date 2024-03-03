@@ -2,10 +2,10 @@ module LevelSets
 
 export compute_level_set_from_dem!
 
-using FastIce
-using FastIce.Grids
-using FastIce.Architectures
-using FastIce.Fields
+using Chmy
+using Chmy.Grids
+using Chmy.Architectures
+using Chmy.Fields
 using KernelAbstractions
 using LinearAlgebra, GeometryBasics
 

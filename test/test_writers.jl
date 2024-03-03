@@ -1,8 +1,8 @@
 include("common.jl")
 
-using FastIce.Architectures
-using FastIce.Fields
-using FastIce.Grids
+using Chmy.Architectures
+using Chmy.Fields
+using Chmy.Grids
 using FastIce.Writers
 
 using HDF5
@@ -38,7 +38,7 @@ grid = CartesianGrid(; origin=(-0.4, -0.5, 0.0),
 
 for backend in backends
     @testset "$(basename(@__FILE__)) (backend: $backend)" begin
-        arch = Architecture(backend)
+        arch = Arch(backend)
 
         Fa = Field(backend, grid, Center())
         Fb = Field(backend, grid, Center())

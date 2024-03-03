@@ -1,14 +1,15 @@
 using Printf
 
-using FastIce
-using FastIce.Architectures
-using FastIce.Grids
-using FastIce.Fields
-using FastIce.Utils
-using FastIce.BoundaryConditions
+using Chmy
+using Chmy.Architectures
+using Chmy.Grids
+using Chmy.Fields
+using Chmy.Utils
+using Chmy.BoundaryConditions
+using Chmy.Physics
+using Chmy.KernelLaunch
+
 using FastIce.Models.FullStokes.Isothermal
-using FastIce.Physics
-using FastIce.KernelLaunch
 
 const VBC = BoundaryCondition{Velocity}
 const TBC = BoundaryCondition{Traction}

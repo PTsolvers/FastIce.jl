@@ -5,6 +5,7 @@ version = "0.2.0"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+Chmy = "33a72cf0-4690-46d7-b987-06506c2248b9"
 ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
 GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
@@ -18,18 +19,8 @@ OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 Preferences = "21216c6a-2e73-6563-6e65-726566657250"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
-[weakdeps]
-AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-
-[extensions]
-FastIceAMDGPUExt = "AMDGPU"
-FastIceCUDAExt = "CUDA"
-
 [compat]
-AMDGPU = "0.8"
 Adapt = "4"
-CUDA = "5"
 ElasticArrays = "1"
 GeometryBasics = "0.4"
 HDF5 = "0.17"
