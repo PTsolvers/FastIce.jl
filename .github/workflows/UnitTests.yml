@@ -59,8 +59,19 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - uses: julia-actions/julia-buildpkg@latest
-      - uses: julia-actions/julia-runtest@latest
+      # --- legacy testing
+      # - uses: julia-actions/julia-buildpkg@latest
+      # - uses: julia-actions/julia-runtest@latest
+      # --- testing with un-registered Chmy.jl
+      - name: run tests
+        run: |
+          julia -e 'println("--- :julia: Instantiating project")
+                    using Pkg
+                    Pkg.add("https://github.com/PTsolvers/Chmy.jl")'
+          julia -e 'println("+++ :julia: Running tests")
+                    using Pkg
+                    Pkg.test("FastIce"; coverage=true)'
+      # codecov
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v4
         with:
