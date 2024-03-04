@@ -51,7 +51,7 @@ end
     return ud, sign_triangle(P, T_BL...)
 end
 
-Base.clamp(p::NTuple{N}, grid::CartesianGrid{N}) where {N} = clamp.(p, Grids.origin(grid), Grids.origin(grid) .+ extent(grid))
+Base.clamp(p::NTuple{N}, grid::StructuredGrid{N}) where {N} = clamp.(p, Grids.origin(grid), Grids.origin(grid) .+ extent(grid))
 
 function sd_dem(P, cutoff, dem, grid)
     @inbounds Pp = clamp((P[1], P[2]), grid)
