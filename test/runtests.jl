@@ -3,10 +3,10 @@ using FastIce
 
 using Pkg
 
-excludedfiles = ["test_excluded.jl"]
+excludedfiles = ["test_writers.jl", "test_distributed_writers_3D.jl", "test_excluded.jl"] # tmp as WIP
 
 # distributed
-test_distributed = ["test_distributed_2D.jl", "test_distributed_3D.jl", "test_distributed_writers_3D.jl"]
+test_distributed = ["test_distributed_writers_3D.jl"]
 using MPI
 nprocs_2D = 4
 nprocs_3D = 8

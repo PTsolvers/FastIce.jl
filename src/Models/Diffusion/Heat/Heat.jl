@@ -8,6 +8,7 @@ using Chmy.Grids
 using Chmy.Fields
 using Chmy.BoundaryConditions
 using Chmy.KernelLaunch
+using Chmy.GridOperators
 
 include("kernels.jl")
 include("boundary_conditions.jl")

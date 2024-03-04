@@ -11,7 +11,7 @@ end
 
 Compute a level set from a given dem.
 """
-function compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid::CartesianGrid, Ψ_grid::CartesianGrid,
+function compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid::StructuredGrid, Ψ_grid::StructuredGrid,
                                      R=LinearAlgebra.I)
     cutoff = 4maximum(spacing(Ψ_grid))
     kernel = _init_level_set!(backend(arch), 256, size(Ψ))
