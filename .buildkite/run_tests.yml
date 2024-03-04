@@ -1,3 +1,4 @@
+# DEBUG: until registered, Chmy.jl needs to be explicitly added in "command:" steps
 steps:
   - label: "CUDA Julia {{matrix.version}}"
     matrix:

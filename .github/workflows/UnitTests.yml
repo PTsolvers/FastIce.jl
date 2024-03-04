@@ -1,3 +1,4 @@
+# DEBUG: until registered, Chmy.jl needs to be explicitly added in "Run tests" (instead of using "legacy testing")
 name: Unit Tests
 on:
   push:
