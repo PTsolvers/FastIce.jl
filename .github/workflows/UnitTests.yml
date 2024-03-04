@@ -69,6 +69,7 @@ jobs:
                     using Pkg
                     Pkg.add(url="https://github.com/PTsolvers/Chmy.jl")
                     Pkg.develop(; path=pwd())'
+
           julia -e 'println("+++ :julia: Running tests")
                     using Pkg
                     Pkg.test("FastIce"; coverage=true)'
