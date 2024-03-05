@@ -19,7 +19,7 @@ Compute level sets from dem.
 """
 function compute_level_set_from_dem!(backend, Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, R=LinearAlgebra.I)
     kernel = init_level_set!(backend, 256, size(Ψ))
-    cutoff = 4maximum(spacing(Ψ_grid, Center(), 1, 1, 1))
+    cutoff = 4maximum(spacing(Ψ_grid, Center()))
     kernel(Ψ, dem, dem_grid, Ψ_grid, cutoff, R)
     return
 end
