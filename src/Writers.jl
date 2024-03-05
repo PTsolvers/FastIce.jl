@@ -28,7 +28,7 @@ function write_h5(arch::DistributedArchitecture, grid::UniformGrid, path, fields
     HDF5.has_parallel() || @warn("HDF5 has no parallel support.")
     topo = topology(arch)
     comm = cart_comm(topo)
-    coords = Distributed.coords(topo)
+    coords = cart_coords(topo)
     sz = size(grid, Center())
     global_grid_size = dims(topo) .* sz
     c1 = coords .* sz .+ 1 |> CartesianIndex
