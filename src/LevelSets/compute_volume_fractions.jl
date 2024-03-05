@@ -139,4 +139,5 @@ include("volume_fractions_kernels.jl")
 function compute_volume_fractions_from_level_set!(backend::Backend, wt, Ψ, grid::UniformGrid)
     kernel = kernel_compute_volume_fractions_from_level_set!(backend, 256, size(Ψ))
     kernel(wt, Ψ, grid)
+    return
 end

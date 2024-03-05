@@ -1,5 +1,5 @@
 """
-    _init_level_set!(Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, cutoff::AbstractFloat, R::AbstractMatrix)
+    init_level_set!(Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, cutoff, R)
 
 Initialize level sets.
 """
@@ -10,7 +10,6 @@ Initialize level sets.
     ud, sgn = sd_dem(P, cutoff, dem, dem_grid)
     Ψ[I...] = ud * sgn
 end
-
 
 """
     compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, R=LinearAlgebra.I)

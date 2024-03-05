@@ -1,10 +1,13 @@
-using CUDA
-using JLD2
-using FastIce.LevelSets
+using Chmy.Architectures
 using Chmy.Grids
 using Chmy.Fields
-using Chmy.Architectures
+
+using FastIce.LevelSets
+
 using KernelAbstractions
+
+using CUDA
+using JLD2
 
 # Data
 # vavilov_path = "../data/vavilov.jld2"
@@ -21,7 +24,7 @@ arch = Arch(backend)
 """
     load_dem(backend, arch::Architecture, path::String)
 
-Load digital elevation map of surface and bedrock from (jld2) file, set dimensions of simulation, 
+Load digital elevation map of surface and bedrock from (jld2) file, set dimensions of simulation,
 initiate grids, copy data on gpu.
 """
 function load_dem(backend, arch::Architecture, path::String)
@@ -50,7 +53,7 @@ end
 """
     load_synth_dem(backend, arch::Architecture, synthetic_data::String)
 
-Load digital elevation map of surface and bedrock from (jld2) file, set dimensions of simulation, 
+Load digital elevation map of surface and bedrock from (jld2) file, set dimensions of simulation,
 initiate grids, copy data on gpu.
 """
 function load_synth_dem(backend, arch::Architecture, synthetic_data::String)

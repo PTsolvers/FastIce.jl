@@ -3,7 +3,6 @@ export sd_dem
 @inline S(x) = x == zero(x) ? oneunit(x) : sign(x)
 sign_triangle(p, a, b, c) = S(dot(p - a, cross(b - a, c - a)))
 
-
 @inline function ud_triangle(p, a, b, c)
     dot2(v) = dot(v, v)
     ba = b - a
@@ -13,19 +12,16 @@ sign_triangle(p, a, b, c) = S(dot(p - a, cross(b - a, c - a)))
     ac = a - c
     pc = p - c
     nor = cross(ba, ac)
-    return sqrt(
-        (sign(dot(cross(ba, nor), pa)) +
-         sign(dot(cross(cb, nor), pb)) +
-         sign(dot(cross(ac, nor), pc)) < 2)
-        ?
-        min(
-            dot2(ba * clamp(dot(ba, pa) / dot2(ba), 0, 1) - pa),
-            dot2(cb * clamp(dot(cb, pb) / dot2(cb), 0, 1) - pb),
-            dot2(ac * clamp(dot(ac, pc) / dot2(ac), 0, 1) - pc))
-        :
-        dot(nor, pa) * dot(nor, pa) / dot2(nor))
+    return sqrt((sign(dot(cross(ba, nor), pa)) +
+                 sign(dot(cross(cb, nor), pb)) +
+                 sign(dot(cross(ac, nor), pc)) < 2)
+                ?
+                min(dot2(ba * clamp(dot(ba, pa) / dot2(ba), 0, 1) - pa),
+                    dot2(cb * clamp(dot(cb, pb) / dot2(cb), 0, 1) - pb),
+                    dot2(ac * clamp(dot(ac, pc) / dot2(ac), 0, 1) - pc))
+                :
+                dot(nor, pa) * dot(nor, pa) / dot2(nor))
 end
-
 
 @inline function closest_vertex_index(P, grid)
     Δs = spacing(grid, Vertex(), 1, 1)
@@ -37,10 +33,8 @@ end
     return clamp.(I, I1, I2) |> CartesianIndex
 end
 
-
 @inline inc(I, dim) = Base.setindex(I, I[dim] + 1, dim)
 @inline inc(I) = I + oneunit(I)
-
 
 @inline function triangle_pair(Iv, dem, grid)
     @inline function sample_dem(I)
@@ -52,16 +46,15 @@ end
     return T_BL, T_TR
 end
 
-
 @inline function distance_to_triangle_pair(P, Iv, dem, grid)
     T_BL, T_TR = triangle_pair(Iv, dem, grid)
     ud = min(ud_triangle(P, T_BL...), ud_triangle(P, T_TR...))
     return ud, sign_triangle(P, T_BL...)
 end
 
-
-Base.clamp(p::NTuple{N}, grid::UniformGrid{N}) where {N} = clamp.(p, Grids.origin(grid, Vertex()), Grids.origin(grid, Vertex()) .+ extent(grid, Vertex()))
-
+function Base.clamp(p::NTuple{N}, grid::UniformGrid{N}) where {N}
+    clamp.(p, Grids.origin(grid, Vertex()), Grids.origin(grid, Vertex()) .+ extent(grid, Vertex()))
+end
 
 function sd_dem(P, cutoff, dem, grid)
     @inbounds Pp = clamp((P[1], P[2]), grid)
@@ -78,4 +71,3 @@ function sd_dem(P, cutoff, dem, grid)
     end
     return ud, sgn
 end
-
