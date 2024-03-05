@@ -1,24 +1,25 @@
 """
-    _init_level_set!(Ψ::Field, dem::Field, dem_grid::CartesianGrid, Ψ_grid::CartesianGrid, cutoff::AbstractFloat, R::AbstractMatrix)
+    _init_level_set!(Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, cutoff::AbstractFloat, R::AbstractMatrix)
 
 Initialize level sets.
 """
-@kernel function _init_level_set!(Ψ::Field, dem::Field, dem_grid::CartesianGrid, Ψ_grid::CartesianGrid, cutoff, R)
-    I = @index(Global, Cartesian)
-    x, y, z = coord(Ψ_grid, location(Ψ), I)
+@kernel function init_level_set!(Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, cutoff, R)
+    I = @index(Global, NTuple)
+    x, y, z = coord(Ψ_grid, location(Ψ), I...)
     P = R * Point3(x, y, z)
     ud, sgn = sd_dem(P, cutoff, dem, dem_grid)
-    Ψ[I] = ud * sgn
+    Ψ[I...] = ud * sgn
 end
 
+
 """
-    compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid::CartesianGrid, Ψ_grid::CartesianGrid, R=LinearAlgebra.I)
+    compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, R=LinearAlgebra.I)
 
 Compute level sets from dem.
 """
-function compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid::CartesianGrid, Ψ_grid::CartesianGrid, R=LinearAlgebra.I)
-    cutoff = 4maximum(spacing(Ψ_grid))
-    kernel = _init_level_set!(backend(arch), 256, size(Ψ))
+function compute_level_set_from_dem!(backend, Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, R=LinearAlgebra.I)
+    kernel = init_level_set!(backend, 256, size(Ψ))
+    cutoff = 4maximum(spacing(Ψ_grid, Center()))
     kernel(Ψ, dem, dem_grid, Ψ_grid, cutoff, R)
     return
 end

@@ -1,8 +1,8 @@
 include("common.jl")
 
-using FastIce.Architectures
-using FastIce.Fields
-using FastIce.Grids
+using Chmy.Architectures
+using Chmy.Fields
+using Chmy.Grids
 using FastIce.Writers
 
 using HDF5
@@ -32,13 +32,10 @@ XML_ref = """
 </Xdmf>
 """
 
-grid = CartesianGrid(; origin=(-0.4, -0.5, 0.0),
-                     extent=(1.0, 1.1, 1.2),
-                     size=(4, 5, 6))
-
 for backend in backends
     @testset "$(basename(@__FILE__)) (backend: $backend)" begin
-        arch = Architecture(backend)
+        arch = Arch(backend)
+        grid = UniformGrid(arch; origin=(-0.4, -0.5, 0.0), extent=(1.0, 1.1, 1.2), dims=(4, 5, 6))
 
         Fa = Field(backend, grid, Center())
         Fb = Field(backend, grid, Center())

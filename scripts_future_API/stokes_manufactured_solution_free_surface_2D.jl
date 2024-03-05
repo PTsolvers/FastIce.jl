@@ -1,14 +1,15 @@
 using Printf
 
-using FastIce
-using FastIce.Architectures
-using FastIce.Grids
-using FastIce.Fields
-using FastIce.Utils
-using FastIce.BoundaryConditions
+using Chmy
+using Chmy.Architectures
+using Chmy.Grids
+using Chmy.Fields
+using Chmy.Utils
+using Chmy.BoundaryConditions
+using Chmy.Physics
+using Chmy.KernelLaunch
+
 using FastIce.Models.FullStokes.Isothermal
-using FastIce.Physics
-using FastIce.KernelLaunch
 
 const VBC = BoundaryCondition{Velocity}
 const TBC = BoundaryCondition{Traction}
@@ -38,7 +39,7 @@ vy(x, y) = -cos(0.5π * x) * sin(0.5π * y)
 
 @views function run(dims)
     backend = CPU()
-    arch = Architecture(backend, 2)
+    arch = Arch(backend)
     set_device!(arch)
 
     # physics
@@ -48,7 +49,7 @@ vy(x, y) = -cos(0.5π * x) * sin(0.5π * y)
     # geometry
     grid = CartesianGrid(; origin=(0.0, 0.0),
                          extent=(1.0, 1.0),
-                         size=dims)
+                         dims)
 
     free_slip = SBC(0.0, 0.0)
     free_surf = TBC(0.0, 0.0)
@@ -68,8 +69,8 @@ vy(x, y) = -cos(0.5π * x) * sin(0.5π * y)
     # PT params
     r       = 0.75
     re_mech = 2π
-    lτ_re_m = minimum(extent(grid)) / re_mech
-    vdτ     = minimum(spacing(grid)) / sqrt(ndims(grid))
+    lτ_re_m = minimum(extent(grid, Vertex())) / re_mech
+    vdτ     = minimum(spacing(grid, Center(), 1, 1)) / sqrt(ndims(grid))
     θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
     dτ_r    = 1.0 / (θ_dτ + 1.0)
     nudτ    = vdτ * lτ_re_m

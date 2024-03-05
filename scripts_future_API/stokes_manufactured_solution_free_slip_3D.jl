@@ -1,14 +1,15 @@
 using Printf
 
-using FastIce
-using FastIce.Architectures
-using FastIce.Grids
-using FastIce.Fields
-using FastIce.Utils
-using FastIce.BoundaryConditions
+using Chmy
+using Chmy.Architectures
+using Chmy.Grids
+using Chmy.Fields
+using Chmy.Utils
+using Chmy.BoundaryConditions
+using Chmy.Physics
+using Chmy.KernelLaunch
+
 using FastIce.Models.FullStokes.Isothermal
-using FastIce.Physics
-using FastIce.KernelLaunch
 
 const VBC = BoundaryCondition{Velocity}
 const TBC = BoundaryCondition{Traction}
@@ -56,7 +57,7 @@ vz(x, y, z) = sin(π * z) * f(x, y)
 
 @views function run(dims)
     backend = CUDABackend()
-    arch = Architecture(backend, 1)
+    arch = Arch(backend)
     set_device!(arch)
 
     # outer_width = (4, 4, 4)
@@ -66,9 +67,9 @@ vz(x, y, z) = sin(π * z) * f(x, y)
     A0 = 0.5
 
     # geometry
-    grid = CartesianGrid(; origin=(-1.0, -1.0, -1.0),
-                         extent=(2.0, 2.0, 2.0),
-                         size=dims)
+    grid = UniformGrid(; origin=(-1.0, -1.0, -1.0),
+                       extent=(2.0, 2.0, 2.0),
+                       dims)
 
     free_slip = SBC(0.0, 0.0, 0.0)
     xface = (Vertex(), Center(), Center())
@@ -84,14 +85,14 @@ vz(x, y, z) = sin(π * z) * f(x, y)
                z=FunctionField(ρgz, grid, zface; parameters=η0))
 
     # numerics
-    niter  = 10maximum(size(grid))
-    ncheck = maximum(size(grid))
+    niter  = 10maximum(size(grid, Center()))
+    ncheck = maximum(size(grid, Center()))
 
     # PT params
     r       = 0.7
     re_mech = 8π
-    lτ_re_m = minimum(extent(grid)) / re_mech
-    vdτ     = minimum(spacing(grid)) / sqrt(ndims(grid) * 1.1)
+    lτ_re_m = minimum(extent(grid, Vertex())) / re_mech
+    vdτ     = minimum(spacing(grid, Center(), 1, 1)) / sqrt(ndims(grid) * 1.1)
     θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
     dτ_r    = 1.0 / (θ_dτ + 1.0)
     nudτ    = vdτ * lτ_re_m
@@ -116,10 +117,10 @@ vz(x, y, z) = sin(π * z) * f(x, y)
     set!(model.viscosity.η, 1.0)
     set!(model.viscosity.η_next, 1.0)
 
-    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.stress)
-    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.velocity)
-    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.viscosity.η)
-    KernelLaunch.apply_all_boundary_conditions!(arch, grid, model.boundary_conditions.viscosity.η_next)
+    bc!(arch, grid, model.boundary_conditions.stress)
+    bc!(arch, grid, model.boundary_conditions.velocity)
+    bc!(arch, grid, model.boundary_conditions.viscosity.η)
+    bc!(arch, grid, model.boundary_conditions.viscosity.η_next)
 
     for iter in 1:niter
         advance_iteration!(model, 0.0, 1.0)

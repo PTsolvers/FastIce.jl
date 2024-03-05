@@ -1,8 +1,6 @@
 [deps]
-CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+Chmy = "33a72cf0-4690-46d7-b987-06506c2248b9"
 FastIce = "e0de9f13-a007-490e-b696-b07d031015ca"
-FastIceTools = "14532042-4700-46e0-8dec-55d517bc1ae0"
-FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
