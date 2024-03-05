@@ -3,7 +3,7 @@ using FastIce
 
 using Pkg
 
-excludedfiles = ["test_writers.jl", "test_distributed_writers_3D.jl", "test_excluded.jl"] # tmp as WIP
+excludedfiles = ["test_excluded.jl"] # tmp as WIP
 
 # distributed
 test_distributed = ["test_distributed_writers_3D.jl"]

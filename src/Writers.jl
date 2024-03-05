@@ -16,25 +16,26 @@ using MPI
 
 Write output `fields` in HDF5 format to a file on `path` for global `grid`.
 """
-function write_h5(::Architecture, grid::StructuredGrid, path, fields)
-    I = CartesianIndices(size(grid))
+function write_h5(::Architecture, grid::UniformGrid, path, fields)
+    I = CartesianIndices(size(grid, Center()))
     h5open(path, "w") do io
-        write_dset(io, fields, size(grid), I.indices)
+        write_dset(io, fields, size(grid, Center()), I.indices)
     end
     return
 end
 
-function write_h5(arch::DistributedArchitecture, grid::StructuredGrid, path, fields)
+function write_h5(arch::DistributedArchitecture, grid::UniformGrid, path, fields)
     HDF5.has_parallel() || @warn("HDF5 has no parallel support.")
     topo = topology(arch)
-    comm = cartesian_communicator(topo)
-    coords = coordinates(topo)
-    sz = size(local_grid(grid, topo))
+    comm = cart_comm(topo)
+    coords = cart_coords(topo)
+    sz = size(grid, Center())
+    global_grid_size = dims(topo) .* sz
     c1 = coords .* sz .+ 1 |> CartesianIndex
     c2 = (coords .+ 1) .* sz |> CartesianIndex
     I = c1:c2
     h5open(path, "w", comm, MPI.Info()) do io
-        write_dset(io, fields, size(grid), I.indices)
+        write_dset(io, fields, global_grid_size, I.indices)
     end
     return
 end
@@ -53,10 +54,10 @@ end
 Write Xdmf metadata to `path` for corresponding `h5_names` and `fields` for global `grid`.
 Saving time-dependant data can be achieved upon passing a vector to `h5_names` and `timesteps`.
 """
-function write_xdmf(arch::Architecture, grid::StructuredGrid, path, fields, h5_names, timesteps=Float64(0.0))
-    grid_size = size(grid)
+function write_xdmf(::Architecture, grid::UniformGrid, path, fields, h5_names, timesteps=Float64(0.0))
+    grid_size = size(grid, Center())
     grid_spacing = spacing(grid)
-    grid_origin = origin(grid)
+    grid_origin = origin(grid, Center())
 
     xdoc = generate_xdmf(grid_size, grid_spacing, grid_origin, fields, h5_names, timesteps)
 
@@ -64,13 +65,13 @@ function write_xdmf(arch::Architecture, grid::StructuredGrid, path, fields, h5_n
     return
 end
 
-function write_xdmf(arch::DistributedArchitecture, grid::StructuredGrid, path, fields, h5_names, timesteps=Float64(0.0))
+function write_xdmf(arch::DistributedArchitecture, grid::UniformGrid, path, fields, h5_names, timesteps=Float64(0.0))
     topo = topology(arch)
-    grid_size = size(grid)
+    global_grid_size = dims(topo) .* size(grid, Center())
     grid_spacing = spacing(grid)
-    grid_origin = origin(local_grid(grid, topo))
+    grid_origin = origin(grid, Center())
 
-    xdoc = generate_xdmf(grid_size, grid_spacing, grid_origin, fields, h5_names, timesteps)
+    xdoc = generate_xdmf(global_grid_size, grid_spacing, grid_origin, fields, h5_names, timesteps)
 
     save_file(xdoc, path)
     return
@@ -102,7 +103,7 @@ function generate_xdmf(grid_size, grid_spacing, grid_origin, fields, h5_names, t
         xorig = new_child(xgeom, "DataItem")
         set_attribute(xorig, "Format", "XML")
         set_attribute(xorig, "NumberType", "Float")
-        set_attribute(xorig, "Dimensions", "$(length(grid_size)) ")
+        set_attribute(xorig, "Dimensions", "$(length(grid_size))")
         add_text(xorig, join(reverse(grid_origin), ' '))
 
         xdr = new_child(xgeom, "DataItem")
@@ -112,6 +113,8 @@ function generate_xdmf(grid_size, grid_spacing, grid_origin, fields, h5_names, t
         add_text(xdr, join(reverse(grid_spacing), ' '))
 
         h5_path = h5_names[it]
+        @assert endswith(h5_path, ".h5")
+
         for (name, _) in fields
             create_xdmf_attribute(xgrid, h5_path, name, grid_size)
         end
