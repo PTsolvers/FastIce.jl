@@ -3,6 +3,7 @@ include("common.jl")
 using Chmy.Architectures
 using Chmy.Fields
 using Chmy.Grids
+
 using FastIce.Writers
 
 using HDF5
@@ -17,20 +18,23 @@ XML_ref = """
         <Topology TopologyType="3DCoRectMesh" Dimensions="7 6 5"/>
         <Time Value="0.0"/>
         <Geometry GeometryType="ORIGIN_DXDYDZ">
-          <DataItem Format="XML" NumberType="Float" Dimensions="3 ">0.0 -0.5 -0.4</DataItem>
+          <DataItem Format="XML" NumberType="Float" Dimensions="3">0.09999999999999999 -0.39 -0.275</DataItem>
           <DataItem Format="XML" NumberType="Float" Dimensions="3">0.19999999999999998 0.22000000000000003 0.25</DataItem>
         </Geometry>
         <Attribute Name="Fa" Center="Cell">
-          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="6 5 4">t:/Fa</DataItem>
+          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="6 5 4">test.h5:/Fa</DataItem>
         </Attribute>
         <Attribute Name="Fb" Center="Cell">
-          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="6 5 4">t:/Fb</DataItem>
+          <DataItem Format="HDF" NumberType="Float" Precision="8" Dimensions="6 5 4">test.h5:/Fb</DataItem>
         </Attribute>
       </Grid>
     </Grid>
   </Domain>
 </Xdmf>
 """
+
+h5_fname = "test.h5"
+xdmf_fname = "test.xdmf3"
 
 for backend in backends
     @testset "$(basename(@__FILE__)) (backend: $backend)" begin
@@ -47,30 +51,27 @@ for backend in backends
 
         @testset "writers" begin
             @testset "write_dset" begin
-                fname = "test.h5"
-                isfile(fname) && run(`rm $fname`)
-                I = CartesianIndices(size(grid))
-                h5open(fname, "w") do io
-                    FastIce.Writers.write_dset(io, fields, size(grid), I.indices)
+                isfile(h5_fname) && run(`rm $h5_fname`)
+                I = CartesianIndices(size(grid, Center()))
+                h5open(h5_fname, "w") do io
+                    FastIce.Writers.write_dset(io, fields, size(grid, Center()), I.indices)
                 end
-                @test all(Array(interior(Fa)) .== h5read(fname, "Fa"))
-                @test all(Array(interior(Fb)) .== h5read(fname, "Fb"))
-                isfile(fname) && run(`rm $fname`)
+                @test all(Array(interior(Fa)) .== h5read(h5_fname, "Fa"))
+                @test all(Array(interior(Fb)) .== h5read(h5_fname, "Fb"))
+                isfile(h5_fname) && run(`rm $h5_fname`)
             end
             @testset "write_h5" begin
-                fname = "test2.h5"
-                isfile(fname) && run(`rm $fname`)
-                write_h5(arch, grid, fname, fields)
-                @test all(Array(interior(Fa)) .== h5read(fname, "Fa"))
-                @test all(Array(interior(Fb)) .== h5read(fname, "Fb"))
-                isfile(fname) && run(`rm $fname`)
+                isfile(h5_fname) && run(`rm $h5_fname`)
+                write_h5(arch, grid, h5_fname, fields)
+                @test all(Array(interior(Fa)) .== h5read(h5_fname, "Fa"))
+                @test all(Array(interior(Fb)) .== h5read(h5_fname, "Fb"))
+                isfile(h5_fname) && run(`rm $h5_fname`)
             end
             @testset "write_xdmf3" begin
-                fname = "test.xdmf3"
-                isfile(fname) && run(`rm $fname`)
-                write_xdmf(arch, grid, fname, fields, "test.h5")
-                @test XML_ref == string(parse_file(fname))
-                isfile(fname) && run(`rm $fname`)
+                isfile(xdmf_fname) && run(`rm $xdmf_fname`)
+                write_xdmf(arch, grid, xdmf_fname, fields, (h5_fname,))
+                @test XML_ref == string(parse_file(xdmf_fname))
+                isfile(xdmf_fname) && run(`rm $xdmf_fname`)
             end
         end
     end
