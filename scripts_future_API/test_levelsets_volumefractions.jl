@@ -22,12 +22,12 @@ backend = CPU()
 arch = Arch(backend)
 
 """
-    load_dem(backend, arch::Architecture, path::String)
+    load_dem(arch::Architecture, path::String)
 
-Load digital elevation map of surface and bedrock from (jld2) file, set dimensions of simulation,
-initiate grids, copy data on gpu.
+Load digital elevation model of surface and bedrock from (JLD2) file and initialise the grid.
 """
-function load_dem(backend, arch::Architecture, path::String)
+function load_dem(arch::Architecture, path::String)
+    backend = arch.backend
     data = load(path)
     z_surf = data["DataElevation"].z_surf
     z_bed = data["DataElevation"].z_bed
@@ -51,12 +51,12 @@ function load_dem(backend, arch::Architecture, path::String)
 end
 
 """
-    load_synth_dem(backend, arch::Architecture, synthetic_data::String)
+    load_synth_dem(arch::Architecture, synthetic_data::String)
 
-Load digital elevation map of surface and bedrock from (jld2) file, set dimensions of simulation,
-initiate grids, copy data on gpu.
+Load synthetic elevation of surface and bedrock from (JLD2) file and initialise the grid.
 """
-function load_synth_dem(backend, arch::Architecture, synthetic_data::String)
+function load_synth_dem(arch::Architecture, synthetic_data::String)
+    backend = arch.backend
     data = load(synthetic_data)
     z_surf = data["SyntheticElevation"].z_surf
     z_bed = data["SyntheticElevation"].z_bed
@@ -73,19 +73,19 @@ function load_synth_dem(backend, arch::Architecture, synthetic_data::String)
     return dem_surf, dem_bed, dem_grid, Ψ_grid
 end
 
-# dem_surf, dem_bed, dem_grid, Ψ_grid = load_synth_dem(backend, arch, synthetic_data);
-surf_field, bed_field, surf_dem_grid, bed_dem_grid, surf_Ψ_grid, bed_Ψ_grid = load_dem(backend, arch, vavilov_path);
+# dem_surf, dem_bed, dem_grid, Ψ_grid = load_synth_dem(arch, synthetic_data);
+surf_field, bed_field, surf_dem_grid, bed_dem_grid, surf_Ψ_grid, bed_Ψ_grid = load_dem(arch, vavilov_path);
 
 Ψ = (
     na=Field(backend, surf_Ψ_grid, Vertex()),
     ns=Field(backend, bed_Ψ_grid, Vertex()),
 )
 
-compute_level_set_from_dem!(backend, Ψ[1], surf_field, surf_dem_grid, surf_Ψ_grid)
-compute_level_set_from_dem!(backend, Ψ[2], bed_field, bed_dem_grid, bed_Ψ_grid)
+compute_level_set_from_dem!(arch, Ψ[1], surf_field, surf_dem_grid, surf_Ψ_grid)
+compute_level_set_from_dem!(arch, Ψ[2], bed_field, bed_dem_grid, bed_Ψ_grid)
 
 # for phase in eachindex(Ψ)
-#     compute_level_set_from_dem!(backend, Ψ[phase], dem_surf, dem_grid, Ψ_grid)
+#     compute_level_set_from_dem!(arch, Ψ[phase], dem_surf, dem_grid, Ψ_grid)
 # end
 
 wt = (
@@ -93,12 +93,12 @@ wt = (
     ns=volfrac_field(backend, bed_Ψ_grid),
 )
 
-compute_volume_fractions_from_level_set!(backend, wt[1], Ψ[1], surf_Ψ_grid)
-compute_volume_fractions_from_level_set!(backend, wt[2], Ψ[2], bed_Ψ_grid)
+compute_volfrac_from_level_set!(arch, wt[1], Ψ[1], surf_Ψ_grid)
+compute_volfrac_from_level_set!(arch, wt[2], Ψ[2], bed_Ψ_grid)
 
 
 # for phase in eachindex(Ψ)
-#     compute_volume_fractions_from_level_set!(backend, wt[phase], Ψ[phase], Ψ_grid)
+#     compute_volfrac_from_level_set!(arch, wt[phase], Ψ[phase], Ψ_grid)
 # end
 
 # Save
