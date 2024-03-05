@@ -136,8 +136,14 @@ end
 
 include("volume_fractions_kernels.jl")
 
-function compute_volume_fractions_from_level_set!(backend::Backend, wt, Ψ, grid::UniformGrid)
-    kernel = kernel_compute_volume_fractions_from_level_set!(backend, 256, size(Ψ))
+"""
+    compute_volfrac_from_level_set!(arch::Architecture, wt::Field, Ψ::Field, grid::UniformGrid)
+
+Compute volume fractions from level sets.
+"""
+function compute_volfrac_from_level_set!(arch::Architecture, wt::Field, Ψ::Field, grid::UniformGrid)
+    backend = Architectures.get_backend(arch)
+    kernel = compute_volfrac_from_level_set!(backend, 256, size(Ψ))
     kernel(wt, Ψ, grid)
     return
 end

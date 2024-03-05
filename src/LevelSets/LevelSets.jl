@@ -1,9 +1,8 @@
 module LevelSets
 
 export compute_level_set_from_dem!
-export volfrac_field, compute_volume_fractions_from_level_set!
+export volfrac_field, compute_volfrac_from_level_set!
 
-# using Chmy
 using Chmy.Architectures
 using Chmy.Grids
 using Chmy.Fields
