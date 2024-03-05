@@ -1,5 +1,8 @@
+export sd_dem
+
 @inline S(x) = x == zero(x) ? oneunit(x) : sign(x)
-@inline sign_triangle(p, a, b, c) = S(dot(p - a, cross(b - a, c - a)))
+sign_triangle(p, a, b, c) = S(dot(p - a, cross(b - a, c - a)))
+
 
 @inline function ud_triangle(p, a, b, c)
     dot2(v) = dot(v, v)
@@ -23,17 +26,21 @@
         dot(nor, pa) * dot(nor, pa) / dot2(nor))
 end
 
+
 @inline function closest_vertex_index(P, grid)
-    Δ = spacing(grid)
-    O = Grids.origin(grid)
-    I = @. Int(fld(P - O, Δ)) + 1
+    Δs = spacing(grid, Vertex(), 1, 1)
+    O = Grids.origin(grid, Vertex())
+    X = @. fld(P - O, Δs)
+    I = @. Int(X) + 1
     I1 = 1
     I2 = size(grid, Vertex())
     return clamp.(I, I1, I2) |> CartesianIndex
 end
 
+
 @inline inc(I, dim) = Base.setindex(I, I[dim] + 1, dim)
 @inline inc(I) = I + oneunit(I)
+
 
 @inline function triangle_pair(Iv, dem, grid)
     @inline function sample_dem(I)
@@ -45,13 +52,16 @@ end
     return T_BL, T_TR
 end
 
+
 @inline function distance_to_triangle_pair(P, Iv, dem, grid)
     T_BL, T_TR = triangle_pair(Iv, dem, grid)
     ud = min(ud_triangle(P, T_BL...), ud_triangle(P, T_TR...))
     return ud, sign_triangle(P, T_BL...)
 end
 
-Base.clamp(p::NTuple{N}, grid::StructuredGrid{N}) where {N} = clamp.(p, Grids.origin(grid), Grids.origin(grid) .+ extent(grid))
+
+Base.clamp(p::NTuple{N}, grid::UniformGrid{N}) where {N} = clamp.(p, Grids.origin(grid, Vertex()), Grids.origin(grid, Vertex()) .+ extent(grid, Vertex()))
+
 
 function sd_dem(P, cutoff, dem, grid)
     @inbounds Pp = clamp((P[1], P[2]), grid)
@@ -68,3 +78,4 @@ function sd_dem(P, cutoff, dem, grid)
     end
     return ud, sgn
 end
+
