@@ -4,7 +4,7 @@ using FastIce.LevelSets
 using Chmy.Grids
 using Chmy.Fields
 using Chmy.Architectures
-
+using KernelAbstractions
 
 # Data
 # vavilov_path = "../data/vavilov.jld2"
@@ -19,12 +19,12 @@ backend = CPU()
 arch = Arch(backend)
 
 """
-    load_dem_on_GPU(backend, arch::Architecture, path::String)
+    load_dem(backend, arch::Architecture, path::String)
 
 Load digital elevation map of surface and bedrock from (jld2) file, set dimensions of simulation, 
 initiate grids, copy data on gpu.
 """
-function load_dem_on_GPU(backend, arch::Architecture, path::String)
+function load_dem(backend, arch::Architecture, path::String)
     data = load(path)
     z_surf = data["DataElevation"].z_surf
     z_bed = data["DataElevation"].z_bed
@@ -47,14 +47,13 @@ function load_dem_on_GPU(backend, arch::Architecture, path::String)
     return surf_field, bed_field, surf_dem_grid, bed_dem_grid, surf_Ψ_grid, bed_Ψ_grid
 end
 
-
 """
-    load_synth_dem_on_GPU(backend, arch::Architecture, synthetic_data::String)
+    load_synth_dem(backend, arch::Architecture, synthetic_data::String)
 
 Load digital elevation map of surface and bedrock from (jld2) file, set dimensions of simulation, 
 initiate grids, copy data on gpu.
 """
-function load_synth_dem_on_GPU(backend, arch::Architecture, synthetic_data::String)
+function load_synth_dem(backend, arch::Architecture, synthetic_data::String)
     data = load(synthetic_data)
     z_surf = data["SyntheticElevation"].z_surf
     z_bed = data["SyntheticElevation"].z_bed
@@ -63,7 +62,6 @@ function load_synth_dem_on_GPU(backend, arch::Architecture, synthetic_data::Stri
     nz = 10
     lz = maximum(z_surf) - minimum(z_surf)
     Ψ_grid = UniformGrid(arch; origin=(0.0, 0.0, minimum(z_surf)), extent=(lz, lz, lz), dims=(nx, ny, nz))
-    # Ψ        = Field(backend, Ψ_grid, Vertex())
     dem_grid = UniformGrid(arch; origin=(0.0, 0.0), extent=(lz, lz), dims=(nx, ny))
     dem_bed = Field(backend, dem_grid, Vertex())
     dem_surf = Field(backend, dem_grid, Vertex())
@@ -72,8 +70,8 @@ function load_synth_dem_on_GPU(backend, arch::Architecture, synthetic_data::Stri
     return dem_surf, dem_bed, dem_grid, Ψ_grid
 end
 
-# dem_surf, dem_bed, dem_grid, Ψ_grid = load_synth_dem_on_GPU(backend, arch, synthetic_data);
-surf_field, bed_field, surf_dem_grid, bed_dem_grid, surf_Ψ_grid, bed_Ψ_grid = load_dem_on_GPU(backend, arch, vavilov_path);
+# dem_surf, dem_bed, dem_grid, Ψ_grid = load_synth_dem(backend, arch, synthetic_data);
+surf_field, bed_field, surf_dem_grid, bed_dem_grid, surf_Ψ_grid, bed_Ψ_grid = load_dem(backend, arch, vavilov_path);
 
 Ψ = (
     na=Field(backend, surf_Ψ_grid, Vertex()),
