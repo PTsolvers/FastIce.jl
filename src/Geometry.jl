@@ -4,6 +4,15 @@ export AbstractElevation, DataElevation, AABB
 
 abstract type AbstractElevation{T<:Real} end
 
+struct AABB{T<:Union{Real}}
+    xmin::T
+    xmax::T
+    ymin::T
+    ymax::T
+    zmin::T
+    zmax::T
+end
+
 struct DataElevation{T,V<:AbstractArray{T},R<:AbstractRange{T},M<:AbstractMatrix{T}} <: AbstractElevation{T}
     x::R
     y::R
@@ -13,15 +22,6 @@ struct DataElevation{T,V<:AbstractArray{T},R<:AbstractRange{T},M<:AbstractMatrix
     rotation::M
     domain::AABB{T}
     rotated_domain::AABB{T}
-end
-
-struct AABB{T<:Union{Real}}
-    xmin::T
-    xmax::T
-    ymin::T
-    ymax::T
-    zmin::T
-    zmax::T
 end
 
 end
