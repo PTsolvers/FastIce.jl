@@ -12,14 +12,13 @@ Initialize level sets.
 end
 
 """
-    compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, R=LinearAlgebra.I)
+    compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid2D::UniformGrid, grid::UniformGrid, R=LinearAlgebra.I)
 
 Compute level sets from dem.
 """
-function compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, R=LinearAlgebra.I)
-    backend = Architectures.get_backend(arch)
-    kernel = init_level_set!(backend, 256, size(Ψ))
-    cutoff = 4maximum(spacing(Ψ_grid))
-    kernel(Ψ, dem, dem_grid, Ψ_grid, cutoff, R)
+function compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid2D::UniformGrid, grid::UniformGrid, R=LinearAlgebra.I; outer_width=(16, 8, 4))
+    cutoff = 4maximum(spacing(grid))
+    launch = Launcher(arch, grid; outer_width=outer_width)
+    launch(arch, grid, init_level_set! => (Ψ, dem, dem_grid2D, grid, cutoff, R); bc=batch(grid, Ψ => Neumann(); exchange=Ψ))
     return
 end

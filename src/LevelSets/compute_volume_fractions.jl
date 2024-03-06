@@ -142,10 +142,7 @@ include("volume_fractions_kernels.jl")
 Compute volume fractions from level sets.
 """
 function compute_volfrac_from_level_set!(arch::Architecture, wt, Ψ::Field, grid::UniformGrid)
-    backend = Architectures.get_backend(arch)
-    kernel = compute_volfrac_from_level_set!(backend, 256, size(Ψ))
-    kernel(wt, Ψ, grid)
-    # BC Neumann for x,y in 2D
-    # BC Neumann for x,y,z in 3D
+    launch = Launcher(arch, grid)
+    launch(arch, grid, compute_volfrac_from_level_set! => (wt, Ψ, grid))
     return
 end
