@@ -1,6 +1,7 @@
 # Volume fraction kernel (2D)
-@kernel inbounds = true function compute_volfrac_from_level_set!(wt, Ψ, grid::UniformGrid{2})
-    ix, iy = @index(Global, NTuple)
+@kernel inbounds = true function compute_volfrac_from_level_set!(wt, Ψ, grid::UniformGrid{2}, O)
+    I = @index(Global, NTuple)
+    ix, iy = I + O
     dx, dy = spacing(grid)
     cell = Rect(Vec(0.0, 0.0), Vec(dx, dy))
     ω = GeometryBasics.volume(cell)
@@ -22,8 +23,9 @@
 end
 
 # Volume fraction kernel (3D)
-@kernel inbounds = true function compute_volfrac_from_level_set!(wt, Ψ, grid::UniformGrid{3})
-    ix, iy, iz = @index(Global, NTuple)
+@kernel inbounds = true function compute_volfrac_from_level_set!(wt, Ψ, grid::UniformGrid{3}, O)
+    I = @index(Global, NTuple)
+    ix, iy, iz = I + O
     dx, dy, dz = spacing(grid)
     cell = Rect(Vec(0.0, 0.0, 0.0), Vec(dx, dy, dz))
     ω = GeometryBasics.volume(cell)

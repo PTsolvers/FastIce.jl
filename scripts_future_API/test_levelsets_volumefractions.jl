@@ -3,22 +3,25 @@ using Chmy.Grids
 using Chmy.Fields
 
 using FastIce.LevelSets
+using FastIce.Geometry
 
 using KernelAbstractions
-
-using CUDA
 using JLD2
+
+# using CUDA
+# using AMDGPU
 
 # Data
 # vavilov_path = "../data/vavilov.jld2"
 # vavilov_path = "../data/Vavilov/Vavilov_80m.jld2"
-vavilov_path = "../data/Vavilov/Vavilov_500m.jld2"
+vavilov_path = "./Vavilov_500m.jld2"
 # synthetic_data = "../data/Synthetic/dome_glacier.jld2"
 # synthetic_data = "../data/Synthetic/low_res_dome_glacier.jld2"
 
 # Select backend
 backend = CPU()
 # backend = CUDABackend()
+# backend = ROCBackend()
 arch = Arch(backend)
 
 """
@@ -102,6 +105,7 @@ compute_volfrac_from_level_set!(arch, wt[2], Ψ[2], bed_Ψ_grid)
 # end
 
 # Save
+# save_path = "Vavilov_500m_out.jld2"
 jldopen(vavilov_path, "a+") do file
     file["level_sets_na"] = Array(interior(Ψ[1]))
     file["level_sets_ns"] = Array(interior(Ψ[2]))

@@ -3,8 +3,9 @@
 
 Initialize level sets.
 """
-@kernel inbounds = true function init_level_set!(Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, cutoff, R)
+@kernel inbounds = true function init_level_set!(Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, cutoff, R, O)
     I = @index(Global, NTuple)
+    I = I + O
     x, y, z = coord(Ψ_grid, location(Ψ), I...)
     P = R * Point3(x, y, z)
     ud, sgn = sd_dem(P, cutoff, dem, dem_grid)
