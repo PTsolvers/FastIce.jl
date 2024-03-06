@@ -19,7 +19,7 @@ Compute level sets from dem.
 function compute_level_set_from_dem!(arch::Architecture, Ψ::Field, dem::Field, dem_grid::UniformGrid, Ψ_grid::UniformGrid, R=LinearAlgebra.I)
     backend = Architectures.get_backend(arch)
     kernel = init_level_set!(backend, 256, size(Ψ))
-    cutoff = 4maximum(spacing(Ψ_grid, Center()))
+    cutoff = 4maximum(spacing(Ψ_grid))
     kernel(Ψ, dem, dem_grid, Ψ_grid, cutoff, R)
     return
 end

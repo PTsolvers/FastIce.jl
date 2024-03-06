@@ -46,7 +46,7 @@ end
 
 @inline tetvol(v1, v2, v3, v4) = abs(det([v2 - v1 v3 - v1 v4 - v1])) / 6.0
 
-function volfrac(tet, ϕ::Vec4)
+function volfrac(tet, ϕ::Vec4{T})::T where {T}
     v1, v2, v3, v4 = tet
     @inline vij(i, j) = tet[j] * (ϕ[i] / (ϕ[i] - ϕ[j])) - tet[i] * (ϕ[j] / (ϕ[i] - ϕ[j]))
     nneg = count(ϕ .< 0)
@@ -137,13 +137,15 @@ end
 include("volume_fractions_kernels.jl")
 
 """
-    compute_volfrac_from_level_set!(arch::Architecture, wt::Field, Ψ::Field, grid::UniformGrid)
+    compute_volfrac_from_level_set!(arch::Architecture, wt, Ψ::Field, grid::UniformGrid)
 
 Compute volume fractions from level sets.
 """
-function compute_volfrac_from_level_set!(arch::Architecture, wt::Field, Ψ::Field, grid::UniformGrid)
+function compute_volfrac_from_level_set!(arch::Architecture, wt, Ψ::Field, grid::UniformGrid)
     backend = Architectures.get_backend(arch)
     kernel = compute_volfrac_from_level_set!(backend, 256, size(Ψ))
     kernel(wt, Ψ, grid)
+    # BC Neumann for x,y in 2D
+    # BC Neumann for x,y,z in 3D
     return
 end
