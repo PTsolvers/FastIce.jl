@@ -12,100 +12,65 @@ using JLD2
 # using AMDGPU
 
 # Data
-# vavilov_path = "../data/vavilov.jld2"
-# vavilov_path = "../data/Vavilov/Vavilov_80m.jld2"
-vavilov_path = "./Vavilov_500m.jld2"
-# synthetic_data = "../data/Synthetic/dome_glacier.jld2"
-# synthetic_data = "../data/Synthetic/low_res_dome_glacier.jld2"
+data_path = "./low_res_dome_rough_glacier.jld2"
 
 # Select backend
 backend = CPU()
 # backend = CUDABackend()
 # backend = ROCBackend()
+
 arch = Arch(backend)
 
+function load_data(data_path)
+    dat = load(data_path)
+    return first(keys(dat)), dat
+end
+
+
 """
-    load_dem(arch::Architecture, path::String)
+    extract_dem(arch::Architecture, data_path::String, z_resol=nothing)
 
 Load digital elevation model of surface and bedrock from (JLD2) file and initialise the grid.
 """
-function load_dem(arch::Architecture, path::String)
-    backend = arch.backend
-    data = load(path)
-    z_surf = data["DataElevation"].z_surf
-    z_bed = data["DataElevation"].z_bed
-    x = data["DataElevation"].x
-    y = data["DataElevation"].y
-    nx = length(x) - 1
-    ny = length(y) - 1
-    nz = 100
-    # TODO: choose nz accordingly
-    surf_lz = maximum(z_surf) - minimum(z_surf)
-    bed_lz = maximum(z_bed) - minimum(z_bed)
-    surf_Ψ_grid = UniformGrid(arch; origin=(0.0, 0.0, minimum(z_surf)), extent=(surf_lz, surf_lz, surf_lz), dims=(nx, ny, nz))
-    bed_Ψ_grid = UniformGrid(arch; origin=(0.0, 0.0, minimum(z_bed)), extent=(bed_lz, bed_lz, bed_lz), dims=(nx, ny, nz))
-    surf_dem_grid = UniformGrid(arch; origin=(0.0, 0.0), extent=(surf_lz, surf_lz), dims=(nx, ny))
-    bed_dem_grid = UniformGrid(arch; origin=(0.0, 0.0), extent=(bed_lz, bed_lz), dims=(nx, ny))
-    surf_field = Field(backend, surf_dem_grid, Vertex())
-    bed_field = Field(backend, bed_dem_grid, Vertex())
-    set!(surf_field, z_surf)
-    set!(bed_field, z_bed)
-    return surf_field, bed_field, surf_dem_grid, bed_dem_grid, surf_Ψ_grid, bed_Ψ_grid
-end
-
-"""
-    load_synth_dem(arch::Architecture, synthetic_data::String)
-
-Load synthetic elevation of surface and bedrock from (JLD2) file and initialise the grid.
-"""
-function load_synth_dem(arch::Architecture, synthetic_data::String)
-    backend = arch.backend
-    data = load(synthetic_data)
-    z_surf = data["SyntheticElevation"].z_surf
-    z_bed = data["SyntheticElevation"].z_bed
-    nx = size(z_surf)[1] - 1
-    ny = size(z_surf)[2] - 1
-    nz = 10
-    lz = maximum(z_surf) - minimum(z_surf)
-    Ψ_grid = UniformGrid(arch; origin=(0.0, 0.0, minimum(z_surf)), extent=(lz, lz, lz), dims=(nx, ny, nz))
-    dem_grid = UniformGrid(arch; origin=(0.0, 0.0), extent=(lz, lz), dims=(nx, ny))
-    dem_bed = Field(backend, dem_grid, Vertex())
-    dem_surf = Field(backend, dem_grid, Vertex())
-    set!(dem_bed, z_bed)
+function extract_dem(arch::Architecture, data_path::String, z_resol=nothing)
+    dtype, data = load_data(data_path)
+    z_surf = data[dtype].z_surf
+    z_bed  = data[dtype].z_bed
+    dm     = data[dtype].domain
+    lx, ly, lz = dm.xmax - dm.xmin, dm.ymax - dm.ymin, dm.zmax - dm.zmin
+    nx, ny = size(z_surf) .- 1
+    nz = isnothing(z_resol) ? ceil(Int, lz / lx * nx) : z_resol
+    Ψ_grid   = UniformGrid(arch; origin=(dm.xmin, dm.ymin, dm.zmin), extent=(lx, ly, lz), dims=(nx, ny, nz))
+    dem_grid = UniformGrid(arch; origin=(dm.xmin, dm.ymin), extent=(lx, ly), dims=(nx, ny))
+    dem_surf = Field(arch.backend, dem_grid, Vertex())
+    dem_bed  = Field(arch.backend, dem_grid, Vertex())
     set!(dem_surf, z_surf)
+    set!(dem_bed, z_bed)
     return dem_surf, dem_bed, dem_grid, Ψ_grid
 end
 
-# dem_surf, dem_bed, dem_grid, Ψ_grid = load_synth_dem(arch, synthetic_data);
-surf_field, bed_field, surf_dem_grid, bed_dem_grid, surf_Ψ_grid, bed_Ψ_grid = load_dem(arch, vavilov_path);
+dem_surf, dem_bed, dem_grid, Ψ_grid = extract_dem(arch, data_path)
 
 Ψ = (
-    na=Field(backend, surf_Ψ_grid, Vertex()),
-    ns=Field(backend, bed_Ψ_grid, Vertex()),
+    na=Field(backend, Ψ_grid, Vertex()),
+    ns=Field(backend, Ψ_grid, Vertex()),
 )
 
-compute_level_set_from_dem!(arch, Ψ[1], surf_field, surf_dem_grid, surf_Ψ_grid)
-compute_level_set_from_dem!(arch, Ψ[2], bed_field, bed_dem_grid, bed_Ψ_grid)
-
-# for phase in eachindex(Ψ)
-#     compute_level_set_from_dem!(arch, Ψ[phase], dem_surf, dem_grid, Ψ_grid)
-# end
+for phase in eachindex(Ψ)
+    compute_level_set_from_dem!(arch, Ψ[phase], dem_surf, dem_grid, Ψ_grid)
+end
 
 wt = (
-    na=volfrac_field(backend, surf_Ψ_grid),
-    ns=volfrac_field(backend, bed_Ψ_grid),
+    na=volfrac_field(backend, Ψ_grid),
+    ns=volfrac_field(backend, Ψ_grid),
 )
 
-compute_volfrac_from_level_set!(arch, wt[1], Ψ[1], surf_Ψ_grid)
-compute_volfrac_from_level_set!(arch, wt[2], Ψ[2], bed_Ψ_grid)
-
-
-# for phase in eachindex(Ψ)
-#     compute_volfrac_from_level_set!(arch, wt[phase], Ψ[phase], Ψ_grid)
-# end
+for phase in eachindex(Ψ)
+    compute_volfrac_from_level_set!(arch, wt[phase], Ψ[phase], Ψ_grid)
+end
 
 # Save
-# save_path = "Vavilov_500m_out.jld2"
+save_path = "Vavilov_500m_out.jld2"
 jldopen(vavilov_path, "a+") do file
     file["level_sets_na"] = Array(interior(Ψ[1]))
     file["level_sets_ns"] = Array(interior(Ψ[2]))
