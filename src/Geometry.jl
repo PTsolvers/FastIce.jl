@@ -1,6 +1,6 @@
 module Geometry
 
-export AbstractElevation, DataElevation, AABB
+export AbstractElevation, DataElevation, SyntheticElevation, AABB
 
 abstract type AbstractElevation{T<:Real} end
 
@@ -22,6 +22,12 @@ struct DataElevation{T,V<:AbstractArray{T},R<:AbstractRange{T},M<:AbstractMatrix
     rotation::M
     domain::AABB{T}
     rotated_domain::AABB{T}
+end
+
+struct SyntheticElevation{T,B,S} <: AbstractElevation{T}
+    z_bed::B
+    z_surf::S
+    domain::AABB{T}
 end
 
 end
