@@ -25,7 +25,7 @@ https://github.com/PTsolvers/FastIce.jl
 greet(; kwargs...) = printstyled(GREETING; kwargs...)
 greet_fast(; kwargs...) = printstyled(GREETING_FAST; kwargs...)
 
-export Geometry
+# export Geometry
 
 # core modules (included in alphabetical order)
 include("Geometry.jl")
