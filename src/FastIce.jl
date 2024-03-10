@@ -26,7 +26,7 @@ greet(; kwargs...) = printstyled(GREETING; kwargs...)
 greet_fast(; kwargs...) = printstyled(GREETING_FAST; kwargs...)
 
 # core modules (included in alphabetical order)
-include("Geometry.jl")
+include("Geometries/Geometries.jl")
 include("LevelSets/LevelSets.jl")
 include("Logging.jl")
 include("Physics.jl")
