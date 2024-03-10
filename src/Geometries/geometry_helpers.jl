@@ -1,19 +1,3 @@
-struct AABB{T<:Union{Real}}
-    xmin::T
-    xmax::T
-    ymin::T
-    ymax::T
-    zmin::T
-    zmax::T
-end
-
-"""
-    AABB(xs, ys, zs)
-
-Construct an axis aligend bounding box `AABB` from the coordinates `xs`, `ys`, and `zs`.
-"""
-AABB(xs, ys, zs) = AABB(extrema(xs)..., extrema(ys)..., extrema(zs)...)
-
 """
     extents(box::AABB)
 
