@@ -118,17 +118,17 @@ function volfrac(rect::Rect3, ϕ::Vec{8})
 end
 
 function volfrac_field(backend::Backend, grid::UniformGrid{2}, args...; kwargs...)
-    (c=Field(backend, grid, Center()),
-     x=Field(backend, grid, (Vertex(), Center())),
-     y=Field(backend, grid, (Center(), Vertex())),
+    (c =Field(backend, grid, Center()),
+     x =Field(backend, grid, (Vertex(), Center())),
+     y =Field(backend, grid, (Center(), Vertex())),
      xy=Field(backend, grid, Vertex()))
 end
 
 function volfrac_field(backend::Backend, grid::UniformGrid{3}, args...; kwargs...)
-    (c=Field(backend, grid, Center()),
-     x=Field(backend, grid, (Vertex(), Center(), Center())),
-     y=Field(backend, grid, (Center(), Vertex(), Center())),
-     z=Field(backend, grid, (Center(), Center(), Vertex())),
+    (c =Field(backend, grid, Center()),
+     x =Field(backend, grid, (Vertex(), Center(), Center())),
+     y =Field(backend, grid, (Center(), Vertex(), Center())),
+     z =Field(backend, grid, (Center(), Center(), Vertex())),
      xy=Field(backend, grid, (Vertex(), Vertex(), Center())),
      xz=Field(backend, grid, (Vertex(), Center(), Vertex())),
      yz=Field(backend, grid, (Center(), Vertex(), Vertex())))

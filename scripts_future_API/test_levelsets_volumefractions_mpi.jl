@@ -44,8 +44,8 @@ function main(backend=CPU(); nxyz_l=(126, 126))
     # type = :turtle
     generate_surf(x, y, gl, lx, ly) = gl * (1.0 - ((1.7 * x / lx + 0.22)^2 + (0.5 * y / ly)^2))
     generate_bed(x, y, amp, ω, tanβ, el, lx, ly, lz) = lz * (amp * sin(ω * x / lx) * sin(ω * y /ly) + tanβ * x / lx + el + (1.5 * y / ly)^2)
-    dem_surf = FunctionField(generate_surf, grid_2d, Vertex(); parameters=(gl=gl, lx=lx, ly=ly))
-    dem_bed  = FunctionField(generate_bed, grid_2d, Vertex(); parameters=(amp=amp, ω=ω, tanβ=tanβ, el=el, lx=lx, ly=ly, lz=lz))
+    dem_surf = FunctionField(generate_surf, grid_2d, Vertex(); parameters=(; gl, lx, ly))
+    dem_bed  = FunctionField(generate_bed, grid_2d, Vertex(); parameters=(; amp, ω, tanβ, el, lx, ly, lz))
     # synthetic topo ###############
 
     # init fields
