@@ -6,12 +6,12 @@ using FastIce.LevelSets
 
 using KernelAbstractions
 using CairoMakie
-# using CUDA
-using AMDGPU
+using CUDA
+# using AMDGPU
 
 # Select backend
-backend = CPU()
-# backend = CUDABackend()
+# backend = CPU()
+backend = CUDABackend()
 # backend = ROCBackend()
 
 using Chmy.Distributed
@@ -73,13 +73,13 @@ function main(backend=CPU(); nxyz_l=(126, 126))
     gather!(arch, wt_ns_c, wt.ns.c)
     # visualise
     if me == 0
-        dem_surf_ = Field(backend, grid_2d, Vertex())
-        dem_surf_ .= dem_surf # materialise function field for NaN filtering
-        dem_surf_[dem_surf.<dem_bed] .= NaN
+        dem_bed = Array(interior(dem_bed))
+        dem_surf = Array(interior(dem_surf))
+        dem_surf[dem_surf .< dem_bed] .= NaN
         slx = ceil(Int, size(wt_na_c, 1) / 2) # for visu
         sly = ceil(Int, size(wt_na_c, 2) / 2) # for visu
-        x_g = LinRange(-lx / 2, lx / 2, size(interior(dem_bed), 1))
-        y_g = LinRange(-ly / 2, ly / 2, size(interior(dem_bed), 2))
+        x_g = LinRange(-lx / 2, lx / 2, size(dem_bed, 1))
+        y_g = LinRange(-ly / 2, ly / 2, size(dem_bed, 2))
 
         fig = Figure(; size=(1000, 800), fontsize=22)
         axs = (ax1 = Axis3(fig[1, 1][1, 1]; aspect=(2, 2, 1), azimuth=-π / 8, elevation=π / 5),
@@ -88,10 +88,10 @@ function main(backend=CPU(); nxyz_l=(126, 126))
                ax4 = Axis(fig[2, 2]; aspect=DataAspect()),
                ax5 = Axis(fig[3, 1]; aspect=DataAspect()),
                ax6 = Axis(fig[3, 2]; aspect=DataAspect()))
-        plt = (p1  = surface!(axs.ax1, x_g, y_g, interior(dem_bed) |> Array; colormap=:turbo),
-               p1_ = surface!(axs.ax1, x_g, y_g, interior(dem_surf_) |> Array; colormap=:turbo),
-               p2  = plot!(axs.ax2, x_g, interior(dem_bed)[:, sly] |> Array),
-               p2_ = plot!(axs.ax2, x_g, interior(dem_surf_)[:, sly] |> Array),
+        plt = (p1  = surface!(axs.ax1, x_g, y_g, dem_bed; colormap=:turbo),
+               p1_ = surface!(axs.ax1, x_g, y_g, dem_surf; colormap=:turbo),
+               p2  = plot!(axs.ax2, x_g, dem_bed[:, sly] |> Array),
+               p2_ = plot!(axs.ax2, x_g, dem_surf[:, sly] |> Array),
                p3  = heatmap!(axs.ax3, wt_na_c[:, sly, :]; colormap=:turbo),
                p4  = heatmap!(axs.ax4, wt_ns_c[:, sly, :]; colormap=:turbo),
                p5  = heatmap!(axs.ax5, wt_na_c[slx, :, :]; colormap=:turbo),
