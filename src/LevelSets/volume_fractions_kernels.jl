@@ -1,5 +1,5 @@
 # Volume fraction kernel (2D)
-@kernel inbounds = true function compute_volfrac_from_level_set!(wt, Ψ, grid::UniformGrid{2}, O)
+@kernel inbounds = true function compute_volfrac_from_levelset!(wt, Ψ, grid::UniformGrid{2}, O)
     I = @index(Global, NTuple)
     ix, iy = I + O
     dx, dy = spacing(grid)
@@ -23,7 +23,7 @@
 end
 
 # Volume fraction kernel (3D)
-@kernel inbounds = true function compute_volfrac_from_level_set!(wt, Ψ, grid::UniformGrid{3}, O)
+@kernel inbounds = true function compute_volfrac_from_levelset!(wt, Ψ, grid::UniformGrid{3}, O)
     I = @index(Global, NTuple)
     ix, iy, iz = I + O
     dx, dy, dz = spacing(grid)
