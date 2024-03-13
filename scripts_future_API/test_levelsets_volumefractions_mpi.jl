@@ -1,18 +1,20 @@
 using Chmy.Architectures
 using Chmy.Grids
 using Chmy.Fields
+using Chmy.KernelLaunch
 
 using FastIce.LevelSets
 
 using KernelAbstractions
 using CairoMakie
-using CUDA
-# using AMDGPU
+# using CUDA
+using AMDGPU
+AMDGPU.allowscalar(false)
 
 # Select backend
-backend = CPU()
+# backend = CPU()
 # backend = CUDABackend()
-# backend = ROCBackend()
+backend = ROCBackend()
 
 using Chmy.Distributed
 using MPI
@@ -23,13 +25,15 @@ function main(backend=CPU(); nxyz_l=(126, 126))
     topo    = topology(arch)
     me      = global_rank(topo)
     # geometry
-    zmin, zmax = 0.0, 1.0
-    lx, ly, lz = 5.0, 5.0, zmax - zmin
-    nx, ny     = nxyz_l[1:2]
-    nz         = (length(nxyz_l) < 3) ? ceil(Int, lz / lx * nxyz_l[1]) : nxyz_l[3]
-    dims_l     = (nx, ny, nz)
-    dims_g     = dims_l .* dims(topo)
-    grid       = UniformGrid(arch; origin=(-lx/2, -ly/2, 0.0), extent=(lx, ly, lz), dims=dims_g)
+    zmin, zmax  = 0.0, 1.0
+    lx, ly, lz  = 5.0, 5.0, zmax - zmin
+    nx, ny      = nxyz_l[1:2]
+    nz          = (length(nxyz_l) < 3) ? ceil(Int, lz / lx * nxyz_l[1]) : nxyz_l[3]
+    @info "nz = $nz (lz = $lz)"
+    dims_l      = (nx, ny, nz)
+    dims_g      = dims_l .* dims(topo)
+    grid        = UniformGrid(arch; origin=(-lx/2, -ly/2, 0.0), extent=(lx, ly, lz), dims=dims_g)
+    launch      = Launcher(arch, grid; outer_width=(16, 8, 4))
 
     # synthetic topo ###############
     arch_2d = Arch(backend)
@@ -54,13 +58,13 @@ function main(backend=CPU(); nxyz_l=(126, 126))
     wt = (na=volfrac_field(backend, grid),
           ns=volfrac_field(backend, grid))
     # comput level set
-    compute_levelset_from_dem!(arch, Ψ.na, dem_surf, grid_2d, grid)
-    compute_levelset_from_dem!(arch, Ψ.ns, dem_bed, grid_2d, grid)
-    invert_levelset!(arch, Ψ.ns, grid)
+    compute_levelset_from_dem!(arch, launch, Ψ.na, dem_surf, grid_2d, grid)
+    compute_levelset_from_dem!(arch, launch, Ψ.ns, dem_bed, grid_2d, grid)
+    invert_levelset!(arch, launch, Ψ.ns, grid)
     # @. Ψ.ns *= -1.0 # invert level set to set what's below the DEM surface as inside
     # volume fractions
     for phase in eachindex(Ψ)
-        compute_volfrac_from_levelset!(arch, wt[phase], Ψ[phase], grid)
+        compute_volfrac_from_levelset!(arch, launch, wt[phase], Ψ[phase], grid)
     end
 
     # compute physics or else
@@ -73,7 +77,7 @@ function main(backend=CPU(); nxyz_l=(126, 126))
     gather!(arch, wt_ns_c, wt.ns.c)
     # visualise
     if me == 0
-        dem_bed = Array(interior(dem_bed))
+        dem_bed  = Array(interior(dem_bed))
         dem_surf = Array(interior(dem_surf))
         dem_surf[dem_surf .< dem_bed] .= NaN
         slx = ceil(Int, size(wt_na_c, 1) / 2) # for visu
@@ -99,11 +103,12 @@ function main(backend=CPU(); nxyz_l=(126, 126))
         Colorbar(fig[1, 1][1, 2], plt.p1)
         Colorbar(fig[2, 2][1, 2], plt.p4)
         # display(fig)
-        save("levset.png", fig)
+        save("levset_$nx.png", fig)
     end
     return
 end
 
-main(backend; nxyz_l=(126, 126))
+n = 126
+main(backend; nxyz_l=(n, n))
 
 MPI.Finalize()

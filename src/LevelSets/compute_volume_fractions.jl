@@ -137,12 +137,11 @@ end
 include("volume_fractions_kernels.jl")
 
 """
-    compute_volfrac_from_levelset!(arch::Architecture, wt, Ψ::Field, grid::UniformGrid)
+    compute_volfrac_from_levelset!(arch::Architecture, launch, wt, Ψ::Field, grid::UniformGrid)
 
 Compute volume fractions from level sets.
 """
-function compute_volfrac_from_levelset!(arch::Architecture, wt, Ψ::Field, grid::UniformGrid)
-    launch = Launcher(arch, grid)
+function compute_volfrac_from_levelset!(arch::Architecture, launch, wt, Ψ::Field, grid::UniformGrid)
     launch(arch, grid, compute_volfrac_from_levelset! => (wt, Ψ, grid))
     return
 end

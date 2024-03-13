@@ -7,7 +7,6 @@ using Chmy.Architectures
 using Chmy.BoundaryConditions
 using Chmy.Grids
 using Chmy.Fields
-using Chmy.KernelLaunch
 
 using KernelAbstractions
 using LinearAlgebra, GeometryBasics

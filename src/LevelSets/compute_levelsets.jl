@@ -19,24 +19,22 @@ end
 end
 
 """
-    compute_levelset_from_dem!(arch::Architecture, Ψ::Field, dem::AbstractField, dem_grid2D::UniformGrid, grid::UniformGrid, R=LinearAlgebra.I)
+    compute_levelset_from_dem!(arch::Architecture, launch, Ψ::Field, dem::AbstractField, dem_grid2D::UniformGrid, grid::UniformGrid, R=LinearAlgebra.I)
 
 Compute level sets from dem.
 """
-function compute_levelset_from_dem!(arch::Architecture, Ψ::Field, dem::AbstractField, dem_grid2D::UniformGrid, grid::UniformGrid, R=LinearAlgebra.I; outer_width=(16, 8, 4))
+function compute_levelset_from_dem!(arch::Architecture, launch, Ψ::Field, dem::AbstractField, dem_grid2D::UniformGrid, grid::UniformGrid, R=LinearAlgebra.I)
     cutoff = 4maximum(spacing(grid))
-    launch = Launcher(arch, grid; outer_width=outer_width)
     launch(arch, grid, init_levelset! => (Ψ, dem, dem_grid2D, grid, cutoff, R); bc=batch(grid, Ψ => Neumann(); exchange=Ψ))
     return
 end
 
 """
-    invert_levelset!(arch::Architecture, Ψ::Field, grid::UniformGrid)
+    invert_levelset!(arch::Architecture, launch, Ψ::Field, grid::UniformGrid)
 
 Invert level set `Ψ` to set what's below the surface as "inside".
 """
-function invert_levelset!(arch::Architecture, Ψ::Field, grid::UniformGrid)
-    launch = Launcher(arch, grid)
+function invert_levelset!(arch::Architecture, launch, Ψ::Field, grid::UniformGrid)
     launch(arch, grid, invert_levelset! => (Ψ,))
     return
 end
