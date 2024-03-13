@@ -8,60 +8,73 @@ using FastIce.LevelSets
 using KernelAbstractions
 using CairoMakie
 # using CUDA
-using AMDGPU
-AMDGPU.allowscalar(false)
+# using AMDGPU
+# AMDGPU.allowscalar(false)
 
 # Select backend
-# backend = CPU()
+backend = CPU()
 # backend = CUDABackend()
-backend = ROCBackend()
+# backend = ROCBackend()
 
 using Chmy.Distributed
 using MPI
 MPI.Init()
 
-function main(backend=CPU(); nxyz_l=(126, 126))
-    arch    = Arch(backend, MPI.COMM_WORLD, (0, 0, 0))
-    topo    = topology(arch)
-    me      = global_rank(topo)
-    # geometry
-    zmin, zmax  = 0.0, 1.0
-    lx, ly, lz  = 5.0, 5.0, zmax - zmin
-    nx, ny      = nxyz_l[1:2]
-    nz          = (length(nxyz_l) < 3) ? ceil(Int, lz / lx * nxyz_l[1]) : nxyz_l[3]
-    @info "nz = $nz (lz = $lz)"
-    dims_l      = (nx, ny, nz)
-    dims_g      = dims_l .* dims(topo)
-    grid        = UniformGrid(arch; origin=(-lx/2, -ly/2, 0.0), extent=(lx, ly, lz), dims=dims_g)
-    launch      = Launcher(arch, grid; outer_width=(16, 8, 4))
-
-    # synthetic topo ###############
+@views function make_dem(backend=CPU(); nx, ny, lx, ly, zmin, zmax, amp, ω, tanβ, el, gl)
     arch_2d = Arch(backend)
-    grid_2d = UniformGrid(arch_2d; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=dims_g[1:2])
+    grid_2d = UniformGrid(arch_2d; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
+
+    lz = zmax - zmin
+
+    # type = :turtle
+    generate_surf(x, y, gl, lx, ly) = gl * (1.0 - ((1.7 * x / lx + 0.22)^2 + (0.5 * y / ly)^2))
+    generate_bed(x, y, amp, ω, tanβ, el, lx, ly, lz) = lz * (amp * sin(ω * x / lx) * sin(ω * y /ly) + tanβ * x / lx + el + (1.5 * y / ly)^2)
+
+    surf = FunctionField(generate_surf, grid_2d, Vertex(); parameters=(; gl, lx, ly))
+    bed  = FunctionField(generate_bed, grid_2d, Vertex(); parameters=(; amp, ω, tanβ, el, lx, ly, lz))
+
+    return (; bed, surf, grid_2d, lz)
+end
+
+@views function main(backend=CPU())
+    lx, ly = 5.0, 5.0
+    zmin, zmax = 0.0, 1.0
+    nx = ny = 126
     # synthetic topo
     amp  = 0.1
     ω    = 10π
     tanβ = tan(-π/6)
     el   = 0.35
     gl   = 0.9
-    # synthetic bed and surf
-    # type = :turtle
-    generate_surf(x, y, gl, lx, ly) = gl * (1.0 - ((1.7 * x / lx + 0.22)^2 + (0.5 * y / ly)^2))
-    generate_bed(x, y, amp, ω, tanβ, el, lx, ly, lz) = lz * (amp * sin(ω * x / lx) * sin(ω * y /ly) + tanβ * x / lx + el + (1.5 * y / ly)^2)
-    dem_surf = FunctionField(generate_surf, grid_2d, Vertex(); parameters=(; gl, lx, ly))
-    dem_bed  = FunctionField(generate_bed, grid_2d, Vertex(); parameters=(; amp, ω, tanβ, el, lx, ly, lz))
-    # synthetic topo ###############
 
+    dem_data = make_dem(backend; nx, ny, lx, ly, zmin, zmax, amp, ω, tanβ, el, gl)
+
+    run_simulation(backend; nxyz_l=(nx, ny), dem_data)
+    return
+end
+
+@views function run_simulation(backend=CPU(); nxyz_l=(126, 126), dem_data)
+    arch    = Arch(backend, MPI.COMM_WORLD, (0, 0, 0))
+    topo    = topology(arch)
+    me      = global_rank(topo)
+    # geometry
+    lx, ly, lz = extent(dem_data.grid_2d, Vertex())..., dem_data.lz
+    nx, ny     = nxyz_l[1:2]
+    nz         = (length(nxyz_l) < 3) ? ceil(Int, lz / lx * nxyz_l[1]) : nxyz_l[3]
+    @info "nz = $nz (lz = $lz)"
+    dims_l     = (nx, ny, nz)
+    dims_g     = dims_l .* dims(topo)
+    grid       = UniformGrid(arch; origin=(-lx/2, -ly/2, 0.0), extent=(lx, ly, lz), dims=dims_g)
+    launch     = Launcher(arch, grid; outer_width=(16, 8, 4))
     # init fields
     Ψ = (na=Field(backend, grid, Vertex()),
          ns=Field(backend, grid, Vertex()))
     wt = (na=volfrac_field(backend, grid),
           ns=volfrac_field(backend, grid))
     # comput level set
-    compute_levelset_from_dem!(arch, launch, Ψ.na, dem_surf, grid_2d, grid)
-    compute_levelset_from_dem!(arch, launch, Ψ.ns, dem_bed, grid_2d, grid)
-    invert_levelset!(arch, launch, Ψ.ns, grid)
-    # @. Ψ.ns *= -1.0 # invert level set to set what's below the DEM surface as inside
+    compute_levelset_from_dem!(arch, launch, Ψ.na, dem_data.surf, dem_data.grid_2d, grid)
+    compute_levelset_from_dem!(arch, launch, Ψ.ns, dem_data.bed, dem_data.grid_2d, grid)
+    invert_levelset!(arch, launch, Ψ.ns, grid) # invert level set to set what's below the DEM surface as inside
     # volume fractions
     for phase in eachindex(Ψ)
         compute_volfrac_from_levelset!(arch, launch, wt[phase], Ψ[phase], grid)
@@ -70,15 +83,14 @@ function main(backend=CPU(); nxyz_l=(126, 126))
     # compute physics or else
 
     # postprocessing
-    # gather
     wt_na_c = (me == 0) ? KernelAbstractions.zeros(CPU(), Float64, size(interior(wt.na.c)) .* dims(topo)) : nothing
     wt_ns_c = (me == 0) ? KernelAbstractions.zeros(CPU(), Float64, size(interior(wt.ns.c)) .* dims(topo)) : nothing
     gather!(arch, wt_na_c, wt.na.c)
     gather!(arch, wt_ns_c, wt.ns.c)
     # visualise
     if me == 0
-        dem_bed  = Array(interior(dem_bed))
-        dem_surf = Array(interior(dem_surf))
+        dem_bed  = Array(interior(dem_data.bed))
+        dem_surf = Array(interior(dem_data.surf))
         dem_surf[dem_surf .< dem_bed] .= NaN
         slx = ceil(Int, size(wt_na_c, 1) / 2) # for visu
         sly = ceil(Int, size(wt_na_c, 2) / 2) # for visu
@@ -102,13 +114,12 @@ function main(backend=CPU(); nxyz_l=(126, 126))
                p6  = heatmap!(axs.ax6, wt_ns_c[slx, :, :]; colormap=:turbo))
         Colorbar(fig[1, 1][1, 2], plt.p1)
         Colorbar(fig[2, 2][1, 2], plt.p4)
-        # display(fig)
-        save("levset_$nx.png", fig)
+        display(fig)
+        # save("levset_$nx.png", fig)
     end
     return
 end
 
-n = 126
-main(backend; nxyz_l=(n, n))
+main(backend)
 
 MPI.Finalize()
