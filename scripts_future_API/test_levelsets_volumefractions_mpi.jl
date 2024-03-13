@@ -10,8 +10,8 @@ using CUDA
 # using AMDGPU
 
 # Select backend
-# backend = CPU()
-backend = CUDABackend()
+backend = CPU()
+# backend = CUDABackend()
 # backend = ROCBackend()
 
 using Chmy.Distributed
