@@ -1,15 +1,18 @@
 module LevelSets
 
-export compute_level_set_from_dem!
+export compute_levelset_from_dem!, invert_levelset!
+export volfrac_field, compute_volfrac_from_levelset!
 
-using Chmy
-using Chmy.Grids
 using Chmy.Architectures
+using Chmy.BoundaryConditions
+using Chmy.Grids
 using Chmy.Fields
+
 using KernelAbstractions
 using LinearAlgebra, GeometryBasics
 
 include("signed_distances.jl")
-include("compute_level_sets.jl")
+include("compute_levelsets.jl")
+include("compute_volume_fractions.jl")
 
 end

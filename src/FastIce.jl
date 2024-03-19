@@ -25,11 +25,12 @@ https://github.com/PTsolvers/FastIce.jl
 greet(; kwargs...) = printstyled(GREETING; kwargs...)
 greet_fast(; kwargs...) = printstyled(GREETING_FAST; kwargs...)
 
-# core modules
+# core modules (included in alphabetical order)
+include("Geometries/Geometries.jl")
+include("LevelSets/LevelSets.jl")
 include("Logging.jl")
 include("Physics.jl")
 include("Writers.jl")
-include("LevelSets/LevelSets.jl")
 
 # ice flow models
 # include("Models/Models.jl")
