@@ -6,6 +6,8 @@ export SyntheticElevation
 export extents
 export make_synthetic
 
+using Chmy.Grids
+
 include("elevation_data.jl")
 include("geometry_helpers.jl")
 include("synthetic_geometries.jl")
