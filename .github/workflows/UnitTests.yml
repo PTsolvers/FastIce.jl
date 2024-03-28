@@ -1,3 +1,4 @@
+# DEBUG: until registered, Chmy.jl needs to be explicitly added in "Run tests" (instead of using "legacy testing")
 name: Unit Tests
 on:
   push:
@@ -59,8 +60,21 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - uses: julia-actions/julia-buildpkg@latest
-      - uses: julia-actions/julia-runtest@latest
+      # --- legacy testing
+      # - uses: julia-actions/julia-buildpkg@latest
+      # - uses: julia-actions/julia-runtest@latest
+      # --- testing with un-registered Chmy.jl
+      - name: Run tests
+        run: |
+          julia -e 'println("--- :julia: Instantiating project")
+                    using Pkg
+                    Pkg.add(url="https://github.com/PTsolvers/Chmy.jl")
+                    Pkg.develop(; path=pwd())'
+
+          julia -e 'println("+++ :julia: Running tests")
+                    using Pkg
+                    Pkg.test("FastIce"; coverage=true)'
+      # codecov
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v4
         with:
