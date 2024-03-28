@@ -33,6 +33,6 @@ include("Physics.jl")
 include("Writers.jl")
 
 # ice flow models
-# include("Models/Models.jl")
+include("Models/Models.jl")
 
 end # module

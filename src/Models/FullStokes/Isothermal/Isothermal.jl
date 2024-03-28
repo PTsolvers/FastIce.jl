@@ -5,6 +5,7 @@ export IsothermalFullStokesModel, advance_iteration!, advance_timestep!, compute
 
 using FastIce.Physics
 
+using Chmy
 using Chmy.Architectures
 using Chmy.Grids
 using Chmy.BoundaryConditions
@@ -15,11 +16,8 @@ using Chmy.GridOperators
 
 using KernelAbstractions
 
-include("kernels_common.jl")
 include("kernels_2d.jl")
 include("kernels_3d.jl")
-
-include("boundary_conditions.jl")
 
 mutable struct IsothermalFullStokesModel{Arch,Grid,Stress,Velocity,Viscosity,Rheology,Residual,BC,Gravity,SolverParams,KL}
     arch::Arch
@@ -35,22 +33,29 @@ mutable struct IsothermalFullStokesModel{Arch,Grid,Stress,Velocity,Viscosity,Rhe
     launcher::KL
 end
 
-function StressFields(arch, grid)
-    return (Pr=Field(arch, grid, Center()), τ=TensorField(arch, grid))
+struct StressField{Pressure,DeviatoricStress}
+    P::Pressure
+    τ::DeviatoricStress
+end
+StressField(arch, grid::StructuredGrid) = StressField(Field(arch, grid, Center()), TensorField(arch, grid))
+
+struct VelocityField{Velocity}
+    V::Velocity
+end
+VelocityField(arch, grid::StructuredGrid) = VelocityField(VectorField(arch, grid))
+
+struct ResidualField{VelocityResidual,PressureResidual}
+    r_V::VelocityResidual
+    r_P::PressureResidual
+end
+ResidualField(arch, grid::StructuredGrid) = ResidualField(VectorField(arch, grid), Field(arch, grid, Center()))
+
+function ViscosityField(arch, grid::StructuredGrid)
+    return (η=Field(arch, grid, Center()),
+            η_next=Field(arch, grid, Center()))
 end
 
-function VelocityFields(arch, grid::CartesianGrid{2})
-    return VectorField(arch, grid)
-end
-
-function ResidualFields(arch, grid::CartesianGrid{2})
-    (r_Pr=Field(arch, grid, Center()), r_V=VectorField(arch, grid))
-end
-
-function ViscosityFields(arch, grid::CartesianGrid)
-    (η      = Field(arch, grid, Center()),
-     η_next = Field(arch, grid, Center()))
-end
+include("boundary_conditions.jl")
 
 function IsothermalFullStokesModel(; arch,
                                    grid,
@@ -59,12 +64,10 @@ function IsothermalFullStokesModel(; arch,
                                    rheology,
                                    solver_params=(),
                                    outer_width=nothing)
-    stress    = StressFields(arch, grid)
-    velocity  = VelocityFields(arch, grid)
-    viscosity = ViscosityFields(arch, grid)
-    residual  = ResidualFields(arch, grid)
-
-    boundary_conditions = IsothermalFullStokesBoundaryConditions(arch, grid, stress, velocity, viscosity, residual, boundary_conditions)
+    stress    = StressField(arch, grid)
+    velocity  = VelocityField(arch, grid)
+    viscosity = ViscosityField(arch, grid)
+    residual  = ResidualField(arch, grid)
 
     if isnothing(outer_width)
         outer_width = ntuple(_ -> 2, Val(ndims(grid)))
@@ -81,25 +84,27 @@ function IsothermalFullStokesModel(; arch,
                                      gravity,
                                      residual,
                                      boundary_conditions,
-                                     hide_boundaries,
                                      solver_params,
                                      launcher)
 end
 
 function advance_iteration!(model::IsothermalFullStokesModel, t, Δt)
-    (; Pr, τ)     = model.stress
-    V             = model.velocity
+    (; P, τ)      = model.stress
+    (; V)         = model.velocity
     (; η, η_next) = model.viscosity
     (; Δτ)        = model.solver_params
     arch          = model.arch
     rheology      = model.rheology
     ρg            = model.gravity
-    bc            = model.boundary_conditions
     grid          = model.grid
     launch        = model.launcher
 
-    launch(arch, grid, update_σ! => (Pr, τ, V, η, Δτ, grid); bc=bc.stress)
-    launch(arch, grid, update_V! => (V, Pr, τ, η, η_next, rheology, ρg, Δτ, grid); bc=velocity_bc)
+    bc1 = batch(grid, model.stress, model.boundary_conditions)
+    bc2 = merge(batch(grid, model.velocity, model.boundary_conditions; exchange=Tuple(V)),
+                batch(grid, η_next => Neumann(); exchange=η_next))
+
+    launch(arch, grid, update_σ! => (P, τ, V, η, Δτ, grid); bc=bc1)
+    launch(arch, grid, update_V! => (V, P, τ, η, η_next, rheology, ρg, Δτ, grid); bc=bc2)
 
     # swap double buffers for viscosity
     model.viscosity = NamedTuple{keys(model.viscosity)}(reverse(values(model.viscosity)))
@@ -107,14 +112,15 @@ function advance_iteration!(model::IsothermalFullStokesModel, t, Δt)
 end
 
 function compute_residuals!(model::IsothermalFullStokesModel)
-    (; Pr, τ)     = model.stress
-    V             = model.velocity
-    (; r_Pr, r_V) = model.residual
-    grid          = model.grid
-    ρg            = model.gravity
-    bc            = model.boundary_conditions.residual
+    (; P, τ)     = model.stress
+    (; V)        = model.velocity
+    (; r_P, r_V) = model.residual
+    grid         = model.grid
+    ρg           = model.gravity
+    launch       = model.launcher
 
-    launch!(model.arch, grid, compute_residuals! => (r_V, r_Pr, Pr, τ, V, ρg, grid); bc)
+    bc = batch(grid, model.residual, model.boundary_conditions)
+    launch(model.arch, grid, compute_residuals! => (r_V, r_P, P, τ, V, ρg, grid); bc)
     return
 end
 
