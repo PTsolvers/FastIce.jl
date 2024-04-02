@@ -25,10 +25,7 @@ MPI.Init()
 
 conv(nx, tx) = tx * ((nx + tx ÷ 2 -1 ) ÷ tx)
 
-function load_data(data_path)
-    dat = load(data_path)
-    return first(keys(dat)), dat
-end
+load_data(data_path) = (first(keys(dat = load(data_path))), dat)
 
 function make_synthetic(backend=CPU(); nx, ny, lx, ly, lz, amp, ω, tanβ, el, gl)
     arch = Arch(backend)
@@ -63,7 +60,7 @@ function extract_dem(backend=CPU(); data_path::String)
     return (; backend, bed, surf, grid, lx, ly, lz)
 end
 
-function main(backend=CPU())
+function main_synthetic(backend=CPU())
     # synthetic topo
     lx, ly, lz = 5.0, 5.0, 1.0
     amp  = 0.1
@@ -73,7 +70,7 @@ function main(backend=CPU())
     gl   = 0.9
 
     nx, ny = 126, 126
-    nz     = max(conv(ceil(Int, data_elevation.lz / data_elevation.lx * nx), 32), 32)
+    nz     = max(conv(ceil(Int, lz / lx * nx), 32), 32)
     resol  = (nx, ny, nz)
 
     synthetic_elevation = make_synthetic(backend; nx, ny, lx, ly, lz, amp, ω, tanβ, el, gl)
@@ -83,6 +80,7 @@ function main(backend=CPU())
 end
 
 function main_vavilov(backend=CPU())
+    # load dem data
     data_path = "./vavilov_dem.jld2"
 
     data_elevation = extract_dem(backend; data_path)
@@ -159,7 +157,7 @@ end
     return
 end
 
-main(backend)
+main_synthetic(backend)
 main_vavilov(backend)
 
 MPI.Finalize()
