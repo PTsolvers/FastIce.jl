@@ -25,8 +25,6 @@ MPI.Init()
 
 conv(nx, tx) = tx * ((nx + tx ÷ 2 -1 ) ÷ tx)
 
-load_data(data_path) = (first(keys(dat = load(data_path))), dat)
-
 function make_synthetic(backend=CPU(); nx, ny, lx, ly, lz, amp, ω, tanβ, el, gl)
     arch = Arch(backend)
     grid = UniformGrid(arch; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
@@ -42,12 +40,13 @@ function make_synthetic(backend=CPU(); nx, ny, lx, ly, lz, amp, ω, tanβ, el, g
 end
 
 function extract_dem(backend=CPU(); data_path::String)
-    dtype, data = load_data(data_path)
-    z_surf      = data[dtype].z_surf
-    z_bed       = data[dtype].z_bed
-    dm          = data[dtype].domain
-    lx, ly, lz  = extents(dm)
-    nx, ny      = size(z_surf) .- 1
+    data       = load(data_path)
+    dtype      = first(keys(data))
+    z_surf     = data[dtype].z_surf
+    z_bed      = data[dtype].z_bed
+    dm         = data[dtype].domain
+    lx, ly, lz = extents(dm)
+    nx, ny     = size(z_surf) .- 1
 
     arch = Arch(backend)
     grid = UniformGrid(arch; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
@@ -81,7 +80,7 @@ end
 
 function main_vavilov(backend=CPU())
     # load dem data
-    data_path = "./vavilov_dem.jld2"
+    data_path = "./vavilov_dem2.jld2"
 
     data_elevation = extract_dem(backend; data_path)
 
