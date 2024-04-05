@@ -11,13 +11,13 @@ using JLD2
 using KernelAbstractions
 using CairoMakie
 # using CUDA
-# using AMDGPU
-# AMDGPU.allowscalar(false)
+using AMDGPU
+AMDGPU.allowscalar(false)
 
 # Select backend
-backend = CPU()
+# backend = CPU()
 # backend = CUDABackend()
-# backend = ROCBackend()
+backend = ROCBackend()
 
 using Chmy.Distributed
 using MPI
@@ -25,41 +25,28 @@ MPI.Init()
 
 conv(nx, tx) = tx * ((nx + tx ÷ 2 -1 ) ÷ tx)
 
-function make_synthetic(backend=CPU(); nx, ny, lx, ly, lz, amp, ω, tanβ, el, gl)
-    arch = Arch(backend)
-    grid = UniformGrid(arch; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
+function make_synthetic(arch::Architecture, nx, ny, lx, ly, lz, amp, ω, tanβ, el, gl)
+    backend   = Architectures.get_backend(arch)
+    topo      = topology(arch)
+    device_id = shared_rank(topo) + 1
+
+    arch_2d = Arch(backend, device_id=device_id)
+    grid_2d = UniformGrid(arch_2d; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
 
     # type = :turtle
     generate_surf(x, y, gl, lx, ly) = gl * (1.0 - ((1.7 * x / lx + 0.22)^2 + (0.5 * y / ly)^2))
     generate_bed(x, y, amp, ω, tanβ, el, lx, ly, lz) = lz * (amp * sin(ω * x / lx) * sin(ω * y /ly) + tanβ * x / lx + el + (1.5 * y / ly)^2)
 
-    surf = FunctionField(generate_surf, grid, Vertex(); parameters=(; gl, lx, ly))
-    bed  = FunctionField(generate_bed, grid, Vertex(); parameters=(; amp, ω, tanβ, el, lx, ly, lz))
+    surf = FunctionField(generate_surf, grid_2d, Vertex(); parameters=(; gl, lx, ly))
+    bed  = FunctionField(generate_bed, grid_2d, Vertex(); parameters=(; amp, ω, tanβ, el, lx, ly, lz))
 
-    return (; backend, bed, surf, grid, lx, ly, lz)
-end
-
-function extract_dem(backend=CPU(); data_path::String)
-    data       = load(data_path)
-    dtype      = first(keys(data))
-    z_surf     = data[dtype].z_surf
-    z_bed      = data[dtype].z_bed
-    dm         = data[dtype].domain
-    lx, ly, lz = extents(dm)
-    nx, ny     = size(z_surf) .- 1
-
-    arch = Arch(backend)
-    grid = UniformGrid(arch; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
-
-    surf = Field(backend, grid, Vertex())
-    bed  = Field(backend, grid, Vertex())
-    set!(surf, z_surf)
-    set!(bed, z_bed)
-
-    return (; backend, bed, surf, grid, lx, ly, lz)
+    return (; arch, bed, surf, grid_2d, lx, ly, lz)
 end
 
 function main_synthetic(backend=CPU())
+    # set-up distributed
+    arch = Arch(backend, MPI.COMM_WORLD, (0, 0, 1))
+
     # synthetic topo
     lx, ly, lz = 5.0, 5.0, 1.0
     amp  = 0.1
@@ -69,35 +56,63 @@ function main_synthetic(backend=CPU())
     gl   = 0.9
 
     nx, ny = 126, 126
-    nz     = max(conv(ceil(Int, lz / lx * nx), 32), 32)
+    nz     = max(conv(ceil(Int, lz / lx * nx), 30), 30)
     resol  = (nx, ny, nz)
 
-    synthetic_elevation = make_synthetic(backend; nx, ny, lx, ly, lz, amp, ω, tanβ, el, gl)
+    synthetic_elevation = make_synthetic(arch, nx, ny, lx, ly, lz, amp, ω, tanβ, el, gl)
 
     run_simulation(synthetic_elevation..., resol...)
     return
+end
+
+function extract_dem(arch::Architecture, data_path::String)
+    backend   = Architectures.get_backend(arch)
+    topo      = topology(arch)
+    device_id = shared_rank(topo) + 1
+
+    data       = load(data_path)
+    dtype      = first(keys(data))
+
+    z_surf     = data[dtype].z_surf
+    z_bed      = data[dtype].z_bed
+    dm         = data[dtype].domain
+    lx, ly, lz = extents(dm)
+    nx, ny     = size(z_surf) .- 1
+
+    arch_2d = Arch(backend, device_id=device_id)
+    grid_2d = UniformGrid(arch_2d; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
+
+    surf = Field(backend, grid_2d, Vertex())
+    bed  = Field(backend, grid_2d, Vertex())
+    set!(surf, z_surf)
+    set!(bed, z_bed)
+
+    return (; arch, bed, surf, grid_2d, lx, ly, lz)
 end
 
 function main_vavilov(backend=CPU())
     # load dem data
     data_path = "./vavilov_dem2.jld2"
 
-    data_elevation = extract_dem(backend; data_path)
+    # set-up distributed
+    arch = Arch(backend, MPI.COMM_WORLD, (0, 0, 0))
 
-    nx, ny = 126, 126
-    nz     = max(conv(ceil(Int, data_elevation.lz / data_elevation.lx * nx), 32), 32)
+    data_elevation = extract_dem(arch, data_path)
+
+    nx, ny = 254, 254
+    nz     = max(conv(ceil(Int, data_elevation.lz / data_elevation.lx * nx), 30), 62)
     resol  = (nx, ny, nz)
 
     run_simulation(data_elevation..., resol...)
     return
 end
 
-@views function run_simulation(backend, bed, surf, grid_2d, lx, ly, lz, nx, ny, nz)
-    arch = Arch(backend, MPI.COMM_WORLD, (0, 0, 0))
+@views function run_simulation(arch::Architecture, bed, surf, grid_2d, lx, ly, lz, nx, ny, nz)
+    # arch = Arch(backend, MPI.COMM_WORLD, (0, 0, 1))
     topo = topology(arch)
     me   = global_rank(topo)
     # geometry
-    @info "size = ($nx, $ny, $nz), extent = ($lx, $ly, $lz)"
+    (me == 0) && @info "size = ($nx, $ny, $nz), extent = ($lx, $ly, $lz)"
     dims_l = (nx, ny, nz)
     dims_g = dims_l .* dims(topo)
     grid   = UniformGrid(arch; origin=(-lx/2, -ly/2, 0.0), extent=(lx, ly, lz), dims=dims_g)
@@ -150,13 +165,13 @@ end
                p6  = heatmap!(axs.ax6, wt_ns_c[slx, :, :]; colormap=:turbo))
         Colorbar(fig[1, 1][1, 2], plt.p1)
         Colorbar(fig[2, 2][1, 2], plt.p4)
-        display(fig)
-        # save("levset_$nx.png", fig)
+        # display(fig)
+        save("levset4_$nx.png", fig)
     end
     return
 end
 
 main_synthetic(backend)
-main_vavilov(backend)
+# main_vavilov(backend)
 
 MPI.Finalize()
