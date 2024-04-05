@@ -70,8 +70,8 @@ function extract_dem(arch::Architecture, data_path::String)
     topo      = topology(arch)
     device_id = shared_rank(topo) + 1
 
-    data       = load(data_path)
-    dtype      = first(keys(data))
+    data  = load(data_path)
+    dtype = first(keys(data))
 
     z_surf     = data[dtype].z_surf
     z_bed      = data[dtype].z_bed
@@ -99,7 +99,7 @@ function main_vavilov(backend=CPU())
 
     data_elevation = extract_dem(arch, data_path)
 
-    nx, ny = 254, 254
+    nx, ny = 126, 126
     nz     = max(conv(ceil(Int, data_elevation.lz / data_elevation.lx * nx), 30), 62)
     resol  = (nx, ny, nz)
 
@@ -108,7 +108,7 @@ function main_vavilov(backend=CPU())
 end
 
 @views function run_simulation(arch::Architecture, bed, surf, grid_2d, lx, ly, lz, nx, ny, nz)
-    # arch = Arch(backend, MPI.COMM_WORLD, (0, 0, 1))
+    # distributed arch we get from the outside
     topo = topology(arch)
     me   = global_rank(topo)
     # geometry
@@ -166,12 +166,12 @@ end
         Colorbar(fig[1, 1][1, 2], plt.p1)
         Colorbar(fig[2, 2][1, 2], plt.p4)
         # display(fig)
-        save("levset4_$nx.png", fig)
+        save("levset_$(dims_g[1]).png", fig)
     end
     return
 end
 
-main_synthetic(backend)
-# main_vavilov(backend)
+# main_synthetic(backend)
+main_vavilov(backend)
 
 MPI.Finalize()
