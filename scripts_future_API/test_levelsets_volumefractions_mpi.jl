@@ -26,11 +26,7 @@ MPI.Init()
 conv(nx, tx) = tx * ((nx + tx ÷ 2 -1 ) ÷ tx)
 
 function make_synthetic(arch::Architecture, nx, ny, lx, ly, lz, amp, ω, tanβ, el, gl)
-    backend   = Architectures.get_backend(arch)
-    topo      = topology(arch)
-    device_id = shared_rank(topo) + 1
-
-    arch_2d = Arch(backend, device_id=device_id)
+    arch_2d = SingleDeviceArchitecture(arch)
     grid_2d = UniformGrid(arch_2d; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
 
     # type = :turtle
@@ -66,10 +62,6 @@ function main_synthetic(backend=CPU())
 end
 
 function extract_dem(arch::Architecture, data_path::String)
-    backend   = Architectures.get_backend(arch)
-    topo      = topology(arch)
-    device_id = shared_rank(topo) + 1
-
     data  = load(data_path)
     dtype = first(keys(data))
 
@@ -79,7 +71,8 @@ function extract_dem(arch::Architecture, data_path::String)
     lx, ly, lz = extents(dm)
     nx, ny     = size(z_surf) .- 1
 
-    arch_2d = Arch(backend, device_id=device_id)
+    backend = Architectures.get_backend(arch)
+    arch_2d = SingleDeviceArchitecture(arch)
     grid_2d = UniformGrid(arch_2d; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
 
     surf = Field(backend, grid_2d, Vertex())
