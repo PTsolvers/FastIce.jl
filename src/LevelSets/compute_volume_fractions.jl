@@ -134,6 +134,8 @@ function volfrac_field(backend::Backend, grid::UniformGrid{3}, args...; kwargs..
      yz=Field(backend, grid, (Center(), Vertex(), Vertex())))
 end
 
+volfrac_field(arch::Architecture, args...; kwargs...) = volfrac_field(Architectures.get_backend(arch), args...; kwargs...)
+
 include("volume_fractions_kernels.jl")
 
 """

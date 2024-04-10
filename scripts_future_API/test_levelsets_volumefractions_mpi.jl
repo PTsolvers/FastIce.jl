@@ -3,10 +3,11 @@ using Chmy.Grids
 using Chmy.Fields
 using Chmy.KernelLaunch
 
+using FastIce.Writers
 using FastIce.LevelSets
-
 using FastIce.Geometries
 using JLD2
+
 
 using KernelAbstractions
 using CairoMakie
@@ -18,6 +19,8 @@ AMDGPU.allowscalar(false)
 # backend = CPU()
 # backend = CUDABackend()
 backend = ROCBackend()
+
+do_h5_save = true
 
 using Chmy.Distributed
 using MPI
@@ -68,15 +71,18 @@ function extract_dem(arch::Architecture, data_path::String)
     z_surf     = data[dtype].z_surf
     z_bed      = data[dtype].z_bed
     dm         = data[dtype].domain
+    dm         = dilate(dm, 0.05)
     lx, ly, lz = extents(dm)
     nx, ny     = size(z_surf) .- 1
 
-    backend = Architectures.get_backend(arch)
+    z_surf .-= dm.zmin # put Z-origin at 0
+    z_bed  .-= dm.zmin # put Z-origin at 0
+
     arch_2d = SingleDeviceArchitecture(arch)
     grid_2d = UniformGrid(arch_2d; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
 
-    surf = Field(backend, grid_2d, Vertex())
-    bed  = Field(backend, grid_2d, Vertex())
+    surf = Field(arch_2d, grid_2d, Vertex())
+    bed  = Field(arch_2d, grid_2d, Vertex())
     set!(surf, z_surf)
     set!(bed, z_bed)
 
@@ -92,7 +98,7 @@ function main_vavilov(backend=CPU())
 
     data_elevation = extract_dem(arch, data_path)
 
-    nx, ny = 126, 126
+    nx, ny = 254, 254
     nz     = max(conv(ceil(Int, data_elevation.lz / data_elevation.lx * nx), 30), 62)
     resol  = (nx, ny, nz)
 
@@ -111,10 +117,10 @@ end
     grid   = UniformGrid(arch; origin=(-lx/2, -ly/2, 0.0), extent=(lx, ly, lz), dims=dims_g)
     launch = Launcher(arch, grid; outer_width=(16, 8, 4))
     # init fields
-    Ψ = (na=Field(backend, grid, Vertex()),
-         ns=Field(backend, grid, Vertex()))
-    wt = (na=volfrac_field(backend, grid),
-          ns=volfrac_field(backend, grid))
+    Ψ = (na=Field(arch, grid, Vertex()),
+         ns=Field(arch, grid, Vertex()))
+    wt = (na=volfrac_field(arch, grid),
+          ns=volfrac_field(arch, grid))
     # comput level set
     compute_levelset_from_dem!(arch, launch, Ψ.na, surf, grid_2d, grid)
     compute_levelset_from_dem!(arch, launch, Ψ.ns, bed, grid_2d, grid)
@@ -159,12 +165,28 @@ end
         Colorbar(fig[1, 1][1, 2], plt.p1)
         Colorbar(fig[2, 2][1, 2], plt.p4)
         # display(fig)
-        save("levset_$(dims_g[1]).png", fig)
+        save("levset_$(dims_g[1])_new.png", fig)
     end
+
+    if do_h5_save
+        h5names = String[]
+        fields = Dict("wt_na" => wt.na.c, "wt_ns" => wt.ns.c)
+        outdir = "out_visu_mpi"
+        (me == 0) && mkpath(outdir)
+
+        out_h5 = "results.h5"
+        (me == 0) && @info "saving HDF5 file"
+        write_h5(arch, grid, joinpath(outdir, out_h5), fields)
+        push!(h5names, out_h5)
+
+        (me == 0) && @info "saving XDMF file"
+        (me == 0) && write_xdmf(arch, grid, joinpath(outdir, "results.xdmf3"), fields, h5names)
+    end
+
     return
 end
 
 # main_synthetic(backend)
 main_vavilov(backend)
 
-MPI.Finalize()
+# MPI.Finalize()

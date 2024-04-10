@@ -7,8 +7,10 @@
 
 module use /appl/local/csc/modulefiles
 module load julia
+
 module load julia-mpi
 module load julia-amdgpu
+module load cray-hdf5-parallel
 
 # ROCm-aware MPI set to 1, else 0
 export MPICH_GPU_SUPPORT_ENABLED=1

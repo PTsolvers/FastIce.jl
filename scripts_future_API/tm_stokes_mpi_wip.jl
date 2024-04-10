@@ -218,16 +218,6 @@ function main(; do_visu=false, do_save=false, do_h5_save=false)
         (me == 0) && write_xdmf(arch, grid_g, joinpath(outdir, "results.xdmf3"), fields, h5names)
     end
 
-    if do_h5_save
-        out_h5 = "results.h5"
-        (me == 0) && @info "saving HDF5 file"
-        write_h5(arch, grid_g, joinpath(outdir, out_h5), fields)
-        push!(h5names, out_h5)
-
-        (me == 0) && @info "saving XDMF file"
-        (me == 0) && write_xdmf(arch, grid_g, joinpath(outdir, "results.xdmf3"), fields, h5names)
-    end
-
     if do_save || do_visu
         copyto!(Pr_v, interior(model.stress.Pr))
         copyto!(τxx_v, interior(model.stress.τ.xx))

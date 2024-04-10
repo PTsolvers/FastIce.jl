@@ -3,7 +3,7 @@ module Geometries
 # export AbstractElevation, AABB, DataElevation, SyntheticElevation
 # export domain, rotated_domain, rotation, generate_elevation, extents, center, dilate
 export SyntheticElevation
-export extents
+export extents, dilate
 export make_synthetic
 
 using Chmy.Grids
