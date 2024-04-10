@@ -8,7 +8,6 @@ using FastIce.LevelSets
 using FastIce.Geometries
 using JLD2
 
-
 using KernelAbstractions
 using CairoMakie
 # using CUDA
