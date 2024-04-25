@@ -1,5 +1,24 @@
-export sd_dem
+# 2D functions
 
+function sd_poly(p::Point2{T}, poly::AbstractVector{Point2{T}}) where {T}
+    d = dot(p - poly[1], p - poly[1])
+    s = 1.0
+    j = length(poly)
+    for i in eachindex(poly)
+        e = poly[j] - poly[i]
+        w = p - poly[i]
+        b = w - e .* clamp(dot(w, e) / dot(e, e), zero(T), oneunit(T))
+        d = min(d, dot(b, b))
+        c = p[2] >= poly[i][2], p[2] < poly[j][2], e[1] * w[2] > e[2] * w[1]
+        if all(c) || all(.!c)
+            s = -s
+        end
+        j = i
+    end
+    return s * sqrt(d)
+end
+
+# 3D functions
 @inline S(x) = x == zero(x) ? oneunit(x) : sign(x)
 sign_triangle(p, a, b, c) = S(dot(p - a, cross(b - a, c - a)))
 
@@ -56,7 +75,7 @@ function Base.clamp(p::NTuple{N}, grid::UniformGrid{N}) where {N}
     clamp.(p, Grids.origin(grid, Vertex()), Grids.origin(grid, Vertex()) .+ extent(grid, Vertex()))
 end
 
-function sd_dem(P, cutoff, dem, grid)
+function sd_dem(P, cutoff, dem, grid::UniformGrid{2})
     @inbounds Pp = clamp((P[1], P[2]), grid)
     BL = closest_vertex_index(Pp .- cutoff, grid)
     TR = closest_vertex_index(Pp .+ cutoff, grid)
