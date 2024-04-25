@@ -1,16 +1,13 @@
 #!/bin/bash
 
 # source /users/lurass/scratch/setenv_lumi.sh
-# module load LUMI/23.09
-# module load partition/G
-# module load rocm/5.6.1
 
 module use /appl/local/csc/modulefiles
 module load julia
 
 module load julia-mpi
 module load julia-amdgpu
-module load cray-hdf5-parallel
+module load cray-hdf5-parallel # julia-hdf5 seems not to work yet with MPI...
 
 # ROCm-aware MPI set to 1, else 0
 export MPICH_GPU_SUPPORT_ENABLED=1
@@ -25,7 +22,7 @@ export MPICH_GPU_SUPPORT_ENABLED=1
 
 # julia --project benchmark_diffusion_3D.jl
 # julia --project --color=yes tm_stokes_mpi_wip.jl
-julia --project --color=yes test_levelsets_volumefractions_mpi.jl
+julia --project --color=yes test_levelsets_volfrac.jl
 
 # Profiling
 # ENABLE_JITPROFILING=1 rocprof --hip-trace --hsa-trace -d ./prof_out${SLURM_PROCID} -o ./prof_out${SLURM_PROCID}/results${SLURM_PROCID}.csv julia --project bench3d.jl

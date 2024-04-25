@@ -12,13 +12,13 @@ using JLD2
 using KernelAbstractions
 using CairoMakie
 # using CUDA
-# using AMDGPU
-# AMDGPU.allowscalar(false)
+using AMDGPU
+AMDGPU.allowscalar(false)
 
 # Select backend
-backend = CPU()
+# backend = CPU()
 # backend = CUDABackend()
-# backend = ROCBackend()
+backend = ROCBackend()
 
 do_h5_save = true
 
@@ -44,7 +44,7 @@ end
 
 function main_synthetic(backend=CPU())
     # set-up distributed
-    arch = Arch(backend, MPI.COMM_WORLD, (0, 0, 1))
+    arch = Arch(backend, MPI.COMM_WORLD, (0, 0, 0))
 
     # synthetic topo
     lx, ly, lz = 5.0, 5.0, 1.0
@@ -99,7 +99,7 @@ function main_vavilov(backend=CPU())
     data_elevation = extract_dem(arch, data_path)
 
     nx, ny = 126, 126
-    nz     = max(conv(ceil(Int, data_elevation.lz / data_elevation.lx * nx), 30), 30)
+    nz     = max(conv(ceil(Int, data_elevation.lz / data_elevation.lx * nx), 30), 60)
     resol  = (nx, ny, nz)
 
     run_simulation(data_elevation..., resol...)
@@ -165,13 +165,13 @@ end
         Colorbar(fig[1, 1][1, 2], plt.p1)
         Colorbar(fig[2, 2][1, 2], plt.p4)
         # display(fig)
-        save("levset_$(dims_g[1])_new.png", fig)
+        save("levset_$(dims_g[1])_v.png", fig)
     end
 
     if do_h5_save
         h5names = String[]
         fields = Dict("wt_na" => wt.na.ccc, "wt_ns" => wt.ns.ccc)
-        outdir = "out_visu_mpi"
+        outdir = "out_visu_mpi_v"
         (me == 0) && mkpath(outdir)
 
         out_h5 = "results.h5"
