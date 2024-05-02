@@ -47,7 +47,7 @@ end
     # locations
     loc_vcc = (Vertex(), Center(), Center())
     loc_cvc = (Center(), Vertex(), Center())
-    loc_ccv = (Center(), Vertex(), Vertex())
+    loc_ccv = (Center(), Center(), Vertex())
 
     loc_vvc = (Vertex(), Vertex(), Center())
     loc_vcv = (Vertex(), Center(), Vertex())
@@ -68,10 +68,10 @@ end
     ω.cvc[i, j, k] = ψ2ω(cell_cvc, Δ(g, loc_cvc, i, j, k))
 
     # z interface
-    cell_ccv = (((lerp(ψ, loc_vvc, g, i, j - 1, k - 1), lerp(ψ, loc_vvc, g, i + 1, j - 1, k - 1)),
-                 (lerp(ψ, loc_vvc, g, i, j + 0, k - 1), lerp(ψ, loc_vvc, g, i + 1, j + 0, k - 1))),
-                ((lerp(ψ, loc_vvc, g, i, j - 1, k + 0), lerp(ψ, loc_vvc, g, i + 1, j - 1, k + 0)),
-                 (lerp(ψ, loc_vvc, g, i, j + 0, k + 0), lerp(ψ, loc_vvc, g, i + 1, j + 0, k + 0))))
+    cell_ccv = (((lerp(ψ, loc_vvc, g, i, j + 0, k - 1), lerp(ψ, loc_vvc, g, i + 1, j + 0, k - 1)),
+                 (lerp(ψ, loc_vvc, g, i, j + 1, k - 1), lerp(ψ, loc_vvc, g, i + 1, j + 1, k - 1))),
+                ((lerp(ψ, loc_vvc, g, i, j + 0, k + 0), lerp(ψ, loc_vvc, g, i + 1, j + 0, k + 0)),
+                 (lerp(ψ, loc_vvc, g, i, j + 1, k + 0), lerp(ψ, loc_vvc, g, i + 1, j + 1, k + 0))))
     ω.ccv[i, j, k] = ψ2ω(cell_ccv, Δ(g, loc_ccv, i, j, k))
 
     # xy edge
