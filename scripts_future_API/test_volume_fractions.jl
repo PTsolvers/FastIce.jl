@@ -8,14 +8,14 @@ using FastIce.Models.ImmersedBoundaryFullStokes.Isothermal
 
 using FastIce.Writers
 
-using CUDA
+# using CUDA
 # using GLMakie
 using CairoMakie
 
 using Printf
 using LinearAlgebra
 
-function main(backend; res=(126, 126, 62))
+function main(backend; res)
     arch = Arch(backend)
     grid = UniformGrid(arch; origin=(-1, -1, 0), extent=(2, 2, 1), dims=res)
 
@@ -63,8 +63,8 @@ function main(backend; res=(126, 126, 62))
                z=ValueField(1.0))
 
     # numerics
-    niter   = 100maximum(size(grid, Center()))
-    ncheck  = 2maximum(size(grid, Center()))
+    niter   = 25maximum(size(grid, Center()))
+    ncheck  = 5maximum(size(grid, Center()))
     do_visu = true
     do_h5_save = true
 
@@ -108,7 +108,7 @@ function main(backend; res=(126, 126, 62))
                                                    lerp(V.y, loc, g, ix, iy, iz)^2 +
                                                    lerp(V.z, loc, g, ix, iy, iz)^2); discrete=true, parameters=(model.velocity.V,))
 
-    fig = Figure(; size=(800, 600))
+    fig = Figure(; size=(800, 400))
     axs = (Pr  = Axis(fig[1, 1][1, 1]; aspect=DataAspect(), ylabel="z", title="Pr"),
            Vm  = Axis(fig[1, 2][1, 1]; aspect=DataAspect(), title="|V|"),
            ωna = Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x"),
@@ -131,9 +131,7 @@ function main(backend; res=(126, 126, 62))
         mkpath(outdir)
     end
 
-    iter   = 1
-    niter  = 25nx
-    ncheck = 5nx
+    iter = 1
     for iter in 1:niter
         advance_iteration!(model, 0.0, 1.0)
         if (iter % ncheck == 0)
@@ -174,4 +172,4 @@ function main(backend; res=(126, 126, 62))
     return
 end
 
-main(CUDABackend(); res=(256, 256, 128) .- 2)
+main(CPU(); res=(128, 128, 64) .- 2)
