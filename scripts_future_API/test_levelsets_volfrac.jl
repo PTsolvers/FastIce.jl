@@ -11,14 +11,14 @@ using JLD2
 
 using KernelAbstractions
 using CairoMakie
-# using CUDA
-using AMDGPU
-AMDGPU.allowscalar(false)
+using CUDA
+# using AMDGPU
+# AMDGPU.allowscalar(false)
 
 # Select backend
 # backend = CPU()
-# backend = CUDABackend()
-backend = ROCBackend()
+backend = CUDABackend()
+# backend = ROCBackend()
 
 do_h5_save = true
 
@@ -33,13 +33,13 @@ function make_synthetic(arch::Architecture, nx, ny, lx, ly, lz, amp, ω, tanβ, 
     grid_2d = UniformGrid(arch_2d; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
 
     # type = :turtle
-    generate_surf(x, y, gl, lx, ly) = gl * (1.0 - ((1.7 * x / lx + 0.22)^2 + (0.5 * y / ly)^2))
+    generate_ice(x, y, gl, lx, ly) = gl * (1.0 - ((1.7 * x / lx + 0.22)^2 + (0.5 * y / ly)^2))
     generate_bed(x, y, amp, ω, tanβ, el, lx, ly, lz) = lz * (amp * sin(ω * x / lx) * sin(ω * y /ly) + tanβ * x / lx + el + (1.5 * y / ly)^2)
 
-    surf = FunctionField(generate_surf, grid_2d, Vertex(); parameters=(; gl, lx, ly))
+    ice = FunctionField(generate_ice, grid_2d, Vertex(); parameters=(; gl, lx, ly))
     bed  = FunctionField(generate_bed, grid_2d, Vertex(); parameters=(; amp, ω, tanβ, el, lx, ly, lz))
 
-    return (; arch, bed, surf, grid_2d, lx, ly, lz)
+    return (; arch, bed, ice, grid_2d, lx, ly, lz)
 end
 
 function main_synthetic(backend=CPU())
@@ -68,25 +68,25 @@ function extract_dem(arch::Architecture, data_path::String)
     data  = load(data_path)
     dtype = first(keys(data))
 
-    z_surf     = data[dtype].z_surf
+    z_ice      = data[dtype].z_surf
     z_bed      = data[dtype].z_bed
     dm         = data[dtype].domain
     dm         = dilate(dm, 0.05)
     lx, ly, lz = extents(dm)
-    nx, ny     = size(z_surf) .- 1
+    nx, ny     = size(z_ice) .- 1
 
-    z_surf .-= dm.zmin # put Z-origin at 0
-    z_bed  .-= dm.zmin # put Z-origin at 0
+    z_ice .-= dm.zmin # put Z-origin at 0
+    z_bed .-= dm.zmin # put Z-origin at 0
 
     arch_2d = SingleDeviceArchitecture(arch)
     grid_2d = UniformGrid(arch_2d; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
 
-    surf = Field(arch_2d, grid_2d, Vertex())
+    ice = Field(arch_2d, grid_2d, Vertex())
     bed  = Field(arch_2d, grid_2d, Vertex())
-    set!(surf, z_surf)
+    set!(ice, z_ice)
     set!(bed, z_bed)
 
-    return (; arch, bed, surf, grid_2d, lx, ly, lz)
+    return (; arch, bed, ice, grid_2d, lx, ly, lz)
 end
 
 function main_vavilov(backend=CPU())
@@ -106,7 +106,7 @@ function main_vavilov(backend=CPU())
     return
 end
 
-@views function run_simulation(arch::Architecture, bed, surf, grid_2d, lx, ly, lz, nx, ny, nz)
+@views function run_simulation(arch::Architecture, bed, ice, grid_2d, lx, ly, lz, nx, ny, nz)
     # distributed arch we get from the outside
     topo = topology(arch)
     me   = global_rank(topo)
@@ -122,7 +122,7 @@ end
     wt = (na=FieldMask(arch, grid),
           ns=FieldMask(arch, grid))
     # comput level set
-    compute_levelset_from_dem!(arch, launch, Ψ.na, surf, grid_2d, grid)
+    compute_levelset_from_dem!(arch, launch, Ψ.na, ice, grid_2d, grid)
     compute_levelset_from_dem!(arch, launch, Ψ.ns, bed, grid_2d, grid)
     invert_levelset!(arch, launch, Ψ.ns, grid) # invert level set to set what's below the DEM surface as inside
     # volume fractions
@@ -139,9 +139,9 @@ end
     gather!(arch, wt_ns_c, wt.ns.ccc)
     # visualise
     if me == 0
-        dem_bed  = Array(interior(bed))
-        dem_surf = Array(interior(surf))
-        dem_surf[dem_surf .< dem_bed] .= NaN
+        dem_bed = Array(interior(bed))
+        dem_ice = Array(interior(ice))
+        dem_ice[dem_ice .< dem_bed] .= NaN
         slx = ceil(Int, size(wt_na_c, 1) / 2) # for visu
         sly = ceil(Int, size(wt_na_c, 2) / 2) # for visu
         x_g = LinRange(-lx / 2, lx / 2, size(dem_bed, 1))
@@ -155,9 +155,9 @@ end
                ax5 = Axis(fig[3, 1]; aspect=DataAspect()),
                ax6 = Axis(fig[3, 2]; aspect=DataAspect()))
         plt = (p1  = surface!(axs.ax1, x_g, y_g, dem_bed; colormap=:turbo),
-               p1_ = surface!(axs.ax1, x_g, y_g, dem_surf; colormap=:turbo),
+               p1_ = surface!(axs.ax1, x_g, y_g, dem_ice; colormap=:turbo),
                p2  = plot!(axs.ax2, x_g, dem_bed[:, sly] |> Array),
-               p2_ = plot!(axs.ax2, x_g, dem_surf[:, sly] |> Array),
+               p2_ = plot!(axs.ax2, x_g, dem_ice[:, sly] |> Array),
                p3  = heatmap!(axs.ax3, wt_na_c[:, sly, :]; colormap=:turbo),
                p4  = heatmap!(axs.ax4, wt_ns_c[:, sly, :]; colormap=:turbo),
                p5  = heatmap!(axs.ax5, wt_na_c[slx, :, :]; colormap=:turbo),
