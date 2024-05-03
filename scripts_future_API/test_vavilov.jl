@@ -22,7 +22,7 @@ MPI.Init()
 
 backend = CUDABackend()
 do_visu = true
-do_h5_save = false
+do_h5_save = true
 
 conv(nx, tx) = tx * ((nx + tx ÷ 2 -1 ) ÷ tx)
 
@@ -76,6 +76,13 @@ function extract_dem(arch::Architecture, data_path::String)
     z_ice .-= dm.zmin # put Z-origin at 0
     z_bed .-= dm.zmin # put Z-origin at 0
 
+    # rescale tmp
+    z_ice ./= lz
+    z_bed ./= lz
+    lx /= lx / 10
+    ly /= ly / 10
+    lz /= lz
+
     arch_2d = SingleDeviceArchitecture(arch)
     grid_2D = UniformGrid(arch_2d; origin=(-lx/2, -ly/2), extent=(lx, ly), dims=(nx, ny))
 
@@ -96,9 +103,10 @@ function main_vavilov(backend=CPU())
 
     data_elevation = extract_dem(arch, data_path)
 
-    nx, ny = 126, 126
-    nz     = max(conv(ceil(Int, data_elevation.lz / data_elevation.lx * nx), 30), 60)
-    resol  = (nx, ny, nz)
+    # nx, ny = 126, 126
+    # nz     = max(conv(ceil(Int, data_elevation.lz / data_elevation.lx * (nx + 2)), 32), 62) - 2
+    # resol  = (nx, ny, nz)
+    resol = (510, 510, 126)
 
     run_simulation(data_elevation..., resol...)
     return
@@ -134,7 +142,7 @@ function run_simulation(arch::Architecture, bed, ice, grid_2D, lx, ly, lz, nx, n
                z=ValueField(1.0))
 
     # numerics
-    niter   = 25maximum(size(grid, Center()))
+    niter   = 50maximum(size(grid, Center()))
     ncheck  = 5maximum(size(grid, Center()))
 
     r       = 0.9
@@ -241,7 +249,7 @@ function run_simulation(arch::Architecture, bed, ice, grid_2D, lx, ly, lz, nx, n
     return
 end
 
-main_synthetic(backend)
-# main_vavilov(backend)
+# main_synthetic(backend)
+main_vavilov(backend)
 
 # MPI.Finalize()
