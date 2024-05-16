@@ -102,3 +102,9 @@ function ω_from_ψ!(arch::Architecture, launch::Launcher, ω::AnyFieldMask, ψ:
     launch(arch, grid, _ω_from_ψ! => (ω, ψ, grid))
     return
 end
+
+function ω_from_ψ!(arch::DistributedArchitecture, launch::Launcher, ω::AnyFieldMask, ψ::AbstractField, grid::StructuredGrid)
+    launch(arch, grid, _ω_from_ψ! => (ω, ψ, grid); bc=batch(grid; exchange=Tuple(ω)))
+    # exchange_halo!(arch, grid, Tuple(ω)...)
+    return
+end

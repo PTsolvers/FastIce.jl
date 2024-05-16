@@ -8,11 +8,13 @@ using FastIce.Models.ImmersedBoundaryFullStokes.Isothermal
 
 using FastIce.Writers
 
-using AMDGPU
 # using GLMakie
 using CairoMakie
 
-backend = ROCBackend()
+backend = CPU()
+
+# using AMDGPU
+# backend = ROCBackend()
 
 using Printf
 using LinearAlgebra
@@ -29,7 +31,7 @@ end
 function main(backend=CPU(); res)
 
     # 3D distributed§
-    arch    = Arch(backend, MPI.COMM_WORLD, (2, 0, 0))
+    arch    = Arch(backend, MPI.COMM_WORLD, (0, 0, 0))
     topo    = topology(arch)
     me      = global_rank(topo)
     dims_l  = res
@@ -64,7 +66,7 @@ function main(backend=CPU(); res)
     ψ = (ns=Field(arch, grid, Vertex()),
          na=Field(arch, grid, Vertex()))
 
-    free_slip = BoundaryCondition{Traction}(0.0, 0.0, 0.0)
+    free_slip = BoundaryCondition{Slip}(0.0, 0.0, 0.0)
 
     boundary_conditions = (x=(free_slip, free_slip),
                            y=(free_slip, free_slip),
@@ -77,8 +79,8 @@ function main(backend=CPU(); res)
     # numerics
     niter   = 25maximum(size(grid, Center()))
     ncheck  = 5maximum(size(grid, Center()))
-    # do_visu = false
-    do_h5_save = true
+    do_visu = true
+    do_h5_save = false
 
     r       = 0.9
     re_mech = 5π
@@ -107,40 +109,15 @@ function main(backend=CPU(); res)
 
     invert_levelset!(arch, model.launcher, ψ.ns, grid)
 
-    ω_from_ψ!(arch, model.launcher, model.field_masks.ns, ψ.ns, grid)
+    ω_from_ψ!(arch, model.launcher, model.field_masks.ns, ψ.ns, grid) # exchange_halo in ω_from_ψ! wrapper for DistributedArch
     ω_from_ψ!(arch, model.launcher, model.field_masks.na, ψ.na, grid)
-
-    # TODO: needs MPI update for ω
 
     set!(model.viscosity.η, rheology.η)
     set!(model.viscosity.η_next, rheology.η)
 
-    bc!(arch, grid, model.viscosity.η => Neumann())
-    bc!(arch, grid, model.viscosity.η_next => Neumann())
+    bc!(arch, grid, model.viscosity.η => Neumann(); exchange=model.viscosity.η)
+    bc!(arch, grid, model.viscosity.η_next => Neumann(); exchange=model.viscosity.η_next)
 
-    Vm = Field(arch, grid, Center())
-    # set!(Vm, grid, (g, loc, ix, iy, iz, V) -> sqrt(lerp(V.x, loc, g, ix, iy, iz)^2 +
-    #                                                lerp(V.y, loc, g, ix, iy, iz)^2 +
-    #                                                lerp(V.z, loc, g, ix, iy, iz)^2); discrete=true, parameters=(model.velocity.V,))
-
-    # nx, ny, nz = size(grid, Center())
-    # iy_sl = ny ÷
-    # fig = Figure(; size=(800, 400))
-    # axs = (Pr  = Axis(fig[1, 1][1, 1]; aspect=DataAspect(), ylabel="z", title="Pr"),
-    #        Vm  = Axis(fig[1, 2][1, 1]; aspect=DataAspect(), title="|V|"),
-    #        ωna = Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x"),
-    #        ωns = Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x"))
-    # plt = (Pr  = heatmap!(axs.Pr, xcenters(grid), zcenters(grid), Array(interior(model.stress.P)[:, iy_sl, :]); colormap=:turbo),
-    #        Vm  = heatmap!(axs.Vm, xcenters(grid), zcenters(grid), Array(interior(Vm)[:, iy_sl, :]); colormap=:turbo),
-    #        ωna = heatmap!(axs.ωna, xcenters(grid), zcenters(grid), Array(interior(model.field_masks.na.ccc)[:, iy_sl, :]); colormap=:turbo),
-    #        ωns = heatmap!(axs.ωns, xcenters(grid), zcenters(grid), Array(interior(model.field_masks.ns.ccc)[:, iy_sl, :]); colormap=:turbo))
-    # Colorbar(fig[1, 1][1, 2], plt.Pr)
-    # Colorbar(fig[1, 2][1, 2], plt.Vm)
-    # Colorbar(fig[2, 1][1, 2], plt.ωna)
-    # Colorbar(fig[2, 2][1, 2], plt.ωns)
-
-    # display(fig)
-    @show AMDGPU.device_id()
     iter = 1
     for iter in 1:niter
         advance_iteration!(model, 0.0, 1.0)
@@ -157,53 +134,67 @@ function main(backend=CPU(); res)
             (me == 0) && @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
         end
     end
-    # if do_visu
-    #     set!(Vm, grid, (g, loc, ix, iy, iz, V) -> sqrt(lerp(V.x, loc, g, ix, iy, iz)^2 +
-    #                                                    lerp(V.y, loc, g, ix, iy, iz)^2 +
-    #                                                    lerp(V.z, loc, g, ix, iy, iz)^2); discrete=true, parameters=(model.velocity.V,))
-
-    #     plt.Pr[3][] = interior(model.stress.P)[:, iy_sl, :]
-    #     plt.Vm[3][] = interior(Vm)[:, iy_sl, :]
-    #     yield()
-    #     display(fig)
-    # end
-    Pr = (me == 0) ? KernelAbstractions.zeros(CPU(), Float64, size(interior(model.stress.P)) .* dims(topo)) : nothing
-    gather!(arch, Pr, model.stress.P)
-    if me == 0
-        slx = ceil(Int, size(Pr, 1) / 2)
-        sly = ceil(Int, size(Pr, 2) / 2)
-        fig = Figure(; size=(800, 600), fontsize=22)
-        axs = (ax1 = Axis(fig[1, 2]; aspect=DataAspect()),
-               ax2 = Axis(fig[2, 2]; aspect=DataAspect()))
-        plt = (p1  = heatmap!(axs.ax1, Pr[slx, :, :]; colormap=:turbo),
-               p2  = heatmap!(axs.ax2, Pr[:, sly, :]; colormap=:turbo))
-        Colorbar(fig[1, 2][1, 2], plt.p1)
-        Colorbar(fig[2, 2][1, 2], plt.p2)
-        save("out_vis.png", fig)
-    end
-    if do_h5_save
-        h5names = String[]
-        fields = Dict("Pr" => model.stress.P, "Vm" => Vm, "wt_ns_c" => model.field_masks.ns.ccc, "wt_na_c" => model.field_masks.na.ccc)
-        outdir = "out_visu"
-        (me == 0) && mkpath(outdir)
-
+    if do_visu
+        Vm = Field(arch, grid, Center())
         set!(Vm, grid, (g, loc, ix, iy, iz, V) -> sqrt(lerp(V.x, loc, g, ix, iy, iz)^2 +
                                                        lerp(V.y, loc, g, ix, iy, iz)^2 +
                                                        lerp(V.z, loc, g, ix, iy, iz)^2); discrete=true, parameters=(model.velocity.V,))
 
-        KernelAbstractions.synchronize(backend)
-
-        out_h5 = "results.h5"
-        (me == 0) && @info "saving HDF5 file"
-        write_h5(arch, grid, joinpath(outdir, out_h5), fields)
-        push!(h5names, out_h5)
-
-        (me == 0) && @info "saving XDMF file"
-        (me == 0) && write_xdmf(arch, grid, joinpath(outdir, "results.xdmf3"), fields, h5names)
+        d1 = model.field_masks.ns.ccc
+        d2 = model.field_masks.na.ccc
+        d3 = Vm
+        d4 = model.stress.P
+        tp1 = (me == 0) ? KernelAbstractions.zeros(CPU(), Float64, size(interior(d1)) .* dims(topo)) : nothing
+        tp2 = (me == 0) ? KernelAbstractions.zeros(CPU(), Float64, size(interior(d2)) .* dims(topo)) : nothing
+        tp3 = (me == 0) ? KernelAbstractions.zeros(CPU(), Float64, size(interior(d3)) .* dims(topo)) : nothing
+        tp4 = (me == 0) ? KernelAbstractions.zeros(CPU(), Float64, size(interior(d4)) .* dims(topo)) : nothing
+        gather!(arch, tp1, d1)
+        gather!(arch, tp2, d2)
+        gather!(arch, tp3, d3)
+        gather!(arch, tp4, d4)
+        if me == 0
+            slx = ceil(Int, size(tp1, 1) / 2)
+            sly = ceil(Int, size(tp1, 2) / 2)
+            slz = ceil(Int, size(tp1, 3) / 2)
+            fig = Figure(; size=(1000, 500), fontsize=22)
+            axs = (ax1 = Axis(fig[1, 1]; aspect=DataAspect(), title="ns.ccc"),
+                   ax2 = Axis(fig[1, 2]; aspect=DataAspect(), title="na.ccc"),
+                   ax3 = Axis(fig[2, 1]; aspect=DataAspect(), title="Vm"),
+                   ax4 = Axis(fig[2, 2]; aspect=DataAspect(), title="Pr"))
+            plt = (p1  = heatmap!(axs.ax1, tp1[:, sly, :]; colormap=:turbo),
+                   p2  = heatmap!(axs.ax2, tp2[:, sly, :]; colormap=:turbo),
+                   p3  = heatmap!(axs.ax3, tp3[:, sly, :]; colormap=:turbo),
+                   p4  = heatmap!(axs.ax4, tp4[:, sly, :]; colormap=:turbo))
+            Colorbar(fig[1, 1][1, 2], plt.p1)
+            Colorbar(fig[1, 2][1, 2], plt.p2)
+            Colorbar(fig[2, 1][1, 2], plt.p3)
+            Colorbar(fig[2, 2][1, 2], plt.p4)
+            save("out_vis.png", fig)
+        end
     end
+    # if do_h5_save
+    #     h5names = String[]
+    #     fields = Dict("Pr" => model.stress.P, "Vm" => Vm, "wt_ns_c" => model.field_masks.ns.ccc, "wt_na_c" => model.field_masks.na.ccc)
+    #     outdir = "out_visu"
+    #     (me == 0) && mkpath(outdir)
+
+    #     set!(Vm, grid, (g, loc, ix, iy, iz, V) -> sqrt(lerp(V.x, loc, g, ix, iy, iz)^2 +
+    #                                                    lerp(V.y, loc, g, ix, iy, iz)^2 +
+    #                                                    lerp(V.z, loc, g, ix, iy, iz)^2); discrete=true, parameters=(model.velocity.V,))
+    #     KernelAbstractions.synchronize(backend)
+
+    #     out_h5 = "results.h5"
+    #     (me == 0) && @info "saving HDF5 file"
+    #     write_h5(arch, grid, joinpath(outdir, out_h5), fields)
+    #     push!(h5names, out_h5)
+
+    #     (me == 0) && @info "saving XDMF file"
+    #     (me == 0) && write_xdmf(arch, grid, joinpath(outdir, "results.xdmf3"), fields, h5names)
+    # end
     return
 end
 
-main(backend; res=(128, 128, 64) .- 2)
+# main(backend; res=(128, 128, 64) .- 2)
+main(backend; res=(32, 32, 32) .- 2)
 
 MPI.Finalize()

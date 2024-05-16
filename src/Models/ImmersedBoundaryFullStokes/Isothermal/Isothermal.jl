@@ -77,7 +77,7 @@ function IsothermalImmersedBoundaryFullStokesModel(; arch,
                    ns = FieldMask(arch, grid))
 
     if isnothing(outer_width)
-        outer_width = ntuple(_ -> 2, Val(ndims(grid)))
+        outer_width = ntuple(_ -> 4, Val(ndims(grid)))
     end
 
     launcher = Launcher(arch, grid; outer_width)

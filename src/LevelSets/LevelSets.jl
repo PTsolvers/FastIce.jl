@@ -5,6 +5,7 @@ export ω_from_ψ!
 
 using Chmy.Architectures
 using Chmy.BoundaryConditions
+using Chmy.Distributed
 using Chmy.Grids
 using Chmy.Fields
 using Chmy.GridOperators
