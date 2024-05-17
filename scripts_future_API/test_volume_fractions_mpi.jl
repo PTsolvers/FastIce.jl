@@ -172,25 +172,24 @@ function main(backend=CPU(); res)
             save("out_vis.png", fig)
         end
     end
-    # if do_h5_save
-    #     h5names = String[]
-    #     fields = Dict("Pr" => model.stress.P, "Vm" => Vm, "wt_ns_c" => model.field_masks.ns.ccc, "wt_na_c" => model.field_masks.na.ccc)
-    #     outdir = "out_visu"
-    #     (me == 0) && mkpath(outdir)
+    if do_h5_save
+        h5names = String[]
+        fields = Dict("Pr" => model.stress.P, "Vm" => Vm, "wt_ns_c" => model.field_masks.ns.ccc, "wt_na_c" => model.field_masks.na.ccc)
+        outdir = "out_visu"
+        (me == 0) && mkpath(outdir)
 
-    #     set!(Vm, grid, (g, loc, ix, iy, iz, V) -> sqrt(lerp(V.x, loc, g, ix, iy, iz)^2 +
-    #                                                    lerp(V.y, loc, g, ix, iy, iz)^2 +
-    #                                                    lerp(V.z, loc, g, ix, iy, iz)^2); discrete=true, parameters=(model.velocity.V,))
-    #     KernelAbstractions.synchronize(backend)
+        set!(Vm, grid, (g, loc, ix, iy, iz, V) -> sqrt(lerp(V.x, loc, g, ix, iy, iz)^2 +
+                                                       lerp(V.y, loc, g, ix, iy, iz)^2 +
+                                                       lerp(V.z, loc, g, ix, iy, iz)^2); discrete=true, parameters=(model.velocity.V,))
 
-    #     out_h5 = "results.h5"
-    #     (me == 0) && @info "saving HDF5 file"
-    #     write_h5(arch, grid, joinpath(outdir, out_h5), fields)
-    #     push!(h5names, out_h5)
+        out_h5 = "results.h5"
+        (me == 0) && @info "saving HDF5 file"
+        write_h5(arch, grid, joinpath(outdir, out_h5), fields)
+        push!(h5names, out_h5)
 
-    #     (me == 0) && @info "saving XDMF file"
-    #     (me == 0) && write_xdmf(arch, grid, joinpath(outdir, "results.xdmf3"), fields, h5names)
-    # end
+        (me == 0) && @info "saving XDMF file"
+        (me == 0) && write_xdmf(arch, grid, joinpath(outdir, "results.xdmf3"), fields, h5names)
+    end
     return
 end
 
