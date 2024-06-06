@@ -14,7 +14,6 @@ LightXML = "9c8b4983-aa76-5018-a973-4c85ecc9e179"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
-Preferences = "21216c6a-2e73-6563-6e65-726566657250"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
@@ -25,4 +24,3 @@ HDF5 = "0.16, 0.17"
 KernelAbstractions = "0.9"
 LightXML = "0.9"
 MPI = "0.20"
-Preferences = "1"
