@@ -114,11 +114,16 @@ function BoundaryConditions.batch(side, dim::Dim{D}, grid::StructuredGrid{N}, ve
     return batch(side, dim, grid, fields, bcs; kwargs...)
 end
 
-BoundaryConditions.batch(side, dim, grid, ::StressField, ::BoundaryCondition{Velocity}; kwargs...)   = EmptyBatch()
-BoundaryConditions.batch(side, dim, grid, ::VelocityField, ::BoundaryCondition{Traction}; kwargs...) = EmptyBatch()
+function BoundaryConditions.batch(side, dim, grid, ::StressField, ::BoundaryCondition{Velocity}; kwargs...)
+    return batch(side, dim, grid, (), (); kwargs...)
+end
+
+function BoundaryConditions.batch(side, dim, grid, ::VelocityField, ::BoundaryCondition{Traction}; kwargs...)
+    return batch(side, dim, grid, (), (); kwargs...)
+end
 
 function BoundaryConditions.batch(side, dim::Dim, grid, residual::ResidualField, ::BoundaryCondition{Traction}; kwargs...)
-    return EmptyBatch()
+    return batch(side, dim, grid, (), (); kwargs...)
 end
 
 function BoundaryConditions.batch(side, dim::Dim{D}, grid, residual::ResidualField, ::BoundaryCondition; kwargs...) where {D}

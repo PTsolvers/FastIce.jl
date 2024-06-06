@@ -67,17 +67,3 @@ function make_field_boundary_conditions(bcs)
 
     return NamedTuple{(:value, :flux)}(zip(field_bcs...))
 end
-
-function _apply_bcs!(backend, grid, fields, bcs)
-    field_map = (T = fields.T,
-             qx = fields.q.x ,  qy = fields.q.y ,  qz = fields.q.z)
-
-    ntuple(Val(length(bcs))) do D
-        if !isnothing(bcs[D])
-            fs = Tuple( field_map[f] for f in eachindex(bcs[D]) )
-            apply_bcs!(Val(D), backend, grid, fs, values(bcs[D]))
-        end
-    end
-
-    return
-end

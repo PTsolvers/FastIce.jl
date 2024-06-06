@@ -1,12 +1,6 @@
 using FastIce
-using FastIce.Architectures
-using FastIce.Grids
-using FastIce.Fields
-using FastIce.Utils
-using FastIce.BoundaryConditions
 using FastIce.Models.FullStokes.Isothermal
 using FastIce.Physics
-using FastIce.KernelLaunch
 using FastIce.Writers
 using FastIce.Logging
 
@@ -18,78 +12,58 @@ using LinearAlgebra, Printf
 using KernelAbstractions
 # using AMDGPU
 
-using FastIce.Distributed
-using MPI
 using Logging
+using MPI
+MPI.Init()
 
 using CairoMakie
 
 norm_g(A) = (sum2_l = sum(interior(A) .^ 2); sqrt(MPI.Allreduce(sum2_l, MPI.SUM, MPI.COMM_WORLD)))
 max_abs_g(A) = (max_l = maximum(abs.(interior(A))); MPI.Allreduce(max_l, MPI.MAX, MPI.COMM_WORLD))
 
-@views avx(A) = 0.5 .* (A[1:end-1, :, :] .+ A[2:end, :, :])
-@views avy(A) = 0.5 .* (A[:, 1:end-1, :] .+ A[:, 2:end, :])
-@views avz(A) = 0.5 .* (A[:, :, 1:end-1] .+ A[:, :, 2:end])
+function main(backend=CPU(); dims_l=(126, 126, 126), do_visu=false, do_save=false, do_h5_save=false)
+    arch = Arch(backend, MPI.COMM_WORLD, (0, 0, 0))
+    topo = topology(arch)
+    me   = global_rank(topo)
+    # geometry
+    lx, ly, lz = 2.0, 2.0, 2.0
+    # mechanics
+    η = 1.0e1 # solid viscosity
+    G = 1.0e0 # shear modulus
+    # gravity
+    # gravity force density
+    ρg = (x=0.0, y=0.0, z=1.0)
+    # scales
+    psc = ρg.z * lz
+    τsc = η / psc
+    # numerics
+    dims_g = dims_l .* dims(topo)
+    grid   = UniformGrid(arch; origin=(-lx / 2, -ly / 2, -lz / 2), extent=(lx, ly, lz), dims=dims_g)
+    launch = Launcher(arch, grid; outer_width=(4, 4, 4))
 
-@views av_xy(A) = 0.25 .* (A[1:end-1, 1:end-1, :] .+ A[2:end, 1:end-1, :] .+ A[2:end, 2:end, :] .+ A[1:end-1, 2:end, :])
-@views av_xz(A) = 0.25 .* (A[1:end-1, :, 1:end-1] .+ A[2:end, :, 1:end-1, :] .+ A[2:end, :, 2:end, :] .+ A[1:end-1, :, 2:end])
-@views av_yz(A) = 0.25 .* (A[:, 1:end-1, 1:end-1] .+ A[:, 2:end, 1:end-1] .+ A[:, 2:end, 2:end] .+ A[:, 1:end-1, 2:end])
+    (me == 0) && FastIce.greet_fast(; bold=true, color=:blue)
 
-function main(; do_visu=false, do_save=false, do_h5_save=false)
-    MPI.Init()
-
-    backend = CPU()
-    # dims = (4, 2, 2)
-    # dims = (4, 2, 2)
-    dims = (0, 0, 0)
-    topo = CartesianTopology(dims)
-    arch = Architecture(backend, topo)
-    set_device!(arch)
-
-    comm = cartesian_communicator(topo)
-    me = global_rank(topo) # rank
-
-    size_l = (14, 14, 14)
-    size_g = global_grid_size(topo, size_l)
-
-    outer_width = (4, 4, 4) #(128, 32, 4)#
-
-    grid_g = CartesianGrid(; origin=(-2.0, -1.0, 0.0),
-                           extent=(4.0, 2.0, 2.0),
-                           size=size_g)
-
-    grid_l = local_grid(grid_g, topo)
-
-    # global_logger(FastIce.Logging.MPILogger(0, comm, global_logger()))
-
-    if me == 0
-        FastIce.greet_fast(bold=true, color=:blue)
-        printstyled(grid_g; bold=true)
-    end
-
-    no_slip      = VBC(0.0, 0.0, 0.0)
-    free_slip    = SBC(0.0, 0.0, 0.0)
-    free_surface = TBC(0.0, 0.0, 0.0)
+    free_slip = SBC(0.0, 0.0, 0.0)
 
     boundary_conditions = (x=(free_slip, free_slip),
                            y=(free_slip, free_slip),
-                           z=(no_slip, free_surface))
+                           z=(free_slip, free_slip))
 
-    ρgx(x, y, z) = 0.25
-    ρgy(x, y, z) = 0.0
-    ρgz(x, y, z) = 1.0
-    gravity = (x=FunctionField(ρgx, grid_l, (Vertex(), Center(), Center())),
-               y=FunctionField(ρgy, grid_l, (Center(), Vertex(), Center())),
-               z=FunctionField(ρgz, grid_l, (Center(), Center(), Vertex())))
+    init_incl(x, y, z, x0, y0, z0, r, in, out) = ifelse((x - x0)^2 + (y - y0)^2 + (z - z0)^2 < r^2, in, out)
+    ρgz = FunctionField(init_incl, grid, (Center(), Center(), Vertex()); parameters=(x0=0.0, y0=0.0, z0=0.0, r=0.1lx, in=ρg.z, out=0.0))
+
+    gravity = (x=ZeroField{Float64}(),
+               y=ZeroField{Float64}(),
+               z=FunctionField(ρgz, grid, (Center(), Center(), Vertex())))
 
     # numerics
-    niter  = 20maximum(size(grid_g))
-    ncheck = 4maximum(size(grid_g))
+    niter  = 20maximum(size(grid, Center()))
+    ncheck = 4maximum(size(grid, Center()))
 
     r       = 0.7
     re_mech = 4π
-    lτ_re_m = minimum(extent(grid_g)) / re_mech
-    vdτ     = minimum(spacing(grid_g)) / sqrt(ndims(grid_g) * 1.5)
+    lτ_re_m = minimum(extent(grid, Vertex())) / re_mech
+    vdτ     = minimum(spacing(grid)) / sqrt(ndims(grid) * 1.5)
     θ_dτ    = lτ_re_m * (r + 4 / 3) / vdτ
     dτ_r    = 1.0 / (θ_dτ + 1.0)
     nudτ    = vdτ * lτ_re_m
@@ -206,16 +180,6 @@ function main(; do_visu=false, do_save=false, do_h5_save=false)
         Teff_min = 23 * 8 * prod(size(grid_l)) / ttot_max
         Teff_max = 23 * 8 * prod(size(grid_l)) / ttot_min
         printstyled("Performance: T_eff [min max] = $(round(Teff_min, sigdigits=4)) $(round(Teff_max, sigdigits=4)) \n"; bold=true, color=:green)
-    end
-
-    if do_h5_save
-        out_h5 = "results.h5"
-        (me == 0) && @info "saving HDF5 file"
-        write_h5(arch, grid_g, joinpath(outdir, out_h5), fields)
-        push!(h5names, out_h5)
-
-        (me == 0) && @info "saving XDMF file"
-        (me == 0) && write_xdmf(arch, grid_g, joinpath(outdir, "results.xdmf3"), fields, h5names)
     end
 
     if do_h5_save

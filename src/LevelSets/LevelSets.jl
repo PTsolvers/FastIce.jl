@@ -1,15 +1,22 @@
 module LevelSets
 
-export compute_level_set_from_dem!
+export compute_levelset_from_dem!, invert_levelset!
+export ω_from_ψ!
 
-using FastIce
-using FastIce.Grids
-using FastIce.Architectures
-using FastIce.Fields
+using Chmy.Architectures
+using Chmy.BoundaryConditions
+using Chmy.Distributed
+using Chmy.Grids
+using Chmy.Fields
+using Chmy.GridOperators
+using Chmy.KernelLaunch
+
 using KernelAbstractions
 using LinearAlgebra, GeometryBasics
 
 include("signed_distances.jl")
-include("compute_level_sets.jl")
+include("compute_levelsets.jl")
+include("volume_fractions.jl")
+include("volume_fractions_kernels.jl")
 
 end
