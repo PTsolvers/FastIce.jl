@@ -1,7 +1,7 @@
 name = "FastIce"
 uuid = "e0de9f13-a007-490e-b696-b07d031015ca"
 authors = ["Ludovic Raess <ludovic.rass@gmail.com>, Ivan Utkin <utkin@hey.com>, Samuel Omlin <samuel.omlin@cscs.ch> and contributors"]
-version = "0.3.1"
+version = "0.3.2"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
