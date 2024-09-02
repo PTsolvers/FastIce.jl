@@ -30,7 +30,7 @@ end
 
 function main(backend=CPU(); res)
 
-    # 3D distributed§
+    # 3D distributed
     arch    = Arch(backend, MPI.COMM_WORLD, (0, 0, 0))
     topo    = topology(arch)
     me      = global_rank(topo)
