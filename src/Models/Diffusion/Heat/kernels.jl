@@ -1,7 +1,5 @@
 using KernelAbstractions
 
-using FastIce.GridOperators
-
 @kernel function update_q!(q, T, λ_ρCp, Δτ, Δ)
     I = @index(Global, Cartesian)
     @inbounds if checkbounds(Bool, q.x, I)
