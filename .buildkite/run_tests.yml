@@ -1,4 +1,3 @@
-# DEBUG: until registered, Chmy.jl needs to be explicitly added in "command:" steps
 steps:
   - label: "CUDA Julia {{matrix.version}}"
     matrix:
@@ -6,6 +5,7 @@ steps:
         version:
           - "1.9"
           - "1.10"
+          - "1.11"
     plugins:
       - JuliaCI/julia#v1:
           version: "{{matrix.version}}"
@@ -14,7 +14,6 @@ steps:
     command: |
       julia -e 'println("--- :julia: Instantiating project")
                 using Pkg
-                Pkg.add(url="https://github.com/PTsolvers/Chmy.jl")
                 Pkg.develop(; path=pwd())' || exit 3
 
       julia -e 'println("+++ :julia: Running tests")
@@ -32,6 +31,7 @@ steps:
       setup:
         version:
           - "1.10"
+          - "1.11"
     plugins:
       - JuliaCI/julia#v1:
           version: "{{matrix.version}}"
@@ -40,7 +40,6 @@ steps:
     command: |
       julia -e 'println("--- :julia: Instantiating project")
                 using Pkg
-                Pkg.add(url="https://github.com/PTsolvers/Chmy.jl")
                 Pkg.develop(; path=pwd())' || exit 3
 
       julia -e 'println("+++ :julia: Running tests")
@@ -49,7 +48,7 @@ steps:
     agents:
       queue: "juliagpu"
       rocm: "*"
-      rocmgpu: "*" #"gfx1101" # select Ludovic's Navi 3 card (ROCm 6.0)
+      rocmgpu: "*"
     timeout_in_minutes: 120
     soft_fail:
       - exit_status: 3
