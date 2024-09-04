@@ -19,6 +19,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
 Adapt = "4"
+Chmy = "0.1"
 ElasticArrays = "1"
 GeometryBasics = "0.4"
 HDF5 = "0.16, 0.17"
