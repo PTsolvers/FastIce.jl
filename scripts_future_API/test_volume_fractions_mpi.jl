@@ -1,5 +1,7 @@
 using Chmy, Chmy.Architectures, Chmy.Grids, Chmy.GridOperators, Chmy.Fields, Chmy.KernelLaunch, Chmy.BoundaryConditions
 using KernelAbstractions
+using Printf
+using LinearAlgebra
 
 using FastIce
 using FastIce.LevelSets
@@ -11,13 +13,11 @@ using FastIce.Writers
 # using GLMakie
 using CairoMakie
 
-backend = CPU()
-
 # using AMDGPU
 # backend = ROCBackend()
 
-using Printf
-using LinearAlgebra
+# using CUDA
+# backend = CUDABackend()
 
 using Chmy.Distributed
 using MPI
@@ -29,7 +29,6 @@ function max_mpi(A)
 end
 
 function main(backend=CPU(); res)
-
     # 3D distributed
     arch    = Arch(backend, MPI.COMM_WORLD, (0, 0, 0))
     topo    = topology(arch)

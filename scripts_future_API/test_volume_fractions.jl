@@ -1,5 +1,7 @@
 using Chmy, Chmy.Architectures, Chmy.Grids, Chmy.GridOperators, Chmy.Fields, Chmy.KernelLaunch, Chmy.BoundaryConditions
 using KernelAbstractions
+using Printf
+using LinearAlgebra
 
 using FastIce
 using FastIce.LevelSets
@@ -8,18 +10,22 @@ using FastIce.Models.ImmersedBoundaryFullStokes.Isothermal
 
 using FastIce.Writers
 
-# using CUDA
 # using GLMakie
 using CairoMakie
 
-using Printf
-using LinearAlgebra
+# using AMDGPU
+# backend = ROCBackend()
 
-function main(backend; res)
+# using CUDA
+# backend = CUDABackend()
+
+function main(backend=CPU(); res)
     arch = Arch(backend)
     grid = UniformGrid(arch; origin=(-1, -1, 0), extent=(2, 2, 1), dims=res)
 
-    grid_2D = UniformGrid(arch; origin=(-1, -1), extent=(2, 2), dims=(100, 100))
+    # 2D single device
+    arch_2D = SingleDeviceArchitecture(arch)
+    grid_2D = UniformGrid(arch_2D; origin=(-1, -1), extent=(2, 2), dims=(100, 100))
 
     # bed parameters
     amp    = 0.05
@@ -45,13 +51,6 @@ function main(backend; res)
     ψ = (ns=Field(arch, grid, Vertex()),
          na=Field(arch, grid, Vertex()))
 
-    launch = Launcher(arch, grid)
-
-    compute_levelset_from_dem!(arch, launch, ψ.na, ice, grid_2D, grid)
-    compute_levelset_from_dem!(arch, launch, ψ.ns, bed, grid_2D, grid)
-
-    invert_levelset!(arch, launch, ψ.ns, grid)
-
     free_slip = BoundaryCondition{Traction}(0.0, 0.0, 0.0)
 
     boundary_conditions = (x=(free_slip, free_slip),
@@ -66,7 +65,7 @@ function main(backend; res)
     niter   = 25maximum(size(grid, Center()))
     ncheck  = 5maximum(size(grid, Center()))
     do_visu = true
-    do_h5_save = true
+    do_save = true
 
     r       = 0.9
     re_mech = 5π
@@ -90,46 +89,22 @@ function main(backend; res)
                                                       level_sets=ψ)
 
     # init
-    ω_from_ψ!(arch, launch, model.field_masks.ns, ψ.ns, grid)
-    ω_from_ψ!(arch, launch, model.field_masks.na, ψ.na, grid)
+    ω_from_ψ!(arch, model.launcher, model.field_masks.ns, ψ.ns, grid)
+    ω_from_ψ!(arch, model.launcher, model.field_masks.na, ψ.na, grid)
+
+    compute_levelset_from_dem!(arch, model.launcher, ψ.na, ice, grid_2D, grid)
+    compute_levelset_from_dem!(arch, model.launcher, ψ.ns, bed, grid_2D, grid)
+
+    invert_levelset!(arch, model.launcher, ψ.ns, grid)
+
+    ω_from_ψ!(arch, model.launcher, model.field_masks.ns, ψ.ns, grid) # exchange_halo in ω_from_ψ! wrapper for DistributedArch
+    ω_from_ψ!(arch, model.launcher, model.field_masks.na, ψ.na, grid)
 
     set!(model.viscosity.η, rheology.η)
     set!(model.viscosity.η_next, rheology.η)
 
     bc!(arch, grid, model.viscosity.η => Neumann())
     bc!(arch, grid, model.viscosity.η_next => Neumann())
-
-    nx, ny, nz = size(grid, Center())
-
-    iy_sl = ny ÷ 2
-
-    Vm = Field(arch, grid, Center())
-    set!(Vm, grid, (g, loc, ix, iy, iz, V) -> sqrt(lerp(V.x, loc, g, ix, iy, iz)^2 +
-                                                   lerp(V.y, loc, g, ix, iy, iz)^2 +
-                                                   lerp(V.z, loc, g, ix, iy, iz)^2); discrete=true, parameters=(model.velocity.V,))
-
-    fig = Figure(; size=(800, 400))
-    axs = (Pr  = Axis(fig[1, 1][1, 1]; aspect=DataAspect(), ylabel="z", title="Pr"),
-           Vm  = Axis(fig[1, 2][1, 1]; aspect=DataAspect(), title="|V|"),
-           ωna = Axis(fig[2, 1][1, 1]; aspect=DataAspect(), xlabel="x"),
-           ωns = Axis(fig[2, 2][1, 1]; aspect=DataAspect(), xlabel="x"))
-    plt = (Pr  = heatmap!(axs.Pr, xcenters(grid), zcenters(grid), Array(interior(model.stress.P)[:, iy_sl, :]); colormap=:turbo),
-           Vm  = heatmap!(axs.Vm, xcenters(grid), zcenters(grid), Array(interior(Vm)[:, iy_sl, :]); colormap=:turbo),
-           ωna = heatmap!(axs.ωna, xcenters(grid), zcenters(grid), Array(interior(model.field_masks.na.ccc)[:, iy_sl, :]); colormap=:turbo),
-           ωns = heatmap!(axs.ωns, xcenters(grid), zcenters(grid), Array(interior(model.field_masks.ns.ccc)[:, iy_sl, :]); colormap=:turbo))
-    Colorbar(fig[1, 1][1, 2], plt.Pr)
-    Colorbar(fig[1, 2][1, 2], plt.Vm)
-    Colorbar(fig[2, 1][1, 2], plt.ωna)
-    Colorbar(fig[2, 2][1, 2], plt.ωns)
-
-    display(fig)
-
-    if do_h5_save
-        h5names = String[]
-        fields = Dict("Pr" => model.stress.P, "Vm" => Vm, "wt_ns_c" => model.field_masks.ns.ccc, "wt_na_c" => model.field_masks.na.ccc)
-        outdir = "out_visu"
-        mkpath(outdir)
-    end
 
     iter = 1
     for iter in 1:niter
@@ -143,21 +118,38 @@ function main(backend; res)
             if any(.!isfinite.(values(err)))
                 error("simulation failed, err = $err")
             end
-            iter_nx = iter / max(nx, ny, nz)
+            iter_nx = iter / maximum(size(grid, Center()))
             @printf("  iter/nx = %.1f, err = [Pr = %1.3e, Vx = %1.3e, Vy = %1.3e, Vz = %1.3e]\n", iter_nx, err...)
         end
     end
     if do_visu
+        Vm = Field(arch, grid, Center())
         set!(Vm, grid, (g, loc, ix, iy, iz, V) -> sqrt(lerp(V.x, loc, g, ix, iy, iz)^2 +
                                                        lerp(V.y, loc, g, ix, iy, iz)^2 +
                                                        lerp(V.z, loc, g, ix, iy, iz)^2); discrete=true, parameters=(model.velocity.V,))
 
-        plt.Pr[3][] = interior(model.stress.P)[:, iy_sl, :]
-        plt.Vm[3][] = interior(Vm)[:, iy_sl, :]
-        yield()
+        sly = size(grid, Center())[2] ÷ 2
+        fig = Figure(; size=(800, 400))
+        axs = (ax1 = Axis(fig[1, 1]; aspect=DataAspect(), title="ns.ccc"),
+               ax2 = Axis(fig[1, 2]; aspect=DataAspect(), title="na.ccc"),
+               ax3 = Axis(fig[2, 1]; aspect=DataAspect(), title="Vm"),
+               ax4 = Axis(fig[2, 2]; aspect=DataAspect(), title="Pr"))
+        plt = (p1 = heatmap!(axs.ax1, xcenters(grid), zcenters(grid), Array(interior(model.field_masks.ns.ccc)[:, sly, :]); colormap=:turbo),
+               p2 = heatmap!(axs.ax2, xcenters(grid), zcenters(grid), Array(interior(model.field_masks.na.ccc)[:, sly, :]); colormap=:turbo),
+               p3 = heatmap!(axs.ax3, xcenters(grid), zcenters(grid), Array(interior(Vm)[:, sly, :]); colormap=:turbo),
+               p4 = heatmap!(axs.ax4, xcenters(grid), zcenters(grid), Array(interior(model.stress.P)[:, sly, :]); colormap=:turbo))
+        Colorbar(fig[1, 1][1, 2], plt.p1)
+        Colorbar(fig[1, 2][1, 2], plt.p2)
+        Colorbar(fig[2, 1][1, 2], plt.p3)
+        Colorbar(fig[2, 2][1, 2], plt.p4)
         display(fig)
     end
-    if do_h5_save
+    if do_save
+        h5names = String[]
+        fields = Dict("Pr" => model.stress.P, "Vm" => Vm, "wt_ns_c" => model.field_masks.ns.ccc, "wt_na_c" => model.field_masks.na.ccc)
+        outdir = "out_visu"
+        mkpath(outdir)
+
         set!(Vm, grid, (g, loc, ix, iy, iz, V) -> sqrt(lerp(V.x, loc, g, ix, iy, iz)^2 +
                                                        lerp(V.y, loc, g, ix, iy, iz)^2 +
                                                        lerp(V.z, loc, g, ix, iy, iz)^2); discrete=true, parameters=(model.velocity.V,))
@@ -172,4 +164,4 @@ function main(backend; res)
     return
 end
 
-main(CPU(); res=(128, 128, 64) .- 2)
+main(backend; res=(128, 128, 64) .- 2)
