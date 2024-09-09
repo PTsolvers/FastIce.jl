@@ -1,14 +1,13 @@
 using Chmy, Chmy.Architectures, Chmy.Grids, Chmy.GridOperators, Chmy.Fields, Chmy.KernelLaunch, Chmy.BoundaryConditions
 using KernelAbstractions
-using Printf
-using LinearAlgebra
+using Printf, LinearAlgebra
 
 using FastIce
 using FastIce.LevelSets
 using FastIce.Physics
-using FastIce.Models.ImmersedBoundaryFullStokes.Isothermal
-
 using FastIce.Writers
+
+using FastIce.Models.ImmersedBoundaryFullStokes.Isothermal
 
 # using GLMakie
 using CairoMakie
@@ -19,7 +18,9 @@ using CairoMakie
 # using CUDA
 # backend = CUDABackend()
 
-function main(backend=CPU(); res)
+backend = CPU()
+
+function main(backend; res)
     arch = Arch(backend)
     grid = UniformGrid(arch; origin=(-1, -1, 0), extent=(2, 2, 1), dims=res)
 
@@ -86,12 +87,10 @@ function main(backend=CPU(); res)
                                                       gravity,
                                                       rheology,
                                                       solver_params,
-                                                      level_sets=ψ)
+                                                      level_sets=ψ,
+                                                      outer_width=(16, 8, 4))
 
     # init
-    ω_from_ψ!(arch, model.launcher, model.field_masks.ns, ψ.ns, grid)
-    ω_from_ψ!(arch, model.launcher, model.field_masks.na, ψ.na, grid)
-
     compute_levelset_from_dem!(arch, model.launcher, ψ.na, ice, grid_2D, grid)
     compute_levelset_from_dem!(arch, model.launcher, ψ.ns, bed, grid_2D, grid)
 

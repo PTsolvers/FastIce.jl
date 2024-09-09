@@ -1,14 +1,13 @@
 using Chmy, Chmy.Architectures, Chmy.Grids, Chmy.GridOperators, Chmy.Fields, Chmy.KernelLaunch, Chmy.BoundaryConditions
 using KernelAbstractions
-using Printf
-using LinearAlgebra
+using Printf, LinearAlgebra
 
 using FastIce
 using FastIce.LevelSets
 using FastIce.Physics
-using FastIce.Models.ImmersedBoundaryFullStokes.Isothermal
-
 using FastIce.Writers
+
+using FastIce.Models.ImmersedBoundaryFullStokes.Isothermal
 
 # using GLMakie
 using CairoMakie
@@ -19,6 +18,8 @@ using CairoMakie
 # using CUDA
 # backend = CUDABackend()
 
+backend = CPU()
+
 using Chmy.Distributed
 using MPI
 MPI.Init()
@@ -28,7 +29,7 @@ function max_mpi(A)
     return MPI.Allreduce(max_l, MPI.MAX, MPI.COMM_WORLD)
 end
 
-function main(backend=CPU(); res)
+function main(backend; res)
     # 3D distributed
     arch    = Arch(backend, MPI.COMM_WORLD, (0, 0, 0))
     topo    = topology(arch)
@@ -79,7 +80,7 @@ function main(backend=CPU(); res)
     niter   = 25maximum(size(grid, Center()))
     ncheck  = 5maximum(size(grid, Center()))
     do_visu = true
-    do_h5_save = false
+    do_save = false
 
     r       = 0.9
     re_mech = 5π
@@ -100,7 +101,8 @@ function main(backend=CPU(); res)
                                                       gravity,
                                                       rheology,
                                                       solver_params,
-                                                      level_sets=ψ)
+                                                      level_sets=ψ,
+                                                      outer_width=(16, 8, 4))
 
     # init
     compute_levelset_from_dem!(arch, model.launcher, ψ.na, ice, grid_2D, grid)
@@ -171,7 +173,7 @@ function main(backend=CPU(); res)
             save("out_vis.png", fig)
         end
     end
-    if do_h5_save
+    if do_save
         h5names = String[]
         fields = Dict("Pr" => model.stress.P, "Vm" => Vm, "wt_ns_c" => model.field_masks.ns.ccc, "wt_na_c" => model.field_masks.na.ccc)
         outdir = "out_visu"
@@ -192,7 +194,6 @@ function main(backend=CPU(); res)
     return
 end
 
-# main(backend; res=(128, 128, 64) .- 2)
-main(backend; res=(32, 32, 32) .- 2)
+main(backend; res=(64, 64, 32) .- 2)
 
 MPI.Finalize()
