@@ -1,4 +1,4 @@
-@kernel inbounds = true function init_levelset!(Ψ::Field, dem::AbstractField, dem_grid::UniformGrid, Ψ_grid::UniformGrid, cutoff, R, O)
+@kernel inbounds = true function init_levelset!(Ψ::Field, dem::AbstractField, dem_grid::UniformGrid, Ψ_grid::UniformGrid, cutoff, R, O=Offset())
     I = @index(Global, NTuple)
     I = I + O
     x, y, z = coord(Ψ_grid, location(Ψ), I...)
@@ -7,7 +7,7 @@
     Ψ[I...] = ud * sgn
 end
 
-@kernel inbounds = true function invert_levelset!(Ψ::Field, O)
+@kernel inbounds = true function _invert_levelset!(Ψ::Field, O=Offset())
     I = @index(Global, NTuple)
     I = I + O
     Ψ[I...] = -Ψ[I...]
@@ -30,6 +30,6 @@ end
 Invert level set `Ψ` to set what's below the surface as "inside".
 """
 function invert_levelset!(arch::Architecture, launch, Ψ::Field, grid::UniformGrid)
-    launch(arch, grid, invert_levelset! => (Ψ,); bc=batch(grid, Ψ => Neumann(); exchange=Ψ))
+    launch(arch, grid, _invert_levelset! => (Ψ,); bc=batch(grid, Ψ => Neumann(); exchange=Ψ))
     return
 end
